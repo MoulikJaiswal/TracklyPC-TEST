@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { 
@@ -21,7 +22,7 @@ import {
   ArrowRight,
   Crown,
   Wifi,
-  User as UserIcon,
+  Menu,
   HardDrive
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts } from './types';
@@ -33,6 +34,11 @@ import { PerformanceToast } from './components/PerformanceToast';
 import { ProUpgradeModal } from './components/ProUpgradeModal';
 import { SmartRecommendationToast } from './components/SmartRecommendationToast';
 
+// Firebase Imports
+import { auth, db, googleProvider } from './firebase';
+import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData } from 'firebase/firestore';
+
 // Lazy Load Components
 const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
 const FocusTimer = lazy(() => import('./components/FocusTimer').then(module => ({ default: module.FocusTimer })));
@@ -40,6 +46,7 @@ const Planner = lazy(() => import('./components/Planner').then(module => ({ defa
 const TestLog = lazy(() => import('./components/TestLog').then(module => ({ default: module.TestLog })));
 const Analytics = lazy(() => import('./components/Analytics').then(module => ({ default: module.Analytics })));
 const Resources = lazy(() => import('./components/Resources').then(module => ({ default: module.Resources })));
+
 
 // UUID Generator
 const generateUUID = () => {
@@ -183,7 +190,28 @@ const AnimatedBackground = React.memo(({
                 isBright
             });
         }
+        midnightItems.push({
+            id: 'shooting-star-1',
+            top: '20%',
+            left: '10%',
+            size: 1, 
+            shape: 'shooting-star',
+            parallaxFactor: 0.02
+        });
         return midnightItems;
+    }
+
+    if (themeId === 'forest') {
+        return [
+            { id: 1, top: '-10%', left: '-10%', size: 45, shape: 'leaf', depth: 1, rotation: 135, opacity: 0.03 },
+            { id: 2, top: '50%', left: '90%', size: 35, shape: 'leaf', depth: 1, rotation: 45, opacity: 0.03 },
+            { id: 3, top: '85%', left: '5%', size: 25, shape: 'leaf', depth: 2, rotation: -25, opacity: 0.05 },
+        ].map(item => ({
+            ...item,
+            parallaxFactor: item.depth * 0.005, 
+            duration: 0, 
+            delay: 0
+        }));
     }
 
     return [
@@ -226,10 +254,41 @@ const AnimatedBackground = React.memo(({
       {customBackground && <div className="absolute inset-0 z-[0] bg-black/40 dark:bg-black/60" />}
       
       {!customBackground && themeId === 'midnight' && (
+        <>
+            <div 
+                className="absolute inset-0 z-[1] transform-gpu" 
+                style={{ 
+                    background: `linear-gradient(to bottom, #000000 0%, #050505 60%, #0f172a 100%)`
+                }} 
+            />
+            <div 
+                className="absolute bottom-[-10%] left-[-10%] right-[-10%] h-[40%] z-[1] opacity-30 transform-gpu"
+                style={{
+                    background: 'radial-gradient(ellipse at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
+                    opacity: 0.2
+                }}
+            />
+        </>
+      )}
+
+      {!customBackground && themeId === 'forest' && (
+        <div 
+            className="absolute inset-0 z-[1] opacity-60 transform-gpu" 
+            style={{ 
+                background: `radial-gradient(circle at 50% 120%, #3f6212 0%, transparent 60%), radial-gradient(circle at 50% -20%, #1a2e22 0%, transparent 60%)`
+            }} 
+        />
+      )}
+
+      {!customBackground && themeId === 'obsidian' && (
         <div 
             className="absolute inset-0 z-[1] transform-gpu" 
             style={{ 
-                background: `linear-gradient(to bottom, #000000 0%, #050505 60%, #0f172a 100%)`
+                background: `
+                    radial-gradient(circle at 50% -10%, #0f172a 0%, #020617 45%, #000000 100%),
+                    radial-gradient(circle at 85% 25%, rgba(6, 182, 212, 0.05) 0%, transparent 50%),
+                    radial-gradient(circle at 15% 75%, rgba(8, 145, 178, 0.05) 0%, transparent 45%)
+                `
             }} 
         />
       )}
@@ -246,6 +305,19 @@ const AnimatedBackground = React.memo(({
                 <div 
                     className="w-full h-full rounded-full animate-aurora-1"
                     style={{ background: `radial-gradient(circle, ${config.colors.accent} 0%, transparent 70%)` }}
+                />
+            </div>
+            
+            <div 
+               className="absolute bottom-[-45%] right-[-10%] w-[60vw] h-[60vw] mix-blend-screen dark:mix-blend-screen will-change-transform"
+               style={{ 
+                   transform: `translate3d(calc(var(--off-x) * 0.08 * 1px), calc(var(--off-y) * 0.08 * 1px), 0)`,
+                   filter: 'blur(40px)'
+               }} 
+            >
+                 <div 
+                    className="w-full h-full rounded-full animate-aurora-2"
+                    style={{ background: `radial-gradient(circle, ${config.colors.accentGlow} 0%, transparent 70%)` }}
                 />
             </div>
         </div>
@@ -267,7 +339,10 @@ const AnimatedBackground = React.memo(({
                     }}
                 >
                     <div 
-                        className={`flex items-center justify-center ${!['forest', 'midnight'].includes(themeId) ? 'animate-float-gentle' : ''}`}
+                        className={`flex items-center justify-center ${
+                        themeId === 'obsidian' ? 'animate-obsidian-float' : 
+                        !['forest', 'midnight'].includes(themeId) ? 'animate-float-gentle' : ''
+                        }`}
                         style={{
                             width: (item as any).width || `${item.size}rem`,
                             height: (item as any).height || `${item.size}rem`,
@@ -280,8 +355,22 @@ const AnimatedBackground = React.memo(({
                             willChange: 'transform'
                         }}
                     >
+                        {item.shape === 'leaf' && (
+                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
+                                <path d="M12 2C12 2 20 8 20 16C20 20.4 16.4 24 12 24C7.6 24 4 20.4 4 16C4 8 12 2 12 2Z" fill="currentColor" />
+                            </svg>
+                        )}
+                        {item.shape === 'star-point' && <div className="w-full h-full rounded-full bg-white" />}
+                        {item.shape === 'shooting-star' && <div className="w-[100px] h-[2px] bg-gradient-to-r from-transparent via-indigo-200 to-transparent rotate-[-35deg] opacity-20" />}
                         {item.shape === 'circle' && <div className="w-full h-full rounded-full bg-current" style={{ opacity: themeId === 'midnight' ? 1 : 0.4 }} />}
                         {item.shape === 'ring' && <div className="w-full h-full rounded-full border-[3px] border-current opacity-50" />}
+                        {item.shape === 'squircle' && <div className="w-full h-full rounded-[2rem] border-[3px] border-current opacity-40" />}
+                        {item.shape === 'triangle' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full opacity-40"><path d="M12 2L2 22h20L12 2z" /></svg>}
+                        {item.shape === 'grid' && (
+                            <div className="w-full h-full grid grid-cols-3 gap-2 opacity-40 p-1">
+                                {[...Array(9)].map((_, k) => <div key={k} className="bg-current rounded-full w-full h-full" />)}
+                            </div>
+                        )}
                     </div>
                 </div>
             ))}
@@ -324,6 +413,9 @@ const Sidebar = React.memo(({
     onOpenSettings, 
     isCollapsed, 
     toggleCollapsed,
+    user,
+    isGuest,
+    onLogin,
     onLogout,
     isInstalled,
     onInstall,
@@ -336,6 +428,9 @@ const Sidebar = React.memo(({
     onOpenSettings: () => void,
     isCollapsed: boolean,
     toggleCollapsed: () => void,
+    user: User | null,
+    isGuest: boolean,
+    onLogin: () => void,
     onLogout: () => void,
     isInstalled: boolean,
     onInstall: () => void,
@@ -394,20 +489,70 @@ const Sidebar = React.memo(({
         })}
       </nav>
 
-      <div className={`px-4 py-2 ${isCollapsed ? 'hidden' : 'block'}`}>
-          <div className="flex items-center gap-3 p-3 bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
-              <HardDrive size={16} className="text-slate-500" />
-              <div className="flex-1 overflow-hidden">
-                  <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Local Storage</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{userName}</p>
-              </div>
-              <button onClick={onLogout} className="text-slate-400 hover:text-rose-500 transition-colors" title="Log Out">
-                  <LogOut size={14} />
+      {/* Pro Badge */}
+      <div className={`px-4 mb-2 ${isCollapsed ? 'hidden' : 'block'}`}>
+          {!isPro ? (
+              <button 
+                onClick={onOpenUpgrade}
+                className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-xl group transition-all hover:scale-[1.02]"
+              >
+                  <div className="p-1.5 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg text-white shadow-lg shadow-amber-500/30">
+                      <Crown size={14} fill="currentColor" />
+                  </div>
+                  <div className="text-left">
+                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400">Upgrade to Pro</p>
+                      <p className="text-[9px] text-amber-600/70 dark:text-amber-400/70 font-bold uppercase tracking-wider">Unleash Power</p>
+                  </div>
               </button>
-          </div>
+          ) : (
+              <div className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl">
+                  <div className="p-1.5 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-lg text-white shadow-lg shadow-emerald-500/30">
+                      <Crown size={14} fill="currentColor" />
+                  </div>
+                  <div>
+                      <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Pro Active</p>
+                      <p className="text-[9px] text-emerald-600/70 dark:text-emerald-400/70 font-bold uppercase tracking-wider">Power User</p>
+                  </div>
+              </div>
+          )}
+      </div>
+
+      {/* Auth Status Section */}
+      <div className={`px-4 py-2 ${isCollapsed ? 'hidden' : 'block'}`}>
+          {user ? (
+            <div className="flex items-center gap-3 p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                <ShieldCheck size={16} className="text-emerald-500" />
+                <div className="flex-1 overflow-hidden">
+                    <p className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">Sync Active</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{userName || 'User'}</p>
+                </div>
+                <button onClick={onLogout} className="text-slate-400 hover:text-rose-500 transition-colors">
+                    <LogOut size={14} />
+                </button>
+            </div>
+          ) : isGuest ? (
+            <div className="flex items-center gap-3 p-3 bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
+                <WifiOff size={16} className="text-slate-500" />
+                <div className="flex-1 overflow-hidden">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Offline Mode</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{userName || 'Guest'}</p>
+                </div>
+                <button onClick={onLogout} className="text-slate-400 hover:text-rose-500 transition-colors">
+                    <LogOut size={14} />
+                </button>
+            </div>
+          ) : (
+            <button 
+                onClick={onLogin}
+                className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+            >
+                Sign In to Save
+            </button>
+          )}
       </div>
 
       <div className="p-4 border-t border-slate-200 dark:border-white/5 w-full space-y-2">
+        {/* Install Button (Visible if not installed) */}
         {!isInstalled && (
             <button 
               onClick={onInstall}
@@ -436,6 +581,7 @@ const Sidebar = React.memo(({
   );
 });
 
+// Optimized slide variants
 const slideVariants = {
   enter: (direction: number) => ({
     x: direction > 0 ? 30 : -30,
@@ -464,14 +610,17 @@ const fadeVariants = {
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewType>('daily');
-  // Pure Local State
-  const [sessions, setSessions] = useState<Session[]>(() => safeJSONParse('trackly_sessions', []));
-  const [tests, setTests] = useState<TestResult[]>(() => safeJSONParse('trackly_tests', []));
-  const [targets, setTargets] = useState<Target[]>(() => safeJSONParse('trackly_targets', []));
-  const [goals, setGoals] = useState(() => safeJSONParse('trackly_goals', { Physics: 30, Chemistry: 30, Maths: 30 }));
-  const [userName, setUserName] = useState<string | null>(() => localStorage.getItem('trackly_user_name'));
-  
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [tests, setTests] = useState<TestResult[]>([]);
+  const [targets, setTargets] = useState<Target[]>([]);
+  const [goals, setGoals] = useState({ Physics: 30, Chemistry: 30, Maths: 30 });
   const [quoteIdx] = useState(() => Math.floor(Math.random() * QUOTES.length));
+
+  // Auth State
+  const [user, setUser] = useState<User | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [userName, setUserName] = useState<string | null>(null);
   const [guestNameInput, setGuestNameInput] = useState('');
 
   // Pro State
@@ -543,12 +692,6 @@ const App: React.FC = () => {
   const gainNodeRef = useRef<GainNode | null>(null);
 
   const { isLagging, dismiss: dismissLag } = usePerformanceMonitor(graphicsEnabled && lagDetectionEnabled);
-
-  // PERSISTENCE EFFECTS
-  useEffect(() => { localStorage.setItem('trackly_sessions', JSON.stringify(sessions)); }, [sessions]);
-  useEffect(() => { localStorage.setItem('trackly_tests', JSON.stringify(tests)); }, [tests]);
-  useEffect(() => { localStorage.setItem('trackly_targets', JSON.stringify(targets)); }, [targets]);
-  useEffect(() => { localStorage.setItem('trackly_goals', JSON.stringify(goals)); }, [goals]);
 
   const changeView = useCallback((newView: ViewType) => {
      if (view === newView) return;
@@ -810,12 +953,21 @@ const App: React.FC = () => {
       setLastLogTime(Date.now());
   }, []);
 
+  // 3. Database Operations (Universal: Works for Local Storage)
   const handleSaveSession = useCallback(async (newSession: Omit<Session, 'id' | 'timestamp'>) => {
     const id = generateUUID();
     const timestamp = Date.now();
     const session: Session = { ...newSession, id, timestamp };
-    setSessions(prev => [session, ...prev]);
-  }, []);
+
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'sessions', id), session);
+    } else if (isGuest) {
+        const currentSessions = safeJSONParse('trackly_guest_sessions', []);
+        const updated = [session, ...currentSessions];
+        setSessions(updated);
+        localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
+    }
+  }, [user, isGuest, sessions]);
 
   const handleCompleteSession = useCallback(() => {
       if (sessionLogs.length === 0) return;
@@ -886,18 +1038,38 @@ const App: React.FC = () => {
       }
   };
 
+  // Auth Handlers (Kept but button removed from UI)
+  const handleLogin = useCallback(async () => {
+    try {
+        await signInWithPopup(auth, googleProvider);
+    } catch (error: any) {
+        console.error("Login error:", error);
+        if (error.code === 'auth/unauthorized-domain') {
+            alert("Domain not authorized for Firebase Auth. \n\nPlease use 'Continue Offline' (Guest Mode) if you are running a preview or local build.");
+        }
+    }
+  }, []);
+
   const handleGuestLogin = useCallback(() => {
       if (!guestNameInput.trim()) return;
-      localStorage.setItem('trackly_user_name', guestNameInput.trim());
+      localStorage.setItem('trackly_guest_name', guestNameInput.trim());
+      setIsGuest(true);
       setUserName(guestNameInput.trim());
+      localStorage.setItem('trackly_is_guest', 'true');
   }, [guestNameInput]);
 
   const handleLogout = useCallback(async () => {
-      if (confirm('Logging out will clear your local name setting. Data persists until you clear cache.')) {
-          localStorage.removeItem('trackly_user_name');
-          setUserName(null);
+      if (user) {
+          await signOut(auth);
       }
-  }, []);
+      setIsGuest(false);
+      localStorage.removeItem('trackly_is_guest');
+      localStorage.removeItem('trackly_guest_name');
+      setUserName(null);
+      setSessions([]);
+      setTests([]);
+      setTargets([]);
+  }, [user]);
 
   const handleUpgrade = useCallback(() => {
       setIsPro(true);
@@ -935,24 +1107,112 @@ const App: React.FC = () => {
     return () => window.removeEventListener('click', handleClick);
   }, [soundEnabled, soundPitch, soundVolume]);
 
-  const handleDeleteSession = useCallback(async (id: string) => {
-      setSessions(prev => prev.filter(s => s.id !== id));
+  // 1. Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+          setIsGuest(false);
+          setUserName(currentUser.displayName || 'User');
+      }
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
+
+  // Check for existing guest session
+  useEffect(() => {
+      const storedGuest = localStorage.getItem('trackly_is_guest');
+      if (storedGuest === 'true' && !user) {
+          setIsGuest(true);
+          setUserName(localStorage.getItem('trackly_guest_name') || 'Guest');
+      }
+  }, [user]);
+
+  // 2. Data Syncing (Firestore OR LocalStorage)
+  useEffect(() => {
+    if (user) {
+        const sessionsQ = query(collection(db, 'users', user.uid, 'sessions'), orderBy('timestamp', 'desc'));
+        const unsubSessions = onSnapshot(sessionsQ, (snapshot: QuerySnapshot<DocumentData>) => {
+            setSessions(snapshot.docs.map(d => d.data() as Session));
+        });
+
+        const testsQ = query(collection(db, 'users', user.uid, 'tests'), orderBy('timestamp', 'desc'));
+        const unsubTests = onSnapshot(testsQ, (snapshot: QuerySnapshot<DocumentData>) => {
+            setTests(snapshot.docs.map(d => d.data() as TestResult));
+        });
+
+        const targetsQ = query(collection(db, 'users', user.uid, 'targets'), orderBy('timestamp', 'desc'));
+        const unsubTargets = onSnapshot(targetsQ, (snapshot: QuerySnapshot<DocumentData>) => {
+            setTargets(snapshot.docs.map(d => d.data() as Target));
+        });
+
+        return () => {
+            unsubSessions();
+            unsubTests();
+            unsubTargets();
+        }
+    } else if (isGuest) {
+        setSessions(safeJSONParse('trackly_guest_sessions', []));
+        setTests(safeJSONParse('trackly_guest_tests', []));
+        setTargets(safeJSONParse('trackly_guest_targets', []));
+        setGoals(safeJSONParse('trackly_guest_goals', { Physics: 30, Chemistry: 30, Maths: 30 }));
+    } else {
+        setSessions([]); 
+        setTests([]);
+        setTargets([]);
+    }
+  }, [user, isGuest]);
+
+  useEffect(() => {
+    if(isGuest) {
+        localStorage.setItem('trackly_guest_goals', JSON.stringify(goals));
+    }
+  }, [goals, isGuest]);
+
+  const handleDeleteSession = useCallback(async (id: string) => {
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'sessions', id));
+    } else if (isGuest) {
+        const updated = sessions.filter(s => s.id !== id);
+        setSessions(updated);
+        localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
+    }
+  }, [user, isGuest, sessions]);
 
   const handleSaveTest = useCallback(async (newTest: Omit<TestResult, 'id' | 'timestamp'>) => {
     const id = generateUUID();
     const timestamp = Date.now();
     const test: TestResult = { ...newTest, id, timestamp };
-    setTests(prev => [test, ...prev]);
-  }, []);
+
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'tests', id), test);
+    } else if (isGuest) {
+        const updated = [test, ...tests];
+        setTests(updated);
+        localStorage.setItem('trackly_guest_tests', JSON.stringify(updated));
+    }
+  }, [user, isGuest, tests]);
 
   const handleDeleteTest = useCallback(async (id: string) => {
-      setTests(prev => prev.filter(t => t.id !== id));
-  }, []);
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'tests', id));
+    } else if (isGuest) {
+        const updated = tests.filter(t => t.id !== id);
+        setTests(updated);
+        localStorage.setItem('trackly_guest_tests', JSON.stringify(updated));
+    }
+  }, [user, isGuest, tests]);
 
   const handleSaveTarget = useCallback(async (target: Target) => {
-      setTargets(prev => [...prev, target]);
-  }, []);
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'targets', target.id), target);
+    } else if (isGuest) {
+        const updated = [...targets, target];
+        setTargets(updated);
+        localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
+    }
+  }, [user, isGuest, targets]);
 
   const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => {
     const target = targets.find(t => t.id === id);
@@ -968,12 +1228,27 @@ const App: React.FC = () => {
         setShowTestReminder(true);
         setTimeout(() => setShowTestReminder(false), 8000);
     }
-    setTargets(prev => prev.map(t => t.id === id ? { ...t, completed } : t));
-  }, [targets]);
+
+    if (user) {
+        if (target) {
+            await setDoc(doc(db, 'users', user.uid, 'targets', id), { ...target, completed });
+        }
+    } else if (isGuest) {
+        const updated = targets.map(t => t.id === id ? { ...t, completed } : t);
+        setTargets(updated);
+        localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
+    }
+  }, [user, isGuest, targets]);
 
   const handleDeleteTarget = useCallback(async (id: string) => {
-      setTargets(prev => prev.filter(t => t.id !== id));
-  }, []);
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'targets', id));
+    } else if (isGuest) {
+        const updated = targets.filter(t => t.id !== id);
+        setTargets(updated);
+        localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
+    }
+  }, [user, isGuest, targets]);
 
   // Load Settings from LocalStorage
   useEffect(() => {
@@ -1168,8 +1443,19 @@ const App: React.FC = () => {
         }
   `}, [themeConfig, theme]);
 
+  if (isAuthLoading) {
+    return (
+        <div className={`min-h-screen flex items-center justify-center ${themeConfig.mode === 'dark' ? 'bg-[#020617]' : 'bg-slate-50'}`}>
+            <div className="flex flex-col items-center gap-4">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                <span className="text-sm font-bold uppercase tracking-widest text-slate-500">Syncing Data...</span>
+            </div>
+        </div>
+    );
+  }
+
   // Not Logged In View
-  if (!userName) {
+  if (!user && !isGuest) {
     return (
         <div className={`min-h-screen font-sans flex flex-col relative overflow-hidden transition-colors duration-500 ${themeConfig.mode === 'dark' ? 'dark text-slate-100' : 'text-slate-900'}`}>
              <style>{dynamicStyles}</style>
@@ -1188,7 +1474,7 @@ const App: React.FC = () => {
                 <div className="mt-8 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-8 rounded-3xl border border-slate-200 dark:border-white/10 text-center max-w-sm w-full shadow-2xl cv-auto">
                     <h2 className="text-2xl font-bold mb-3 text-slate-900 dark:text-white">Welcome</h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-                        Your private, high-performance study tracker.
+                        Your private, high-performance study tracker. 
                         <br/><span className="text-[10px] uppercase font-bold opacity-70">Enter your name to begin.</span>
                     </p>
                     
@@ -1283,6 +1569,9 @@ const App: React.FC = () => {
           onOpenSettings={() => setIsSettingsOpen(true)} 
           isCollapsed={sidebarCollapsed}
           toggleCollapsed={toggleSidebar}
+          user={user}
+          isGuest={isGuest}
+          onLogin={handleLogin}
           onLogout={handleLogout}
           isInstalled={isInstalled}
           onInstall={handleInstallClick}
