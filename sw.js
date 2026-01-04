@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'trackly-dynamic-v1';
+const CACHE_NAME = 'trackly-dynamic-v2';
 
 // Install Event: Activate immediately
 self.addEventListener('install', (event) => {

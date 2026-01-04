@@ -200,7 +200,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
       <div 
         id="timer-container" 
         className="w-full max-w-xl mx-auto min-h-[600px] flex flex-col items-center justify-center relative animate-in fade-in duration-700"
-        style={{ contentVisibility: 'auto', contain: 'layout style' }}
+        /* REMOVED content-visibility: auto */
+        style={{ contain: 'layout' }}
       >
         
         {/* 1. Top Section: Mode Selector & Context */}
@@ -396,47 +397,52 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
         </div>
 
         {/* 3. Bottom Section: Controls */}
-        <div className="flex flex-col items-center gap-8 w-full">
-            {/* The +1 Button (Only in Focus + Active) */}
-            {mode === 'focus' && isActive ? (
+        <div className="flex flex-col items-center gap-8 w-full min-h-[120px] justify-end pb-4">
+            
+            {/* ACTIVE STATE: SHOW PAUSE AND LOGGING */}
+            {isActive ? (
                 <div className="flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex flex-col items-center gap-2">
-                        <button
-                            onClick={handlePlusOne}
-                            className={`
-                                group relative flex items-center gap-3 px-8 py-4 rounded-3xl
-                                bg-gradient-to-r ${currentSubject.gradient} shadow-2xl shadow-indigo-500/30
-                                transform transition-all duration-150 active:scale-95 hover:scale-105
-                            `}
-                        >
-                            <div className="absolute inset-0 rounded-3xl bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
-                            
-                            <div className="relative">
-                                <Plus size={28} className="text-white animate-pulse" strokeWidth={3} />
-                                {!isPro && sessionCount >= 3 && (
-                                    <div className="absolute -top-2 -right-2 bg-amber-500 text-white rounded-full p-0.5 border-2 border-transparent shadow-sm">
-                                        <Crown size={10} fill="currentColor" />
-                                    </div>
-                                )}
-                            </div>
+                    
+                    {/* The +1 Button (Only in Focus Mode) */}
+                    {mode === 'focus' && (
+                        <div className="flex flex-col items-center gap-2">
+                            <button
+                                onClick={handlePlusOne}
+                                className={`
+                                    group relative flex items-center gap-3 px-8 py-4 rounded-3xl
+                                    bg-gradient-to-r ${currentSubject.gradient} shadow-2xl shadow-indigo-500/30
+                                    transform transition-all duration-150 active:scale-95 hover:scale-105
+                                `}
+                            >
+                                <div className="absolute inset-0 rounded-3xl bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
+                                
+                                <div className="relative">
+                                    <Plus size={28} className="text-white animate-pulse" strokeWidth={3} />
+                                    {!isPro && sessionCount >= 3 && (
+                                        <div className="absolute -top-2 -right-2 bg-amber-500 text-white rounded-full p-0.5 border-2 border-transparent shadow-sm">
+                                            <Crown size={10} fill="currentColor" />
+                                        </div>
+                                    )}
+                                </div>
 
-                            <div className="flex flex-col items-start text-white">
-                                <span className="text-lg font-bold leading-none">+1 Solved</span>
-                                <span className="text-[10px] font-bold uppercase opacity-80 tracking-wide">
-                                    {!isPro && sessionCount >= 3 ? 'Pro Feature' : 'Log Question'}
-                                </span>
-                            </div>
-                        </button>
-                        {!isPro && (
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                                {sessionCount < 3 
-                                    ? `Free Sessions Remaining: ${3 - sessionCount}` 
-                                    : 'Free Limit Reached (3/3)'}
-                            </p>
-                        )}
-                    </div>
+                                <div className="flex flex-col items-start text-white">
+                                    <span className="text-lg font-bold leading-none">+1 Solved</span>
+                                    <span className="text-[10px] font-bold uppercase opacity-80 tracking-wide">
+                                        {!isPro && sessionCount >= 3 ? 'Pro Feature' : 'Log Question'}
+                                    </span>
+                                </div>
+                            </button>
+                            {!isPro && (
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                                    {sessionCount < 3 
+                                        ? `Free Sessions Remaining: ${3 - sessionCount}` 
+                                        : 'Free Limit Reached (3/3)'}
+                                </p>
+                            )}
+                        </div>
+                    )}
 
-                    {/* DEDICATED HIGH-VISIBILITY PAUSE BUTTON */}
+                    {/* DEDICATED HIGH-VISIBILITY PAUSE BUTTON (VISIBLE FOR ALL MODES WHEN ACTIVE) */}
                     <button
                         onClick={(e) => { e.stopPropagation(); onToggleTimer(); }}
                         className="mt-2 flex items-center gap-2 px-8 py-3 rounded-full bg-slate-100 hover:bg-white text-slate-900 border-2 border-transparent hover:border-indigo-500 transition-all text-xs font-extrabold uppercase tracking-widest shadow-xl active:scale-95"
@@ -446,7 +452,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                     </button>
                 </div>
             ) : (
-                <div className="flex items-center gap-6 p-2 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border border-slate-200 dark:border-white/5 rounded-[2rem] shadow-2xl transition-all duration-300 hover:bg-white/70 dark:hover:bg-slate-900/70 hover:border-slate-300 dark:hover:border-white/10 hover:shadow-indigo-500/5">
+                /* INACTIVE STATE: SHOW START, SETTINGS, SOUND */
+                <div className="flex items-center gap-6 p-2 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border border-slate-200 dark:border-white/5 rounded-[2rem] shadow-2xl transition-all duration-300 hover:bg-white/70 dark:hover:bg-slate-900/70 hover:border-slate-300 dark:hover:border-white/10 hover:shadow-indigo-500/5 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 
                     <div className="relative">
                         <button 
