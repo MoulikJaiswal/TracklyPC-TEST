@@ -5,24 +5,24 @@ import {
   RotateCcw, 
   Settings2, 
   X, 
-  Zap,
-  Atom,
-  Calculator,
-  Waves,
-  CheckCircle2,
-  ListTodo,
-  ChevronDown,
-  Brain,
-  Coffee,
-  Armchair,
-  Plus,
-  Timer as TimerIcon,
-  Flag,
-  Clock,
-  Crown,
-  CloudRain,
-  Trees,
-  Music,
+  Zap, 
+  Atom, 
+  Calculator, 
+  Waves, 
+  CheckCircle2, 
+  ListTodo, 
+  ChevronDown, 
+  Brain, 
+  Coffee, 
+  Armchair, 
+  Plus, 
+  Timer as TimerIcon, 
+  Flag, 
+  Clock, 
+  Crown, 
+  CloudRain, 
+  Trees, 
+  Music, 
   VolumeX
 } from 'lucide-react';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
@@ -50,14 +50,14 @@ interface FocusTimerProps {
   onOpenUpgrade: () => void;
 }
 
-export const FocusTimer = memo(({ 
+export const FocusTimer: React.FC<FocusTimerProps> = memo(({ 
     targets = [], 
     mode, 
     timeLeft, 
     isActive, 
     durations, 
     activeSound, 
-    sessionLogs,
+    sessionLogs, 
     lastLogTime,
     onToggleTimer,
     onResetTimer,
@@ -69,7 +69,7 @@ export const FocusTimer = memo(({
     isPro,
     sessionCount,
     onOpenUpgrade
-}: FocusTimerProps) => {
+}) => {
   const [selectedSubject, setSelectedSubject] = useState<keyof typeof JEE_SYLLABUS>('Physics');
   const [showSettings, setShowSettings] = useState(false);
   const [showSoundMenu, setShowSoundMenu] = useState(false);
@@ -89,7 +89,8 @@ export const FocusTimer = memo(({
   }, [timeLeft, mode, sessionLogs.length, isActive]);
 
   // --- NEW: +1 Logic ---
-  const handlePlusOne = () => {
+  const handlePlusOne = (e?: React.MouseEvent) => {
+      e?.stopPropagation();
       if (!isPro && sessionCount >= 3) {
           onOpenUpgrade();
           return;
@@ -115,7 +116,8 @@ export const FocusTimer = memo(({
       setShowTagger(false);
   };
 
-  const handleFinishSession = () => {
+  const handleFinishSession = (e?: React.MouseEvent) => {
+      e?.stopPropagation();
       onToggleTimer(); // Pause
       setShowReport(true);
   };
@@ -313,13 +315,17 @@ export const FocusTimer = memo(({
           )}
         </div>
 
-        {/* 2. Middle Section: The Timer Ring */}
-        <div className="relative mb-12 group">
+        {/* 2. Middle Section: The Timer Ring (Interactive Play/Pause) */}
+        <div 
+            className="relative mb-12 group cursor-pointer"
+            onClick={onToggleTimer}
+            title={isActive ? "Pause" : "Start"}
+        >
           
           <div 
             className={`
                 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70vw] h-[70vw] max-w-[280px] max-h-[280px] rounded-full
-                transition-all duration-1000
+                transition-all duration-1000 group-hover:scale-105 group-active:scale-95
             `}
             style={{
                 background: isActive 
@@ -331,7 +337,7 @@ export const FocusTimer = memo(({
             }} 
           />
 
-          <div className="relative w-[75vw] h-[75vw] max-w-[320px] max-h-[320px] flex items-center justify-center">
+          <div className="relative w-[75vw] h-[75vw] max-w-[320px] max-h-[320px] flex items-center justify-center transition-transform duration-300 group-hover:scale-105 group-active:scale-95">
               <svg 
                   className="w-full h-full transform -rotate-90"
                   viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
@@ -383,7 +389,7 @@ export const FocusTimer = memo(({
                           ? `bg-slate-100 dark:bg-slate-900 border-${theme.color.split('-')[1]}-500/30 ${theme.color}` 
                           : 'bg-transparent border-transparent text-slate-400 dark:text-slate-600'}
                   `}>
-                      {isActive ? (mode === 'focus' ? 'Flow State' : 'Recharging') : 'Paused'}
+                      {isActive ? (mode === 'focus' ? 'Flow State' : 'Recharging') : 'Tap to Start'}
                   </div>
               </div>
           </div>
@@ -393,47 +399,58 @@ export const FocusTimer = memo(({
         <div className="flex flex-col items-center gap-8 w-full">
             {/* The +1 Button (Only in Focus + Active) */}
             {mode === 'focus' && isActive ? (
-                <div className="flex flex-col items-center gap-2">
-                    <button
-                        onClick={handlePlusOne}
-                        className={`
-                            group relative flex items-center gap-3 px-8 py-4 rounded-3xl
-                            bg-gradient-to-r ${currentSubject.gradient} shadow-2xl shadow-indigo-500/30
-                            transform transition-all duration-150 active:scale-95 hover:scale-105
-                        `}
-                    >
-                        <div className="absolute inset-0 rounded-3xl bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
-                        
-                        <div className="relative">
-                            <Plus size={28} className="text-white animate-pulse" strokeWidth={3} />
-                            {!isPro && sessionCount >= 3 && (
-                                <div className="absolute -top-2 -right-2 bg-amber-500 text-white rounded-full p-0.5 border-2 border-transparent shadow-sm">
-                                    <Crown size={10} fill="currentColor" />
-                                </div>
-                            )}
-                        </div>
+                <div className="flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex flex-col items-center gap-2">
+                        <button
+                            onClick={handlePlusOne}
+                            className={`
+                                group relative flex items-center gap-3 px-8 py-4 rounded-3xl
+                                bg-gradient-to-r ${currentSubject.gradient} shadow-2xl shadow-indigo-500/30
+                                transform transition-all duration-150 active:scale-95 hover:scale-105
+                            `}
+                        >
+                            <div className="absolute inset-0 rounded-3xl bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
+                            
+                            <div className="relative">
+                                <Plus size={28} className="text-white animate-pulse" strokeWidth={3} />
+                                {!isPro && sessionCount >= 3 && (
+                                    <div className="absolute -top-2 -right-2 bg-amber-500 text-white rounded-full p-0.5 border-2 border-transparent shadow-sm">
+                                        <Crown size={10} fill="currentColor" />
+                                    </div>
+                                )}
+                            </div>
 
-                        <div className="flex flex-col items-start text-white">
-                            <span className="text-lg font-bold leading-none">+1 Solved</span>
-                            <span className="text-[10px] font-bold uppercase opacity-80 tracking-wide">
-                                {!isPro && sessionCount >= 3 ? 'Pro Feature' : 'Log Question'}
-                            </span>
-                        </div>
+                            <div className="flex flex-col items-start text-white">
+                                <span className="text-lg font-bold leading-none">+1 Solved</span>
+                                <span className="text-[10px] font-bold uppercase opacity-80 tracking-wide">
+                                    {!isPro && sessionCount >= 3 ? 'Pro Feature' : 'Log Question'}
+                                </span>
+                            </div>
+                        </button>
+                        {!isPro && (
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                                {sessionCount < 3 
+                                    ? `Free Sessions Remaining: ${3 - sessionCount}` 
+                                    : 'Free Limit Reached (3/3)'}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* DEDICATED HIGH-VISIBILITY PAUSE BUTTON */}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onToggleTimer(); }}
+                        className="mt-2 flex items-center gap-2 px-8 py-3 rounded-full bg-slate-100 hover:bg-white text-slate-900 border-2 border-transparent hover:border-indigo-500 transition-all text-xs font-extrabold uppercase tracking-widest shadow-xl active:scale-95"
+                    >
+                        <Pause size={16} fill="currentColor" />
+                        PAUSE TIMER
                     </button>
-                    {!isPro && (
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                            {sessionCount < 3 
-                                ? `Free Sessions Remaining: ${3 - sessionCount}` 
-                                : 'Free Limit Reached (3/3)'}
-                        </p>
-                    )}
                 </div>
             ) : (
                 <div className="flex items-center gap-6 p-2 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border border-slate-200 dark:border-white/5 rounded-[2rem] shadow-2xl transition-all duration-300 hover:bg-white/70 dark:hover:bg-slate-900/70 hover:border-slate-300 dark:hover:border-white/10 hover:shadow-indigo-500/5">
                 
                     <div className="relative">
                         <button 
-                            onClick={() => setShowSoundMenu(!showSoundMenu)}
+                            onClick={(e) => { e.stopPropagation(); setShowSoundMenu(!showSoundMenu); }}
                             className={`
                             w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300
                             ${activeSound !== 'off' ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5'}
@@ -448,7 +465,8 @@ export const FocusTimer = memo(({
                                 {SOUND_OPTIONS.map((opt) => (
                                     <button
                                         key={opt.id}
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             onSetSound(opt.id as any);
                                             setShowSoundMenu(false);
                                         }}
@@ -463,7 +481,7 @@ export const FocusTimer = memo(({
                     </div>
 
                     <button 
-                        onClick={onToggleTimer}
+                        onClick={(e) => { e.stopPropagation(); onToggleTimer(); }}
                         className={`
                         w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg active:scale-95
                         ${isActive 
@@ -476,7 +494,7 @@ export const FocusTimer = memo(({
 
                     <div className="relative">
                         <button 
-                        onClick={() => setShowSettings(!showSettings)}
+                        onClick={(e) => { e.stopPropagation(); setShowSettings(!showSettings); }}
                         className={`
                             w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300
                             ${showSettings ? 'bg-black/5 dark:bg-white/10 text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5'}
@@ -529,7 +547,7 @@ export const FocusTimer = memo(({
                             </div>
 
                             <div className="flex justify-center mt-2 border-t border-slate-100 dark:border-white/5 pt-3">
-                                <button onClick={onResetTimer} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 transition-colors">
+                                <button onClick={(e) => { e.stopPropagation(); onResetTimer(); }} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 transition-colors">
                                     <RotateCcw size={10} /> Reset Current
                                 </button>
                             </div>

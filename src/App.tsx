@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { 
@@ -21,9 +20,7 @@ import {
   Trophy,
   ArrowRight,
   Crown,
-  Wifi,
-  Menu,
-  HardDrive
+  Wifi
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts } from './types';
 import { QUOTES, THEME_CONFIG } from './constants';
@@ -693,21 +690,13 @@ const App: React.FC = () => {
 
   const { isLagging, dismiss: dismissLag } = usePerformanceMonitor(graphicsEnabled && lagDetectionEnabled);
 
-  const changeView = useCallback((newView: ViewType) => {
-     if (view === newView) return;
-     const currentIdx = TABS.findIndex(t => t.id === view);
-     const newIdx = TABS.findIndex(t => t.id === newView);
-     setDirection(newIdx > currentIdx ? 1 : -1);
-     setView(newView);
-     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [view]);
-
   const activateLiteMode = useCallback(() => {
       setGraphicsEnabled(false);
       setAnimationsEnabled(false);
       dismissLag();
   }, [dismissLag]);
 
+  // Network Status Monitor
   useEffect(() => {
       const handleOnline = () => {
           setIsOnline(true);
@@ -729,17 +718,20 @@ const App: React.FC = () => {
       };
   }, []);
 
+  // Initialize Stats from LS
   useEffect(() => {
       const today = getLocalDate();
       const saved = localStorage.getItem(`zenith_stats_${today}`);
       if (saved) setTodayStats(JSON.parse(saved));
   }, []);
 
+  // Persist Stats
   useEffect(() => {
       const today = getLocalDate();
       localStorage.setItem(`zenith_stats_${today}`, JSON.stringify(todayStats));
   }, [todayStats]);
 
+  // Recommendation Logic
   useEffect(() => {
       if (sessions.length < 5) return; 
 
@@ -810,6 +802,7 @@ const App: React.FC = () => {
       changeView('focus');
   };
 
+  // Persistent Timer Logic
   useEffect(() => {
       if (isTimerActive) {
           timerRef.current = setInterval(() => {
@@ -828,7 +821,9 @@ const App: React.FC = () => {
       return () => clearInterval(timerRef.current);
   }, [isTimerActive, activeSound]);
 
+  // Persistent Audio Logic (Ambient Soundscapes)
   useEffect(() => {
+      // Cleanup previous sound
       if (sourceNodeRef.current) {
           try { sourceNodeRef.current.stop(); } catch(e){}
           sourceNodeRef.current.disconnect();
@@ -839,7 +834,8 @@ const App: React.FC = () => {
           gainNodeRef.current = null;
       }
 
-      if (activeSound !== 'off') {
+      // Check isTimerActive here
+      if (activeSound !== 'off' && isTimerActive) { 
           if (!brownNoiseCtxRef.current) {
               brownNoiseCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
           }
@@ -914,8 +910,9 @@ const App: React.FC = () => {
           sourceNodeRef.current = source;
           gainNodeRef.current = gain;
       }
-  }, [activeSound]);
+  }, [activeSound, isTimerActive]); // Added isTimerActive dependency
 
+  // Timer Handlers
   const handleTimerToggle = useCallback(() => {
       if (!isTimerActive) {
           setIsTimerActive(true);
@@ -1002,6 +999,7 @@ const App: React.FC = () => {
       handleTimerReset();
   }, [sessionLogs, handleSaveSession, handleTimerReset]);
 
+  // Check Installation Status
   useEffect(() => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone || document.referrer.includes('android-app://');
     setIsInstalled(isStandalone);
@@ -1012,6 +1010,7 @@ const App: React.FC = () => {
     return () => mediaQuery.removeEventListener('change', changeHandler);
   }, []);
 
+  // Capture Install Prompt
   useEffect(() => {
     const handler = (e: any) => {
         e.preventDefault();
@@ -1076,6 +1075,7 @@ const App: React.FC = () => {
       localStorage.setItem('trackly_pro_status', 'true');
   }, []);
 
+  // Global Click Sound Effect
   useEffect(() => {
     const handleClick = () => {
        if (!soundEnabled) return;
@@ -1350,6 +1350,15 @@ const App: React.FC = () => {
       setSidebarCollapsed(prev => !prev);
   }, []);
 
+  const changeView = useCallback((newView: ViewType) => {
+     if (view === newView) return;
+     const currentIdx = TABS.findIndex(t => t.id === view);
+     const newIdx = TABS.findIndex(t => t.id === newView);
+     setDirection(newIdx > currentIdx ? 1 : -1);
+     setView(newView);
+     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [view]);
+
   const startTutorial = () => {
     setIsTutorialActive(true);
     setTutorialStep(0);
@@ -1398,6 +1407,7 @@ const App: React.FC = () => {
   }
 
   const themeConfig = THEME_CONFIG[theme];
+  // Calculate effective visual states
   const effectiveShowAurora = graphicsEnabled && showAurora;
   const effectiveParallax = animationsEnabled && parallaxEnabled;
   const effectiveShowParticles = graphicsEnabled && showParticles;
@@ -1408,6 +1418,9 @@ const App: React.FC = () => {
     const rgbCard = hexToRgb(themeConfig.colors.card);
     const rgbAccent = hexToRgb(themeConfig.colors.accent);
     
+    // Determine optimal text color for accent backgrounds
+    // Themes with light/bright accents (like white, yellow, lime) need dark text.
+    // Themes with dark/deep accents (like indigo, blue) need white text.
     const lightAccentThemes: ThemeId[] = ['midnight', 'forest', 'void', 'obsidian', 'earth', 'morning'];
     const onAccentColor = lightAccentThemes.includes(theme) ? '#020617' : '#ffffff';
 
@@ -1432,9 +1445,11 @@ const App: React.FC = () => {
         .border-indigo-100, .border-indigo-200, .border-indigo-300, .border-indigo-400, .border-indigo-500, .border-indigo-600 {
             border-color: var(--theme-accent) !important;
         }
+        /* Override Ring Colors for Focus Rings */
         .ring-indigo-500 {
             --tw-ring-color: var(--theme-accent) !important;
         }
+        /* Override specific shadow opacities used in the app */
         .shadow-indigo-500\\/30 {
             --tw-shadow-color: rgba(var(--theme-accent-rgb), 0.3) !important;
         }
