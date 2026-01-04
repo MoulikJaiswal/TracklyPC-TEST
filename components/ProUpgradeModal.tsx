@@ -1,8 +1,10 @@
 
 import React, { useState } from 'react';
-import { motion } from 'https://esm.sh/framer-motion@10.16.4?external=react,react-dom';
-import { X, Check, Crown, TrendingUp, Grid, CreditCard, ArrowLeft, Loader2, Lock, Zap, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { X, Check, Crown, TrendingUp, Grid, CreditCard, ArrowLeft, ArrowRight, Loader2, Lock, Zap, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { Card } from './Card';
+
+const MotionDiv = motion.div as any;
 
 interface ProUpgradeModalProps {
   isOpen: boolean;
@@ -58,7 +60,7 @@ export const ProUpgradeModal: React.FC<ProUpgradeModalProps> = ({ isOpen, onClos
 
             {step === 'info' && (
                 <div className="w-full h-full flex flex-col items-center animate-in slide-in-from-left-8 duration-300">
-                    <motion.div 
+                    <MotionDiv 
                         initial={{ scale: 0, rotate: -180, x: -50, opacity: 0 }}
                         animate={{ scale: 1, rotate: 0, x: 0, opacity: 1 }}
                         transition={{ 
@@ -70,7 +72,7 @@ export const ProUpgradeModal: React.FC<ProUpgradeModalProps> = ({ isOpen, onClos
                         className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-amber-500/20"
                     >
                         <Crown size={32} className="text-white" fill="currentColor" />
-                    </motion.div>
+                    </MotionDiv>
 
                     <h2 className="text-3xl font-display font-bold text-white mb-2">Trackly Pro</h2>
                     <p className="text-amber-400 font-bold uppercase tracking-widest text-xs mb-8">Unlock Your Potential</p>

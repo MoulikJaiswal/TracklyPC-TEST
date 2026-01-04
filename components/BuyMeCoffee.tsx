@@ -1,7 +1,10 @@
 
 import React, { useState } from 'react';
 import { Coffee, Heart, Sparkles, ExternalLink, Mail, Copy, Check, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@10.16.4?external=react,react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const MotionButton = motion.button as any;
+const MotionDiv = motion.div as any;
 
 export const BuyMeCoffee: React.FC = () => {
   const [showEmail, setShowEmail] = useState(false);
@@ -43,7 +46,7 @@ export const BuyMeCoffee: React.FC = () => {
               <div className="relative h-full" style={{ perspective: '1000px' }}>
                  <AnimatePresence mode="wait" initial={false}>
                     {!showEmail ? (
-                       <motion.button 
+                       <MotionButton 
                           key="front"
                           onClick={() => setShowEmail(true)}
                           initial={{ rotateY: -90, opacity: 0 }}
@@ -55,9 +58,9 @@ export const BuyMeCoffee: React.FC = () => {
                        >
                           <Sparkles size={20} className="text-indigo-500 group-hover:rotate-12 transition-transform" />
                           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-indigo-500">Request Feature</span>
-                       </motion.button>
+                       </MotionButton>
                     ) : (
-                       <motion.div
+                       <MotionDiv
                           key="back"
                           initial={{ rotateY: 90, opacity: 0 }}
                           animate={{ rotateY: 0, opacity: 1 }}
@@ -76,7 +79,7 @@ export const BuyMeCoffee: React.FC = () => {
                            >
                               {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? 'Copied' : 'Copy'}
                            </button>
-                       </motion.div>
+                       </MotionDiv>
                     )}
                  </AnimatePresence>
               </div>

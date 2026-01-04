@@ -1,7 +1,9 @@
 
 import React from 'react';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@10.16.4?external=react,react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, X, BatteryCharging } from 'lucide-react';
+
+const MotionDiv = motion.div as any;
 
 interface PerformanceToastProps {
   isVisible: boolean;
@@ -13,7 +15,7 @@ export const PerformanceToast: React.FC<PerformanceToastProps> = ({ isVisible, o
   return (
     <AnimatePresence>
       {isVisible && (
-        <motion.div 
+        <MotionDiv 
           initial={{ y: -100, opacity: 0, x: '-50%' }}
           animate={{ y: 0, opacity: 1, x: '-50%' }}
           exit={{ y: -100, opacity: 0, x: '-50%' }}
@@ -62,7 +64,7 @@ export const PerformanceToast: React.FC<PerformanceToastProps> = ({ isVisible, o
             </div>
 
           </div>
-        </motion.div>
+        </MotionDiv>
       )}
     </AnimatePresence>
   );

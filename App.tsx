@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
-import { AnimatePresence, motion } from 'https://esm.sh/framer-motion@10.16.4?external=react,react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { 
   Activity, 
   Calendar as CalendarIcon, 
@@ -46,6 +46,7 @@ const TestLog = lazy(() => import('./components/TestLog').then(module => ({ defa
 const Analytics = lazy(() => import('./components/Analytics').then(module => ({ default: module.Analytics })));
 const Resources = lazy(() => import('./components/Resources').then(module => ({ default: module.Resources })));
 
+const MotionDiv = motion.div as any;
 
 // UUID Generator
 const generateUUID = () => {
@@ -1643,7 +1644,7 @@ const App: React.FC = () => {
       {/* Network Status Toast */}
       <AnimatePresence>
         {showNetworkToast && (
-          <motion.div
+          <MotionDiv
             initial={{ y: -50, opacity: 0, x: '-50%' }}
             animate={{ y: 20, opacity: 1, x: '-50%' }}
             exit={{ y: -50, opacity: 0, x: '-50%' }}
@@ -1664,7 +1665,7 @@ const App: React.FC = () => {
                  <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide">No Internet Connection</span>
                </>
              )}
-          </motion.div>
+          </MotionDiv>
         )}
       </AnimatePresence>
 
@@ -1722,7 +1723,7 @@ const App: React.FC = () => {
       >
         <div className="max-w-7xl mx-auto w-full relative">
            <AnimatePresence initial={false} mode='wait' custom={direction}>
-             <motion.div
+             <MotionDiv
                 key={view}
                 custom={direction}
                 variants={effectiveSwipe ? slideVariants : fadeVariants}
@@ -1813,7 +1814,7 @@ const App: React.FC = () => {
                       <Resources />
                   )}
                 </Suspense>
-             </motion.div>
+             </MotionDiv>
            </AnimatePresence>
         </div>
       </main>
@@ -1821,7 +1822,7 @@ const App: React.FC = () => {
       {/* Test Log Reminder Toast */}
       <AnimatePresence>
         {showTestReminder && (
-            <motion.div 
+            <MotionDiv 
                 initial={{ x: "-50%", y: 100, opacity: 0 }}
                 animate={{ x: "-50%", y: 0, opacity: 1 }}
                 exit={{ x: "-50%", y: 100, opacity: 0 }}
@@ -1848,7 +1849,7 @@ const App: React.FC = () => {
                         Log Now <ArrowRight size={12} />
                     </button>
                 </div>
-            </motion.div>
+            </MotionDiv>
         )}
       </AnimatePresence>
 
