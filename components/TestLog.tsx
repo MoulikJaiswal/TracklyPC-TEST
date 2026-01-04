@@ -53,7 +53,7 @@ const NumberScrollInput = memo(({
     min?: number, 
     max?: number, 
     presets?: number[],
-    step?: number,
+    step?: number, 
     color?: 'indigo' | 'emerald' | 'rose'
 }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -436,7 +436,7 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
     );
 });
 
-export const TestLog: React.FC<TestLogProps> = memo(({ tests, targets = [], onSave, onDelete, isPro, onOpenUpgrade }) => {
+export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onOpenUpgrade }: TestLogProps) => {
   const [isAdding, setIsAdding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{ name: string; type: 'image' | 'pdf' } | null>(null);
@@ -719,6 +719,8 @@ export const TestLog: React.FC<TestLogProps> = memo(({ tests, targets = [], onSa
   const activeMistakes = activeBreakdown.mistakes || {};
   const activeTaggedCount = (Object.values(activeMistakes) as number[]).reduce((a, b) => a + (b || 0), 0);
 
+  const isUpgrade = !isPro && tests.length >= 2;
+
   return (
     <div id="test-log-container" className="space-y-8 animate-in fade-in duration-500 pb-20">
       
@@ -740,18 +742,20 @@ export const TestLog: React.FC<TestLogProps> = memo(({ tests, targets = [], onSa
         </div>
         <button 
           onClick={handleAddClick} 
-          className={`group flex items-center gap-2 px-5 py-2.5 rounded-2xl text-white text-xs font-bold uppercase tracking-wider shadow-lg active:scale-95 transition-all
-            ${!isPro && tests.length >= 2 
-                ? 'bg-amber-500 hover:bg-amber-400 shadow-amber-500/20' 
-                : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20'
-            }
+          className={`group flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider shadow-lg active:scale-95 transition-all
+            ${isUpgrade ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-amber-500/20' : ''}
           `}
+          style={!isUpgrade ? {
+              backgroundColor: 'var(--theme-accent)',
+              color: 'var(--theme-on-accent)',
+              boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.3), 0 4px 6px -2px rgba(var(--theme-accent-rgb), 0.1)'
+          } : {}}
         >
           {isAdding 
             ? <X size={16} /> 
-            : (!isPro && tests.length >= 2) ? <Crown size={16} /> : <Plus size={16} className="group-hover:rotate-90 transition-transform" />
+            : (isUpgrade) ? <Crown size={16} /> : <Plus size={16} className="group-hover:rotate-90 transition-transform" />
           }
-          {isAdding ? 'Cancel' : (!isPro && tests.length >= 2) ? 'Upgrade to Log' : 'Log Test'}
+          {isAdding ? 'Cancel' : (isUpgrade) ? 'Upgrade to Log' : 'Log Test'}
         </button>
       </div>
 
@@ -1094,7 +1098,16 @@ export const TestLog: React.FC<TestLogProps> = memo(({ tests, targets = [], onSa
                )}
             </div>
 
-            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl text-white font-bold uppercase text-xs tracking-widest shadow-xl shadow-indigo-600/20 transition-all active:scale-95">Save Performance</button>
+            <button type="submit" 
+                className="w-full py-4 rounded-xl font-bold uppercase text-xs tracking-widest shadow-xl transition-all active:scale-95"
+                style={{
+                    backgroundColor: 'var(--theme-accent)',
+                    color: 'var(--theme-on-accent)',
+                    boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.3), 0 4px 6px -2px rgba(var(--theme-accent-rgb), 0.1)'
+                }}
+            >
+                Save Performance
+            </button>
           </form>
         </Card>
       )}
@@ -1205,7 +1218,7 @@ export const TestLog: React.FC<TestLogProps> = memo(({ tests, targets = [], onSa
 
       {/* --- Detailed Report Card Modal --- */}
       {viewingReport && createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 backdrop-blur-lg animate-in fade-in duration-200">
               <div className="bg-white dark:bg-[#0f172a] w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/10">
                   {/* ... (Header) ... */}
                   <div className="relative p-8 bg-slate-900 overflow-hidden shrink-0">
@@ -1437,7 +1450,7 @@ export const TestLog: React.FC<TestLogProps> = memo(({ tests, targets = [], onSa
 
       {/* Attachment Viewer Modal */}
       {viewingAttachment && createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xl animate-in fade-in duration-200">
               <div className="bg-white dark:bg-[#0f172a] w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-white/10">
                   <div className="p-4 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-white dark:bg-[#0f172a]">
                       <div className="flex items-center gap-3">

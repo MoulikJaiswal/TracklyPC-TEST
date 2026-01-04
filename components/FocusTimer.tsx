@@ -586,7 +586,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
       {/* --- REPORT CARD OVERLAY --- */}
       {showReport && (
           <div className="absolute inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
+              <div className="absolute inset-0 bg-black/60" />
               <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
                   
                   {/* Header */}
@@ -668,7 +668,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
       {/* --- REAL-TIME TAGGING OVERLAY --- */}
       {showTagger && !showReport && (
           <div className="absolute inset-0 z-50 flex items-end justify-center pb-8 animate-in slide-in-from-bottom-10 fade-in duration-300">
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowTagger(false)} />
+              <div className="absolute inset-0 bg-black/60" onClick={() => setShowTagger(false)} />
               
               <div className="relative w-[90%] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col gap-4">
                   <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-4">

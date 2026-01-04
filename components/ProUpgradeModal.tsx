@@ -41,7 +41,7 @@ export const ProUpgradeModal: React.FC<ProUpgradeModalProps> = ({ isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
       <div className="relative w-full max-w-md">
         <div className="absolute inset-0 bg-gradient-to-r from-amber-500 to-orange-600 rounded-[2rem] blur-xl opacity-50" />
         
