@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'https://esm.sh/framer-motion@10.16.4?external=react,react-dom';
 import { X, Check, Crown, TrendingUp, Grid, CreditCard, ArrowLeft, Loader2, Lock, Zap, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { Card } from './Card';
 

@@ -1,5 +1,6 @@
-import React, { useMemo, useState, memo, useCallback } from 'react';
-import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, Grid, ChevronDown } from 'lucide-react';
+
+import React, { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
+import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown } from 'lucide-react';
 import { Session, Target, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
@@ -29,100 +30,56 @@ interface DashboardProps {
 }
 
 const ActivityHeatmap = memo(({ sessions }: { sessions: Session[] }) => {
-  const heatmapData = useMemo(() => {
-    // 1. Configuration
-    const today = new Date();
-    const rows = 7; // Mon - Sun
-    const cols = 20; // Approx 5 months
-    
-    // 2. Calculate Start Date (Align to Monday)
-    // We want the grid to end roughly today or end of this week.
-    // Let's make the last column "This Week".
-    // Find the Monday of the current week.
-    const currentDay = today.getDay(); // 0=Sun, 1=Mon...
-    // Distance from this week's Monday (if today is Sun(0), dist is 6. If Mon(1), dist is 0)
-    const distFromMon = (currentDay + 6) % 7;
-    
-    // Monday of this week
-    const thisMonday = new Date(today);
-    thisMonday.setDate(today.getDate() - distFromMon);
-    
-    // Start date is (cols - 1) weeks before this Monday
-    const startDate = new Date(thisMonday);
-    startDate.setDate(thisMonday.getDate() - ((cols - 1) * 7));
-    
-    // 3. Map Sessions
-    const dateCounts: Record<string, number> = {};
+  const days = useMemo(() => {
+    const counts: Record<string, number> = {};
     sessions.forEach(s => {
         const d = getLocalDateFromTimestamp(s.timestamp);
-        dateCounts[d] = (dateCounts[d] || 0) + 1;
+        counts[d] = (counts[d] || 0) + 1;
     });
 
-    // 4. Generate Cells
-    const cells = [];
-    const totalCells = rows * cols;
-    
-    for(let i=0; i<totalCells; i++) {
-        const d = new Date(startDate);
-        d.setDate(startDate.getDate() + i);
-        const dateStr = getLocalDate(d);
-        const count = dateCounts[dateStr] || 0;
-        
-        let intensity = 0;
-        if(count > 0) intensity = 1;
-        if(count >= 3) intensity = 2;
-        if(count >= 6) intensity = 3;
-        if(count >= 10) intensity = 4;
-        
-        // Mark future days
-        const isFuture = d > today;
-        
-        cells.push({
-            date: dateStr,
-            count,
-            intensity,
-            isFuture,
-            dayIndex: d.getDay() // 0=Sun, ... 6=Sat
+    const result = [];
+    // Generate exactly last 7 days including today
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const str = getLocalDate(d);
+        result.push({
+            date: str,
+            day: d.toLocaleDateString('en-US', { weekday: 'narrow' }), // M, T, W...
+            count: counts[str] || 0
         });
     }
-    return cells;
+    return result;
   }, [sessions]);
 
   return (
-    <div className="w-full overflow-hidden flex flex-col gap-2">
-        <div className="w-full overflow-x-auto no-scrollbar pb-1" style={{ direction: 'ltr' }}>
-             <div className="grid grid-rows-7 grid-flow-col gap-1 w-fit mx-auto md:mx-0">
-                 {heatmapData.map((cell) => (
-                     <div 
-                        key={cell.date}
-                        className={`
-                            w-2.5 h-2.5 md:w-3 md:h-3 rounded-sm transition-all duration-300
-                            ${cell.isFuture ? 'opacity-0 pointer-events-none' : 'hover:scale-125 hover:z-10 cursor-help'}
-                            ${cell.count === 0 && !cell.isFuture ? 'bg-slate-200 dark:bg-white/5' : ''}
-                            ${cell.intensity === 1 ? 'bg-indigo-300 dark:bg-indigo-500/40' : ''}
-                            ${cell.intensity === 2 ? 'bg-indigo-400 dark:bg-indigo-500/70' : ''}
-                            ${cell.intensity === 3 ? 'bg-indigo-500 dark:bg-indigo-500' : ''}
-                            ${cell.intensity === 4 ? 'bg-indigo-600 dark:bg-indigo-400 shadow-[0_0_8px_currentColor]' : ''}
-                        `}
-                        title={`${cell.date}: ${cell.count} sessions`}
-                     />
-                 ))}
-             </div>
-        </div>
-        
-        <div className="flex justify-between items-center text-[9px] text-slate-400 uppercase font-bold tracking-widest px-1">
-            <span className="hidden md:inline">5 Months History</span>
-            <span className="md:hidden">Activity</span>
-            <div className="flex items-center gap-2">
-                <span>Less</span>
-                <div className="flex gap-1">
-                    <div className="w-2 h-2 rounded-sm bg-slate-200 dark:bg-white/5" />
-                    <div className="w-2 h-2 rounded-sm bg-indigo-300 dark:bg-indigo-500/40" />
-                    <div className="w-2 h-2 rounded-sm bg-indigo-500 dark:bg-indigo-500" />
-                    <div className="w-2 h-2 rounded-sm bg-indigo-600 dark:bg-indigo-400" />
-                </div>
-                <span>More</span>
-            </div>
+    <div className="w-full max-w-[280px]">
+        <div className="flex items-end gap-1.5 h-12">
+            {days.map((d) => {
+                // Calculate height percentage, cap at 100% for ~8 sessions to make small progress visible
+                // Min height 15% if count > 0 for visibility
+                const pct = Math.min(100, Math.max(15, (d.count / 8) * 100));
+                
+                return (
+                    <div key={d.date} className="flex-1 flex flex-col justify-end gap-1 group relative h-full cursor-help">
+                        <div className="relative w-full flex-1 flex items-end">
+                             <div 
+                                className={`w-full rounded-sm transition-all duration-500 ${
+                                    d.count > 0 
+                                    ? 'bg-indigo-500 dark:bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.4)]' 
+                                    : 'bg-slate-200 dark:bg-white/5 h-1'
+                                }`}
+                                style={{ height: d.count > 0 ? `${pct}%` : undefined }}
+                             />
+                             {/* Tooltip */}
+                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 text-white text-[9px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20 shadow-lg">
+                                 {d.count} Sessions
+                             </div>
+                        </div>
+                        <span className="text-[9px] font-bold text-slate-400 text-center uppercase">{d.day}</span>
+                    </div>
+                )
+            })}
         </div>
     </div>
   );
@@ -186,7 +143,7 @@ const SubjectPod = memo(({
         if ((e.target as HTMLElement).closest('.goal-input')) return;
         onClick();
       }}
-      className="relative overflow-hidden rounded-[2rem] border border-slate-200 dark:border-white/5 p-5 md:p-6 flex flex-col justify-between min-h-[160px] md:min-h-[220px] group cursor-pointer hover:scale-[1.02] hover:shadow-2xl hover:border-slate-300 dark:hover:border-white/20 active:scale-95 backdrop-blur-md transform-gpu will-change-transform transition-[transform,box-shadow,border-color,background-color] duration-300"
+      className="relative overflow-hidden rounded-[2rem] border border-slate-200 dark:border-white/5 p-5 md:p-6 flex flex-col justify-between min-h-[160px] md:min-h-[220px] group cursor-pointer hover:scale-[1.02] hover:shadow-2xl hover:border-slate-300 dark:hover:border-white/20 active:scale-[0.98] backdrop-blur-md transform-gpu will-change-transform transition-[transform,box-shadow,border-color,background-color] duration-300"
       style={{ 
         transform: 'translate3d(0,0,0)',
         backgroundColor: 'rgba(var(--theme-card-rgb), 0.4)'
@@ -291,10 +248,18 @@ const SubjectDetailModal = memo(({
   });
   
   const incorrectCount = logData.attempted - logData.correct;
-  const allocatedMistakes = (Object.values(logData.mistakes) as number[]).reduce((a, b) => a + (b || 0), 0);
+  const allocatedMistakes = (Object.values(logData.mistakes) as (number|undefined)[]).reduce((a: number, b) => a + (Number(b) || 0), 0);
+
+  // Lock scroll when modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
 
   const updateMistake = (type: keyof MistakeCounts, val: number) => {
-    const current = logData.mistakes[type] || 0;
+    const current = (logData.mistakes[type] as number) || 0;
     const next = Math.max(0, current + val);
     if (val > 0 && allocatedMistakes >= incorrectCount) return;
     setLogData({ ...logData, mistakes: { ...logData.mistakes, [type]: next } });
@@ -312,7 +277,8 @@ const SubjectDetailModal = memo(({
     const counts: Record<string, number> = {};
     sessions.forEach(s => {
       Object.entries(s.mistakes).forEach(([k, v]) => {
-        counts[k] = (counts[k] || 0) + (v || 0);
+        const val = Number(v);
+        counts[k] = (counts[k] || 0) + (isNaN(val) ? 0 : val);
       });
     });
     return counts;
@@ -350,8 +316,16 @@ const SubjectDetailModal = memo(({
   }, [subject]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#0f172a] border-t md:border border-slate-200 dark:border-white/10 w-full md:max-w-2xl rounded-t-[2rem] md:rounded-3xl shadow-2xl flex flex-col h-[85vh] md:h-auto md:max-h-[90vh] animate-in slide-in-from-bottom-10 duration-300 overflow-hidden transform-gpu">
+    <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200 backdrop-blur-sm"
+        // Prevent event bubbling to avoid scrolling background if click hits overlay
+        onTouchMove={(e) => { if(e.target === e.currentTarget) e.preventDefault(); }}
+    >
+      <div 
+        className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-white/10 w-full md:max-w-2xl rounded-[2rem] shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300 overflow-hidden transform-gpu"
+        // Stop propagation to allow scrolling INSIDE the modal
+        onTouchMove={(e) => e.stopPropagation()} 
+      >
         
         {/* Header - Subject Themed */}
         <div className={`p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center ${theme.lightBg} shrink-0 relative overflow-hidden`}>
@@ -526,7 +500,9 @@ const SubjectDetailModal = memo(({
                    MISTAKE_TYPES.map(type => {
                      const count = mistakesSummary[type.id] || 0;
                      if(count === 0) return null;
-                     const max = Math.max(...(Object.values(mistakesSummary) as number[]), 1);
+                     // Ensure explicit number typing
+                     const values = Object.values(mistakesSummary) as number[];
+                     const max = Math.max(...values, 1);
                      const scaleVal = isFinite(count/max) ? count/max : 0;
                      
                      return (
@@ -591,6 +567,8 @@ export const Dashboard = memo(({
   const todayStr = getLocalDate();
   const todaysSessions = useMemo(() => sessions.filter(s => getLocalDateFromTimestamp(s.timestamp) === todayStr), [sessions, todayStr]);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
+  const scrollPosRef = useRef(0);
+
   const { greeting, displayName } = useMemo(() => {
     const hour = new Date().getHours();
     let greetingText = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
@@ -606,16 +584,63 @@ export const Dashboard = memo(({
   const handlePhysicsGoal = useCallback((val: number) => setGoals(g => ({...g, Physics: val})), [setGoals]);
   const handleChemGoal = useCallback((val: number) => setGoals(g => ({...g, Chemistry: val})), [setGoals]);
   const handleMathsGoal = useCallback((val: number) => setGoals(g => ({...g, Maths: val})), [setGoals]);
-  const openPhysics = useCallback(() => setSelectedSubject('Physics'), []);
-  const openChem = useCallback(() => setSelectedSubject('Chemistry'), []);
-  const openMaths = useCallback(() => setSelectedSubject('Maths'), []);
+
+  const handleOpenSubject = useCallback((subject: string) => {
+      // 1. Capture Position
+      scrollPosRef.current = window.scrollY;
+      
+      const isMobile = window.innerWidth < 768;
+      
+      if (isMobile) {
+          // 2. Scroll to Subjects with offset
+          const element = document.getElementById('dashboard-subjects');
+          if (element) {
+              const rect = element.getBoundingClientRect();
+              const absoluteElementTop = rect.top + window.scrollY;
+              // Center the element in viewport, then add offset to scroll down more
+              const elementCenter = absoluteElementTop + (rect.height / 2);
+              const viewportCenter = window.innerHeight / 2;
+              const offset = 60; // Reduced to 60 to bring the element lower down (higher on screen than 200 offset, but not centered)
+              
+              const targetScroll = elementCenter - viewportCenter + offset;
+              
+              window.scrollTo({ 
+                  top: targetScroll, 
+                  behavior: 'smooth' 
+              });
+          }
+          
+          // 3. Open Modal after delay to allow scroll
+          setTimeout(() => {
+              setSelectedSubject(subject);
+          }, 400); 
+      } else {
+          setSelectedSubject(subject);
+      }
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+      setSelectedSubject(null);
+      
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+          // 4. Restore Position
+          setTimeout(() => {
+              window.scrollTo({ top: scrollPosRef.current, behavior: 'smooth' });
+          }, 100); 
+      }
+  }, []);
+
+  const openPhysics = useCallback(() => handleOpenSubject('Physics'), [handleOpenSubject]);
+  const openChem = useCallback(() => handleOpenSubject('Chemistry'), [handleOpenSubject]);
+  const openMaths = useCallback(() => handleOpenSubject('Maths'), [handleOpenSubject]);
 
   return (
     <>
       <div className="space-y-6 md:space-y-10 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row justify-between items-center md:items-end gap-6">
           <div className="flex flex-col items-center md:items-start gap-3 order-2 md:order-1 w-full md:w-auto">
-             <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest w-full text-center md:text-left">Weekly Streak</span>
+             <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest w-full text-center md:text-left">Last 7 Days</span>
              <ActivityHeatmap sessions={sessions} />
           </div>
           <div className="text-center md:text-right order-1 md:order-2 w-full md:w-auto">
@@ -706,7 +731,7 @@ export const Dashboard = memo(({
         <SubjectDetailModal 
           subject={selectedSubject}
           sessions={sessions.filter(s => s.subject === selectedSubject)}
-          onClose={() => setSelectedSubject(null)}
+          onClose={handleCloseModal}
           onSaveSession={onSaveSession}
           onDeleteSession={(id) => onDelete(id)}
         />
@@ -714,3 +739,5 @@ export const Dashboard = memo(({
     </>
   );
 });
+
+export default Dashboard;

@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'https://esm.sh/framer-motion@10.16.4?external=react,react-dom';
 import { 
   Activity, 
   Calendar as CalendarIcon, 
@@ -20,7 +21,8 @@ import {
   Trophy,
   ArrowRight,
   Crown,
-  Wifi
+  Wifi,
+  Clock
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts } from './types';
 import { QUOTES, THEME_CONFIG } from './constants';
@@ -634,6 +636,9 @@ const App: React.FC = () => {
   const [userName, setUserName] = useState<string | null>(null);
   const [guestNameInput, setGuestNameInput] = useState('');
 
+  // Clock State
+  const [currentTime, setCurrentTime] = useState(new Date());
+
   // Pro State
   const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
@@ -710,6 +715,12 @@ const App: React.FC = () => {
 
   // Initialize Performance Monitor (Only active if graphics are ON and Lag Detection is ENABLED)
   const { isLagging, dismiss: dismissLag } = usePerformanceMonitor(graphicsEnabled && lagDetectionEnabled);
+
+  // Clock Ticker
+  useEffect(() => {
+      const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+      return () => clearInterval(timer);
+  }, []);
 
   const activateLiteMode = useCallback(() => {
       setGraphicsEnabled(false);
@@ -1563,23 +1574,22 @@ const App: React.FC = () => {
              />
              <div className="flex-1 flex flex-col items-center justify-center relative z-10 p-6">
                 <TracklyLogo id="login-logo" />
-                <div className="mt-8 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-8 rounded-3xl border border-slate-200 dark:border-white/10 text-center max-w-sm w-full shadow-2xl cv-auto">
-                    <h2 className="text-2xl font-bold mb-3 text-slate-900 dark:text-white">Welcome Back</h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-                        Sign in to sync your progress, or enter your name to continue offline.
-                    </p>
-                    <button 
-                        onClick={handleLogin}
-                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 mb-4"
-                    >
-                        <span>Sign In with Google</span>
-                    </button>
-                    
-                    <div className="my-6 flex items-center">
-                        <div className="flex-grow h-px bg-slate-200 dark:bg-white/10"></div>
-                        <span className="mx-4 text-xs font-bold uppercase text-slate-400">OR</span>
-                        <div className="flex-grow h-px bg-slate-200 dark:bg-white/10"></div>
+                
+                {/* Live Clock Display */}
+                <div className="mt-8 mb-4 text-center">
+                    <div className="text-6xl md:text-8xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-br from-indigo-300 via-white to-indigo-300 drop-shadow-2xl tracking-tighter">
+                        {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
+                    <div className="text-sm md:text-base font-bold uppercase tracking-[0.3em] text-indigo-200/60 mt-2">
+                        {currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </div>
+                </div>
+
+                <div className="bg-white/10 dark:bg-slate-900/30 backdrop-blur-xl p-8 rounded-3xl border border-white/10 text-center max-w-sm w-full shadow-2xl cv-auto mt-6">
+                    <h2 className="text-xl font-bold mb-2 text-white">Welcome</h2>
+                    <p className="text-xs text-slate-300 mb-6 leading-relaxed">
+                        Your personal command center for academic focus.
+                    </p>
                     
                     <div className="space-y-4">
                         <input
@@ -1587,18 +1597,22 @@ const App: React.FC = () => {
                             placeholder="Enter your name..."
                             value={guestNameInput}
                             onChange={(e) => setGuestNameInput(e.target.value)}
-                            className="w-full p-4 bg-white/10 text-slate-900 dark:text-white rounded-2xl border border-slate-200 dark:border-white/10 transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none placeholder:text-slate-400"
+                            onKeyDown={(e) => e.key === 'Enter' && guestNameInput.trim() && handleGuestLogin()}
+                            className="w-full p-4 bg-black/20 text-white rounded-2xl border border-white/10 transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none placeholder:text-slate-400 text-center font-medium"
                         />
                         <button 
                             onClick={handleGuestLogin}
                             disabled={!guestNameInput.trim()}
-                            className="w-full py-4 bg-white/10 hover:bg-white/20 text-slate-600 dark:text-slate-300 rounded-2xl font-bold uppercase tracking-widest border border-slate-200 dark:border-white/10 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase tracking-widest border border-indigo-500/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/20"
                         >
-                            <span>Continue Offline</span>
-                            <ArrowRight />
+                            <span>Enter Workspace</span>
+                            <ArrowRight size={16} />
                         </button>
                     </div>
-
+                </div>
+                
+                <div className="mt-8 text-[10px] text-white/30 uppercase tracking-widest font-bold">
+                    Local Session • Data stored on device
                 </div>
              </div>
         </div>

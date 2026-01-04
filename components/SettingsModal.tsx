@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate } from 'lucide-react';
 import { Card } from './Card';
@@ -520,7 +521,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <button 
                         onClick={() => { onStartTutorial(); onClose(); }}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center gap-2"
+                        className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center gap-2"
+                        style={{
+                            backgroundColor: 'var(--theme-accent)',
+                            color: 'var(--theme-on-accent)'
+                        }}
                     >
                         <Map size={14} /> Start
                     </button>

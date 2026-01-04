@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@10.16.4?external=react,react-dom';
 import { Zap, X, BatteryCharging } from 'lucide-react';
 
 interface PerformanceToastProps {
@@ -50,7 +51,11 @@ export const PerformanceToast: React.FC<PerformanceToastProps> = ({ isVisible, o
                </button>
                <button 
                  onClick={onSwitch}
-                 className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-lg shadow-indigo-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                 className="flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-lg shadow-indigo-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                 style={{
+                     backgroundColor: 'var(--theme-accent)',
+                     color: 'var(--theme-on-accent)'
+                 }}
                >
                  <Zap size={12} fill="currentColor" /> Lite Mode
                </button>

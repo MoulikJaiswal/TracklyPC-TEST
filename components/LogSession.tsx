@@ -107,7 +107,12 @@ export const LogSession: React.FC<LogSessionProps> = ({ onSave, onCancel }) => {
             <button 
               disabled={!data.topic || data.attempted < 1} 
               onClick={handleNext}
-              className="w-full bg-indigo-600 py-4 md:py-5 rounded-2xl text-white font-bold uppercase disabled:opacity-30 transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 tracking-[0.2em]"
+              className="w-full py-4 md:py-5 rounded-2xl font-bold uppercase disabled:opacity-30 transition-all shadow-lg active:scale-95 tracking-[0.2em]"
+              style={{
+                  backgroundColor: 'var(--theme-accent)',
+                  color: 'var(--theme-on-accent)',
+                  boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.2)'
+              }}
             >
               Analyze Mistakes <ChevronRight size={18} className="inline ml-1" />
             </button>

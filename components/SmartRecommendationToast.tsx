@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@10.16.4?external=react,react-dom';
 import { Lightbulb, X, ArrowRight, Target } from 'lucide-react';
 
 interface Recommendation {
@@ -61,7 +62,11 @@ export const SmartRecommendationToast: React.FC<SmartRecommendationToastProps> =
 
             <button 
                  onClick={onPractice}
-                 className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-indigo-600/20 transition-all active:scale-95 flex items-center justify-center gap-2 relative z-10"
+                 className="w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-indigo-600/20 transition-all active:scale-95 flex items-center justify-center gap-2 relative z-10"
+                 style={{
+                     backgroundColor: 'var(--theme-accent)',
+                     color: 'var(--theme-on-accent)'
+                 }}
                >
                  <Target size={14} /> Practice Now <ArrowRight size={14} />
             </button>

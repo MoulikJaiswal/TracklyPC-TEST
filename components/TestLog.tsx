@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks } from 'lucide-react';
@@ -793,14 +794,16 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                       <button 
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, type: 'full' }))}
-                          className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'full' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                          className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'full' ? 'shadow-md' : 'text-slate-400 hover:text-white'}`}
+                          style={formData.type === 'full' ? { backgroundColor: 'var(--theme-accent)', color: 'var(--theme-on-accent)' } : {}}
                       >
                           Full Syllabus
                       </button>
                       <button 
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, type: 'part' }))}
-                          className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'part' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                          className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'part' ? 'shadow-md' : 'text-slate-400 hover:text-white'}`}
+                          style={formData.type === 'part' ? { backgroundColor: 'var(--theme-accent)', color: 'var(--theme-on-accent)' } : {}}
                       >
                           Part Test
                       </button>

@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Coffee, Heart, Sparkles, ExternalLink, Mail, Copy, Check, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@10.16.4?external=react,react-dom';
 
 export const BuyMeCoffee: React.FC = () => {
   const [showEmail, setShowEmail] = useState(false);

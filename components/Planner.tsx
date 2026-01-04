@@ -280,8 +280,12 @@ export const Planner: React.FC<PlannerProps> = memo(({ targets, onAdd, onToggle,
                     />
                     <button 
                         onClick={handleAdd} 
-                        className="p-3 md:p-4 rounded-2xl text-white transition-all hover:scale-105 active:scale-95 shadow-lg"
-                        style={{ backgroundColor: 'var(--theme-accent)', boxShadow: '0 4px 10px -1px rgba(var(--theme-accent-rgb), 0.2)' }}
+                        className="p-3 md:p-4 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-lg"
+                        style={{ 
+                            backgroundColor: 'var(--theme-accent)', 
+                            color: 'var(--theme-on-accent)',
+                            boxShadow: '0 4px 10px -1px rgba(var(--theme-accent-rgb), 0.2)' 
+                        }}
                     >
                         <Plus size={20} />
                     </button>

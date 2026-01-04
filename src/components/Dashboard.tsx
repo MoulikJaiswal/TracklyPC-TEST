@@ -1,5 +1,6 @@
+
 import React, { useMemo, useState, memo, useCallback } from 'react';
-import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History } from 'lucide-react';
+import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown } from 'lucide-react';
 import { Session, Target, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
@@ -30,43 +31,56 @@ interface DashboardProps {
 
 const ActivityHeatmap = memo(({ sessions }: { sessions: Session[] }) => {
   const days = useMemo(() => {
-    // Optimized: Create lookup map first
-    const dateCounts: Record<string, number> = {};
+    const counts: Record<string, number> = {};
     sessions.forEach(s => {
         const d = getLocalDateFromTimestamp(s.timestamp);
-        dateCounts[d] = (dateCounts[d] || 0) + 1;
+        counts[d] = (counts[d] || 0) + 1;
     });
 
-    const d = [];
+    const result = [];
+    // Generate exactly last 7 days including today
     for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const str = getLocalDate(date);
-      const count = dateCounts[str] || 0;
-      d.push({ date: str, count, dayName: date.toLocaleDateString('en-US', { weekday: 'narrow' }) });
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const str = getLocalDate(d);
+        result.push({
+            date: str,
+            day: d.toLocaleDateString('en-US', { weekday: 'narrow' }), // M, T, W...
+            count: counts[str] || 0
+        });
     }
-    return d;
+    return result;
   }, [sessions]);
 
   return (
-    <div className="flex gap-2 md:gap-4 items-end">
-      {days.map((day, i) => (
-        <div key={day.date} className="flex flex-col items-center gap-1.5 md:gap-3 group cursor-default">
-          <div 
-            className={`w-3.5 md:w-8 rounded-md transition-all duration-500 relative transform-gpu ${
-              day.count === 0 ? 'h-4 md:h-8 bg-slate-200 dark:bg-white/5' : 
-              day.count < 3 ? 'h-8 md:h-16 bg-indigo-400/40 dark:bg-indigo-500/40' : 
-              'h-16 md:h-24 bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.4)] dark:shadow-[0_0_15px_rgba(99,102,241,0.6)]'
-            }`} 
-          >
-             {/* Desktop Tooltip */}
-             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block whitespace-nowrap z-20">
-                {day.count} Sessions
-             </div>
-          </div>
-          <span className="text-[9px] md:text-xs font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">{day.dayName}</span>
+    <div className="w-full max-w-[280px]">
+        <div className="flex items-end gap-1.5 h-12">
+            {days.map((d) => {
+                // Calculate height percentage, cap at 100% for ~8 sessions to make small progress visible
+                // Min height 15% if count > 0 for visibility
+                const pct = Math.min(100, Math.max(15, (d.count / 8) * 100));
+                
+                return (
+                    <div key={d.date} className="flex-1 flex flex-col justify-end gap-1 group relative h-full cursor-help">
+                        <div className="relative w-full flex-1 flex items-end">
+                             <div 
+                                className={`w-full rounded-sm transition-all duration-500 ${
+                                    d.count > 0 
+                                    ? 'bg-indigo-500 dark:bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.4)]' 
+                                    : 'bg-slate-200 dark:bg-white/5 h-1'
+                                }`}
+                                style={{ height: d.count > 0 ? `${pct}%` : undefined }}
+                             />
+                             {/* Tooltip */}
+                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-slate-800 text-white text-[9px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20 shadow-lg">
+                                 {d.count} Sessions
+                             </div>
+                        </div>
+                        <span className="text-[9px] font-bold text-slate-400 text-center uppercase">{d.day}</span>
+                    </div>
+                )
+            })}
         </div>
-      ))}
     </div>
   );
 });
@@ -208,7 +222,7 @@ const SubjectPod = memo(({
   );
 });
 
-// SubjectDetailModal Component (Abbreviated to focus on fix, but including full content for consistency)
+// SubjectDetailModal Component
 const SubjectDetailModal = memo(({ 
   subject, 
   sessions, 
@@ -234,10 +248,10 @@ const SubjectDetailModal = memo(({
   });
   
   const incorrectCount = logData.attempted - logData.correct;
-  const allocatedMistakes = (Object.values(logData.mistakes) as number[]).reduce((a, b) => a + (b || 0), 0);
+  const allocatedMistakes = (Object.values(logData.mistakes) as (number|undefined)[]).reduce((a: number, b) => a + (Number(b) || 0), 0);
 
   const updateMistake = (type: keyof MistakeCounts, val: number) => {
-    const current = logData.mistakes[type] || 0;
+    const current = (logData.mistakes[type] as number) || 0;
     const next = Math.max(0, current + val);
     if (val > 0 && allocatedMistakes >= incorrectCount) return;
     setLogData({ ...logData, mistakes: { ...logData.mistakes, [type]: next } });
@@ -255,126 +269,183 @@ const SubjectDetailModal = memo(({
     const counts: Record<string, number> = {};
     sessions.forEach(s => {
       Object.entries(s.mistakes).forEach(([k, v]) => {
-        counts[k] = (counts[k] || 0) + ((v as number) || 0);
+        const val = Number(v);
+        counts[k] = (counts[k] || 0) + (isNaN(val) ? 0 : val);
       });
     });
     return counts;
   }, [sessions]);
 
+  // Theme colors based on subject
+  const theme = useMemo(() => {
+      if (subject === 'Physics') return { 
+          bg: 'bg-blue-500', 
+          text: 'text-blue-500', 
+          border: 'border-blue-500', 
+          lightBg: 'bg-blue-50 dark:bg-blue-500/10',
+          hoverBg: 'hover:bg-blue-500',
+          gradient: 'from-blue-500 to-blue-600',
+          lightText: 'text-blue-600 dark:text-blue-400'
+      };
+      if (subject === 'Chemistry') return { 
+          bg: 'bg-orange-500', 
+          text: 'text-orange-500', 
+          border: 'border-orange-500', 
+          lightBg: 'bg-orange-50 dark:bg-orange-500/10',
+          hoverBg: 'hover:bg-orange-500',
+          gradient: 'from-orange-500 to-orange-600',
+          lightText: 'text-orange-600 dark:text-orange-400'
+      };
+      return { 
+          bg: 'bg-rose-500', 
+          text: 'text-rose-500', 
+          border: 'border-rose-500', 
+          lightBg: 'bg-rose-50 dark:bg-rose-500/10',
+          hoverBg: 'hover:bg-rose-500',
+          gradient: 'from-rose-500 to-rose-600',
+          lightText: 'text-rose-600 dark:text-rose-400'
+      };
+  }, [subject]);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 animate-in fade-in duration-200">
       <div className="bg-white dark:bg-[#0f172a] border-t md:border border-slate-200 dark:border-white/10 w-full md:max-w-2xl rounded-t-[2rem] md:rounded-3xl shadow-2xl flex flex-col h-[85vh] md:h-auto md:max-h-[90vh] animate-in slide-in-from-bottom-10 duration-300 overflow-hidden transform-gpu">
         
-        {/* Header */}
-        <div className="p-5 md:p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-indigo-50 to-transparent dark:from-indigo-500/10 dark:to-transparent shrink-0">
-          <div className="flex items-center gap-3 md:gap-4">
-             {subject === 'Physics' && <Atom className="text-blue-500 dark:text-blue-400" size={24} />}
-             {subject === 'Chemistry' && <Zap className="text-orange-500 dark:text-orange-400" size={24} />}
-             {subject === 'Maths' && <Calculator className="text-rose-500 dark:text-rose-400" size={24} />}
+        {/* Header - Subject Themed */}
+        <div className={`p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center ${theme.lightBg} shrink-0 relative overflow-hidden`}>
+          {/* Subtle gradient overlay */}
+          <div className={`absolute top-0 right-0 w-64 h-64 ${theme.bg} opacity-5 dark:opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none`} />
+          
+          <div className="flex items-center gap-4 relative z-10">
+             <div className={`p-3 rounded-xl bg-white dark:bg-black/20 shadow-sm ${theme.text}`}>
+                 {subject === 'Physics' && <Atom size={24} />}
+                 {subject === 'Chemistry' && <Zap size={24} />}
+                 {subject === 'Maths' && <Calculator size={24} />}
+             </div>
              <div>
-               <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-wider">{subject} Hub</h2>
-               <p className="text-[9px] md:text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">Chapter Progress</p>
+               <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-wider leading-none">{subject} Hub</h2>
+               <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${theme.lightText}`}>Chapter Progress</p>
              </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-white">
+          <button onClick={onClose} className="p-2 bg-white/50 dark:bg-black/10 hover:bg-white dark:hover:bg-white/10 rounded-full transition-colors text-slate-500 dark:text-slate-400 relative z-10">
             <X size={20} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex p-2 gap-2 border-b border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-black/20 shrink-0">
-          <button 
-            onClick={() => setActiveTab('log')}
-            className={`flex-1 py-3 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'log' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-white/5'}`}
-          >
-            Add Session
-          </button>
-          <button 
-             onClick={() => setActiveTab('history')}
-             className={`flex-1 py-3 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'history' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-white/5'}`}
-          >
-            Past Sessions
-          </button>
+        <div className="p-2 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 shrink-0">
+          <div className="flex bg-slate-200/50 dark:bg-white/5 p-1 rounded-xl">
+              <button 
+                onClick={() => setActiveTab('log')}
+                className={`flex-1 py-2.5 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'log' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                Add Session
+              </button>
+              <button 
+                 onClick={() => setActiveTab('history')}
+                 className={`flex-1 py-2.5 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'history' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                Past Sessions
+              </button>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="p-5 md:p-6 overflow-y-auto flex-grow overscroll-contain">
+        <div className="p-6 overflow-y-auto flex-grow overscroll-contain bg-white dark:bg-[#0f172a]">
           {activeTab === 'log' ? (
-            <div className="space-y-6 pb-10">
+            <div className="space-y-8 pb-10">
               {step === 1 ? (
                 <>
-                  <div className="space-y-5">
+                  <div className="space-y-6">
                      <div className="space-y-2">
-                        <label className="text-[10px] uppercase font-bold text-indigo-500 dark:text-indigo-400 ml-1 tracking-widest">Topic / Chapter</label>
-                        <select 
-                          className="w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 p-4 rounded-2xl text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all text-sm appearance-none"
-                          value={logData.topic}
-                          onChange={e => setLogData({...logData, topic: e.target.value})}
-                        >
-                          <option value="">Select Chapter...</option>
-                          {JEE_SYLLABUS[subject as keyof typeof JEE_SYLLABUS].map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
+                        <label className={`text-[10px] uppercase font-bold ${theme.lightText} ml-1 tracking-widest`}>Topic / Chapter</label>
+                        <div className="relative">
+                            <select 
+                              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-4 pr-10 rounded-2xl text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all text-sm appearance-none font-medium truncate"
+                              value={logData.topic}
+                              onChange={e => setLogData({...logData, topic: e.target.value})}
+                            >
+                              <option value="">Select Chapter...</option>
+                              {JEE_SYLLABUS[subject as keyof typeof JEE_SYLLABUS].map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                        </div>
                      </div>
+                     
                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <label className="text-[10px] uppercase font-bold text-indigo-500 dark:text-indigo-400 ml-1 tracking-widest">Attempted</label>
+                          <label className={`text-[10px] uppercase font-bold ${theme.lightText} ml-1 tracking-widest`}>Attempted</label>
                           <input 
-                            type="number" min="0" 
-                            className="w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 p-4 rounded-2xl text-slate-900 dark:text-white font-mono text-xl outline-none focus:border-indigo-500"
+                            type="number" min="0" placeholder="0"
+                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-4 rounded-2xl text-slate-900 dark:text-white font-mono text-2xl font-bold outline-none focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
                             value={logData.attempted || ''}
                             onChange={e => setLogData({...logData, attempted: parseInt(e.target.value) || 0})}
                           />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[10px] uppercase font-bold text-indigo-500 dark:text-indigo-400 ml-1 tracking-widest">Correct</label>
+                          <label className={`text-[10px] uppercase font-bold ${theme.lightText} ml-1 tracking-widest`}>Correct</label>
                           <input 
-                            type="number" min="0" 
-                            className="w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-white/10 p-4 rounded-2xl text-slate-900 dark:text-white font-mono text-xl outline-none focus:border-indigo-500"
+                            type="number" min="0" placeholder="0"
+                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-4 rounded-2xl text-slate-900 dark:text-white font-mono text-2xl font-bold outline-none focus:border-indigo-500 transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
                             value={logData.correct || ''}
                             onChange={e => setLogData({...logData, correct: Math.min(logData.attempted, parseInt(e.target.value) || 0)})}
                           />
                         </div>
                      </div>
                   </div>
-                  <button 
-                    disabled={!logData.topic || logData.attempted < 1} 
-                    onClick={() => {
-                      if (incorrectCount > 0) setStep(2);
-                      else handleSave();
-                    }}
-                    className="w-full bg-indigo-600 py-4 rounded-2xl text-white font-bold uppercase tracking-widest hover:bg-indigo-500 disabled:opacity-50 shadow-lg shadow-indigo-600/20 transition-all mt-6 active:scale-95"
-                  >
-                    {incorrectCount > 0 ? 'Next: Review Mistakes' : 'Save Session'}
-                  </button>
+                  
+                  <div className="pt-4">
+                      <button 
+                        disabled={!logData.topic || logData.attempted < 1} 
+                        onClick={() => {
+                          if (incorrectCount > 0) setStep(2);
+                          else handleSave();
+                        }}
+                        className={`w-full py-4 rounded-2xl text-white font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${theme.gradient}`}
+                      >
+                        {incorrectCount > 0 ? 'Next: Review Mistakes' : 'Save Session'}
+                      </button>
+                  </div>
                 </>
               ) : (
                 <>
-                  <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex justify-between items-center mb-4">
+                  <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-2xl flex justify-between items-center mb-4">
                      <div>
-                       <span className="text-xs font-bold text-rose-500 dark:text-rose-300 uppercase block">Incorrect Answers</span>
-                       <span className="text-[10px] text-rose-500/60 font-bold uppercase">{allocatedMistakes} / {incorrectCount} Tagged</span>
+                       <span className="text-xs font-bold text-rose-600 dark:text-rose-300 uppercase block">Incorrect Answers</span>
+                       <span className="text-[10px] text-rose-500/80 font-bold uppercase">{allocatedMistakes} / {incorrectCount} Tagged</span>
                      </div>
-                     <span className="text-2xl font-mono text-rose-500 dark:text-rose-400">{incorrectCount - allocatedMistakes} Left</span>
+                     <span className="text-2xl font-mono text-rose-500 dark:text-rose-400 font-bold">{incorrectCount - allocatedMistakes} Left</span>
                   </div>
                   
-                  <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2">
-                    {MISTAKE_TYPES.map(type => (
-                      <div key={type.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5">
-                        <div className="flex items-center gap-3 overflow-hidden">
-                           <span className={`${type.color} shrink-0`}>{type.icon}</span>
-                           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 truncate">{type.label}</span>
-                        </div>
-                        <div className="flex items-center gap-3 bg-white dark:bg-black/40 border border-slate-200 dark:border-none rounded-lg p-1 shrink-0">
-                          <button onClick={() => updateMistake(type.id as any, -1)} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 rounded-md text-slate-500 dark:text-slate-400 transition-colors text-lg active:scale-90">-</button>
-                          <span className="w-6 text-center text-base font-mono text-slate-900 dark:text-white">{logData.mistakes[type.id as any] || 0}</span>
-                          <button onClick={() => updateMistake(type.id as any, 1)} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 rounded-md text-slate-500 dark:text-slate-400 transition-colors text-lg active:scale-90">+</button>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                    {MISTAKE_TYPES.map(type => {
+                        const count = logData.mistakes[type.id as any] || 0;
+                        return (
+                          <div key={type.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${count > 0 ? 'bg-slate-50 dark:bg-white/10 border-slate-200 dark:border-white/10' : 'bg-transparent border-slate-100 dark:border-white/5'}`}>
+                            <div className="flex items-center gap-3">
+                               <div className={`p-2 rounded-lg bg-slate-100 dark:bg-black/20 ${type.color}`}>
+                                   {type.icon}
+                               </div>
+                               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{type.label}</span>
+                            </div>
+                            <div className="flex items-center gap-1 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg p-1 shrink-0 shadow-sm">
+                              <button 
+                                onClick={() => updateMistake(type.id as any, -1)} 
+                                className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                              >-</button>
+                              <span className="w-6 text-center text-sm font-mono font-bold text-slate-900 dark:text-white">{count}</span>
+                              <button 
+                                onClick={() => updateMistake(type.id as any, 1)} 
+                                className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                              >+</button>
+                            </div>
+                          </div>
+                        )
+                    })}
                   </div>
 
-                  <div className="flex gap-3 mt-6">
-                    <button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl bg-slate-200 dark:bg-white/5 text-slate-600 dark:text-slate-400 font-bold uppercase text-xs tracking-wider hover:bg-slate-300 dark:hover:bg-white/10 active:scale-95 transition-all">Back</button>
+                  <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100 dark:border-white/5">
+                    <button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 font-bold uppercase text-xs tracking-wider hover:bg-slate-200 dark:hover:bg-white/10 active:scale-95 transition-all">Back</button>
                     <button 
                       onClick={handleSave} 
                       disabled={allocatedMistakes !== incorrectCount}
@@ -413,7 +484,9 @@ const SubjectDetailModal = memo(({
                    MISTAKE_TYPES.map(type => {
                      const count = mistakesSummary[type.id] || 0;
                      if(count === 0) return null;
-                     const max = Math.max(...(Object.values(mistakesSummary) as number[]), 1);
+                     // Ensure explicit number typing
+                     const values = Object.values(mistakesSummary) as number[];
+                     const max = Math.max(...values, 1);
                      const scaleVal = isFinite(count/max) ? count/max : 0;
                      
                      return (
@@ -442,7 +515,7 @@ const SubjectDetailModal = memo(({
                   </div>
                 ) : (
                   sessions.map(s => (
-                    <div key={s.id} className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl flex justify-between items-center group active:scale-[0.98] transition-all">
+                    <div key={s.id} className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl flex justify-between items-center group active:scale-[0.98] transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/10">
                       <div className="min-w-0 pr-4">
                         <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{s.topic}</p>
                         <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">{new Date(s.timestamp).toLocaleDateString()}</p>
@@ -451,7 +524,7 @@ const SubjectDetailModal = memo(({
                         <div className="text-right">
                           <span className="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-300">{s.correct}/{s.attempted}</span>
                         </div>
-                        <button onClick={() => onDeleteSession(s.id)} className="text-rose-500/50 hover:text-rose-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all p-2"><Trash2 size={14} /></button>
+                        <button onClick={() => onDeleteSession(s.id)} className="text-rose-500/50 hover:text-rose-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all p-2 bg-rose-500/10 rounded-lg"><Trash2 size={14} /></button>
                       </div>
                     </div>
                   ))
@@ -502,7 +575,7 @@ export const Dashboard = memo(({
       <div className="space-y-6 md:space-y-10 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row justify-between items-center md:items-end gap-6">
           <div className="flex flex-col items-center md:items-start gap-3 order-2 md:order-1 w-full md:w-auto">
-             <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest w-full text-center md:text-left">Weekly Streak</span>
+             <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest w-full text-center md:text-left">Last 7 Days</span>
              <ActivityHeatmap sessions={sessions} />
           </div>
           <div className="text-center md:text-right order-1 md:order-2 w-full md:w-auto">
