@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { 
   Zap, 
@@ -20,9 +21,66 @@ import {
 import { ThemeId } from './types';
 
 export const JEE_SYLLABUS = {
-  Physics: ["Units and Measurements", "Kinematics", "Laws of Motion", "Work, Energy and Power", "Rotational Motion", "Gravitation", "Properties of Solids and Liquids", "Thermodynamics", "Kinetic Theory of Gases", "Oscillations and Waves", "Electrostatics", "Current Electricity", "Magnetic Effects of Current and Magnetism", "Electromagnetic Induction and AC", "Electromagnetic Waves", "Optics", "Dual Nature of Matter and Radiation", "Atoms and Nuclei", "Electronic Devices", "Experimental Skills"],
-  Chemistry: ["Some Basic Concepts in Chemistry", "Atomic Structure", "Chemical Bonding & Molecular Structure", "Chemical Thermodynamics", "Solutions", "Equilibrium", "Redox Reactions and Electrochemistry", "Chemical Kinetics", "Classification of Elements", "p-Block Elements", "d and f Block Elements", "Coordination Compounds", "Purification of Organic Compounds", "Basic Principles of Organic Chemistry", "Hydrocarbons", "Organic Compounds containing Halogens", "Organic Compounds containing Oxygen", "Organic Compounds containing Nitrogen", "Biomolecules", "Principles Related to Practical Chemistry"],
-  Maths: ["Sets, Relations and Functions", "Complex Numbers and Quadratic Equations", "Matrices and Determinants", "Permutations and Combinations", "Binomial Theorem", "Sequence and Series", "Limit, Continuity and Differentiability", "Integral Calculus", "Differential Equations", "Co-ordinate Geometry", "Three Dimensional Geometry", "Vector Algebra", "Statistics and Probability", "Trigonometry"]
+  Physics: [
+    "Physics and Measurements",
+    "Kinematics",
+    "Laws of Motion",
+    "Work, Energy and Power",
+    "Rotational Motion",
+    "Gravitation",
+    "Properties of Solids and Liquids",
+    "Thermodynamics",
+    "Kinetic Theory of Gases",
+    "Oscillations and Waves",
+    "Electrostatics",
+    "Current Electricity",
+    "Magnetic Effects of Current and Magnetism",
+    "Electromagnetic Induction and Alternating Currents",
+    "Electromagnetic Waves",
+    "Optics",
+    "Dual Nature of Matter and Radiation",
+    "Atoms and Nuclei",
+    "Electronic Devices",
+    "Experimental Skills"
+  ],
+  Chemistry: [
+    "Some Basic Concepts in Chemistry",
+    "Atomic Structure",
+    "Chemical Bonding and Molecular Structure",
+    "Chemical Thermodynamics",
+    "Solutions",
+    "Equilibrium",
+    "Redox Reactions and Electrochemistry",
+    "Chemical Kinetics",
+    "Classification of Elements and Periodicity in Properties",
+    "p-Block Elements",
+    "d- and f-Block Elements",
+    "Coordination Compounds",
+    "Purification and Characterisation of Organic Compounds",
+    "Some Basic Principles of Organic Chemistry",
+    "Hydrocarbons",
+    "Organic Compounds Containing Halogens",
+    "Organic Compounds Containing Oxygen",
+    "Organic Compounds Containing Nitrogen",
+    "Biomolecules"
+  ],
+  Maths: [
+    "Sets, Relations and Functions",
+    "Complex Numbers and Quadratic Equations",
+    "Matrices and Determinants",
+    "Permutations and Combinations",
+    "Mathematical Induction",
+    "Binomial Theorem and Its Simple Applications",
+    "Sequences and Series",
+    "Limit, Continuity and Differentiability",
+    "Integral Calculus",
+    "Differential Equations",
+    "Coordinate Geometry",
+    "Three Dimensional Geometry",
+    "Vector Algebra",
+    "Statistics and Probability",
+    "Trigonometry"
+  ]
 };
 
 export const MISTAKE_TYPES = [

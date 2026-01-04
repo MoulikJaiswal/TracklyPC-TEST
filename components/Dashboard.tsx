@@ -433,18 +433,18 @@ const SubjectDetailModal = memo(({
                      <span className="text-2xl font-mono text-rose-500 dark:text-rose-400 font-bold">{incorrectCount - allocatedMistakes} Left</span>
                   </div>
                   
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                  <div className="space-y-2">
                     {MISTAKE_TYPES.map(type => {
                         const count = logData.mistakes[type.id as any] || 0;
                         return (
                           <div key={type.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${count > 0 ? 'bg-slate-50 dark:bg-white/10 border-slate-200 dark:border-white/10' : 'bg-transparent border-slate-100 dark:border-white/5'}`}>
-                            <div className="flex items-center gap-3">
-                               <div className={`p-2 rounded-lg bg-slate-100 dark:bg-black/20 ${type.color}`}>
+                            <div className="flex-1 min-w-0 flex items-center gap-3">
+                               <div className={`p-2 rounded-lg bg-slate-100 dark:bg-black/20 ${type.color} shrink-0`}>
                                    {type.icon}
                                </div>
-                               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{type.label}</span>
+                               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 truncate">{type.label}</span>
                             </div>
-                            <div className="flex items-center gap-1 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg p-1 shrink-0 shadow-sm">
+                            <div className="flex items-center gap-1 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg p-1 shrink-0 shadow-sm ml-2">
                               <button 
                                 onClick={() => updateMistake(type.id as any, -1)} 
                                 className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 rounded text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
@@ -561,8 +561,8 @@ export const Dashboard = memo(({
   onDelete, 
   goals, 
   setGoals, 
-  onSaveSession,
-  userName
+  onSaveSession, 
+  userName 
 }: DashboardProps) => {
   const todayStr = getLocalDate();
   const todaysSessions = useMemo(() => sessions.filter(s => getLocalDateFromTimestamp(s.timestamp) === todayStr), [sessions, todayStr]);

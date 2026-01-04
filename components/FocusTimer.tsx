@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, memo, useEffect } from 'react';
 import { 
   Play, 
@@ -126,6 +127,15 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
       onCompleteSession();
       setShowReport(false);
   };
+
+  // Safe Mode Switch
+  const handleModeSwitch = (newMode: 'focus' | 'short' | 'long') => {
+      if (isActive && mode === 'focus' && newMode !== 'focus') {
+          const confirmed = window.confirm("You are currently in a Focus Session. Are you sure you want to take a break?");
+          if (!confirmed) return;
+      }
+      onSwitchMode(newMode);
+  };
   // ---------------------
 
   const formatTime = (seconds: number) => {
@@ -217,7 +227,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                   return (
                       <button
                           key={m.id}
-                          onClick={() => onSwitchMode(m.id as any)}
+                          onClick={() => handleModeSwitch(m.id as any)}
                           className={`
                               relative flex items-center gap-2 px-4 py-2 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300
                               ${isSelected ? 'text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}
@@ -441,14 +451,23 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                         </div>
                     )}
 
-                    {/* DEDICATED HIGH-VISIBILITY PAUSE BUTTON (VISIBLE FOR ALL MODES WHEN ACTIVE) */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onToggleTimer(); }}
-                        className="mt-2 flex items-center gap-2 px-8 py-3 rounded-full bg-slate-100 hover:bg-white text-slate-900 border-2 border-transparent hover:border-indigo-500 transition-all text-xs font-extrabold uppercase tracking-widest shadow-xl active:scale-95"
-                    >
-                        <Pause size={16} fill="currentColor" />
-                        PAUSE TIMER
-                    </button>
+                    {/* DEDICATED HIGH-VISIBILITY CONTROLS */}
+                    <div className="mt-2 flex items-center gap-3">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onToggleTimer(); }}
+                            className="flex items-center gap-2 px-8 py-3 rounded-full bg-slate-100 hover:bg-white text-slate-900 border-2 border-transparent hover:border-indigo-500 transition-all text-xs font-extrabold uppercase tracking-widest shadow-xl active:scale-95"
+                        >
+                            <Pause size={16} fill="currentColor" />
+                            PAUSE
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onResetTimer(); }}
+                            className="p-3 rounded-full bg-slate-800/50 dark:bg-white/10 hover:bg-rose-500/20 text-slate-400 dark:text-white/60 hover:text-rose-500 border-2 border-transparent hover:border-rose-500/50 transition-all shadow-xl active:scale-95 backdrop-blur-sm"
+                            title="Reset Session"
+                        >
+                            <RotateCcw size={18} />
+                        </button>
+                    </div>
                 </div>
             ) : (
                 /* INACTIVE STATE: SHOW START, SETTINGS, SOUND */
