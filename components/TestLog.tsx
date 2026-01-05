@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks } from 'lucide-react';
+import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2 } from 'lucide-react';
 import { TestResult, Target as TargetType, SubjectBreakdown, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES, JEE_SYLLABUS } from '../constants';
@@ -45,7 +45,7 @@ const NumberScrollInput = memo(({
     min = 0, 
     max = 300, 
     presets,
-    step = 1,
+    step = 1, 
     color = 'indigo'
 }: { 
     label: string, 
@@ -445,6 +445,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
   const [viewingReport, setViewingReport] = useState<TestResult | null>(null);
   const [reportSubject, setReportSubject] = useState<'Physics' | 'Chemistry' | 'Maths' | null>(null);
   const [activeTab, setActiveTab] = useState<'Physics' | 'Chemistry' | 'Maths'>('Physics');
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   
   // Syllabus Picker State
   const [syllabusTab, setSyllabusTab] = useState<'Physics' | 'Chemistry' | 'Maths'>('Physics');
@@ -468,6 +469,36 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
       Maths: { ...DEFAULT_BREAKDOWN, unattempted: 25 }
     }
   });
+
+  // --- BLOB URL GENERATION FOR VIEWER ---
+  useEffect(() => {
+    if (viewingAttachment && viewingAttachment.attachmentType === 'pdf' && viewingAttachment.attachment) {
+        try {
+            const base64Data = viewingAttachment.attachment.includes(',') 
+                ? viewingAttachment.attachment.split(',')[1] 
+                : viewingAttachment.attachment;
+            
+            const binaryString = window.atob(base64Data);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            setPdfBlobUrl(url);
+
+            return () => {
+                URL.revokeObjectURL(url);
+            };
+        } catch (e) {
+            console.error("Failed to generate PDF blob", e);
+            setPdfBlobUrl(null);
+        }
+    } else {
+        setPdfBlobUrl(null);
+    }
+  }, [viewingAttachment]);
 
   const handleAddClick = () => {
       if (!isPro && tests.length >= 2) {
@@ -1465,12 +1496,22 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                               <p className="text-[10px] text-slate-500 font-mono uppercase">{viewingAttachment.fileName || 'Attachment'}</p>
                           </div>
                       </div>
-                      <button 
-                        onClick={() => setViewingAttachment(null)}
-                        className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
-                      >
-                          <X size={20} />
-                      </button>
+                      <div className="flex gap-2">
+                          <a 
+                            href={viewingAttachment.attachment} 
+                            download={viewingAttachment.fileName || "download"}
+                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
+                            title="Download"
+                          >
+                              <Download size={20} />
+                          </a>
+                          <button 
+                            onClick={() => setViewingAttachment(null)}
+                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
+                          >
+                              <X size={20} />
+                          </button>
+                      </div>
                   </div>
                   <div className="flex-1 bg-slate-100 dark:bg-black/50 overflow-auto flex items-center justify-center p-4 relative">
                       {viewingAttachment.attachmentType === 'image' ? (
@@ -1480,16 +1521,19 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                             className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
                           />
                       ) : (
-                          <div className="text-center">
-                              <FileText size={64} className="text-slate-400 mx-auto mb-4" />
-                              <p className="text-slate-500 dark:text-slate-300 mb-6 font-medium">PDF Preview is not supported in this view.</p>
-                              <a 
-                                href={viewingAttachment.attachment} 
-                                download={viewingAttachment.fileName || "test-paper.pdf"}
-                                className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg transition-all inline-flex items-center gap-2"
-                              >
-                                  <Download size={16} /> Download PDF
-                              </a>
+                          <div className="w-full h-full flex flex-col">
+                              {pdfBlobUrl ? (
+                                  <iframe 
+                                      src={pdfBlobUrl} 
+                                      className="w-full flex-1 rounded-lg shadow-lg border-0 bg-white"
+                                      title={viewingAttachment.name}
+                                  />
+                              ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                      <Loader2 size={32} className="animate-spin mb-2" />
+                                      <p className="text-xs uppercase font-bold">Loading PDF...</p>
+                                  </div>
+                              )}
                           </div>
                       )}
                   </div>

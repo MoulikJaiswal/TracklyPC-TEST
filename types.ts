@@ -68,6 +68,26 @@ export interface Target {
   type?: 'task' | 'test';
 }
 
-export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'resources';
+export interface Folder {
+  id: string;
+  name: string;
+  parentId: string | null;
+  timestamp: number;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  folderId: string | null;
+  timestamp: number;
+  lastModified: number;
+  tags?: string[];
+  type?: 'text' | 'image' | 'pdf';
+  attachment?: string;
+  fileName?: string;
+}
+
+export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'resources' | 'library';
 
 export type ThemeId = 'midnight' | 'obsidian' | 'void' | 'forest' | 'morning' | 'earth' | 'default-dark' | 'default-light';

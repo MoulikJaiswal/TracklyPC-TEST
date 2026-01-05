@@ -22,9 +22,10 @@ import {
   ArrowRight,
   Crown,
   Wifi,
-  Clock
+  Clock,
+  Book
 } from 'lucide-react';
-import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts } from './types';
+import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder } from './types';
 import { QUOTES, THEME_CONFIG } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
@@ -32,6 +33,7 @@ import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
 import { PerformanceToast } from './components/PerformanceToast';
 import { ProUpgradeModal } from './components/ProUpgradeModal';
 import { SmartRecommendationToast } from './components/SmartRecommendationToast';
+import { getProStatus, PAYWALL_CONFIG } from './components/proController';
 
 // Firebase Imports
 import { auth, db, googleProvider } from './firebase';
@@ -45,6 +47,7 @@ const Planner = lazy(() => import('./components/Planner').then(module => ({ defa
 const TestLog = lazy(() => import('./components/TestLog').then(module => ({ default: module.TestLog })));
 const Analytics = lazy(() => import('./components/Analytics').then(module => ({ default: module.Analytics })));
 const Resources = lazy(() => import('./components/Resources').then(module => ({ default: module.Resources })));
+const Library = lazy(() => import('./components/Library').then(module => ({ default: module.Library })));
 
 const MotionDiv = motion.div as any;
 
@@ -408,6 +411,7 @@ const TABS = [
   { id: 'planner', label: 'Plan', icon: CalendarIcon },
   { id: 'focus', label: 'Focus', icon: Timer },
   { id: 'tests', label: 'Tests', icon: PenTool },
+  { id: 'library', label: 'Library', icon: Book },
   { id: 'analytics', label: 'Stats', icon: BarChart3 },
 ];
 
@@ -417,6 +421,7 @@ const TOUR_STEPS: TutorialStep[] = [
   { view: 'planner', targetId: 'planner-container', title: 'Strategic Planning', description: 'Use the Planner to schedule tasks for the week or month ahead. Switch views to see your entire month at a glance.', icon: CalendarIcon },
   { view: 'focus', targetId: 'timer-container', title: 'Deep Focus Timer', description: 'Select a specific task from your planner to work on. Enable Brown Noise for isolation and track your flow state.', icon: Timer },
   { view: 'tests', targetId: 'test-log-container', title: 'Test Analysis', description: 'Log your mock test scores here. Record not just your marks, but your temperament and specific mistake patterns.', icon: PenTool },
+  { view: 'library', targetId: 'library-container', title: 'Notes Library', description: 'Store your important formulas, short notes, and concepts here. Organize them with folders.', icon: Book },
   { view: 'analytics', targetId: 'analytics-container', title: 'Smart Analytics', description: 'Visualize your syllabus mastery with the new Topic Heatmap. See exactly which chapters are green (mastered) or red (needs work).', icon: BarChart3 },
   { view: 'daily', targetId: 'settings-btn', title: 'Themes & Controls', description: 'Customize your workspace. Switch themes, toggle Parallax Effects and Background Elements, or enable High Performance mode.', icon: Settings }
 ];
@@ -504,32 +509,34 @@ const Sidebar = React.memo(({
       </nav>
 
       {/* Pro Badge */}
-      <div className={`px-4 mb-2 ${isCollapsed ? 'hidden' : 'block'}`}>
-          {!isPro ? (
-              <button 
-                onClick={onOpenUpgrade}
-                className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-xl group transition-all hover:scale-[1.02]"
-              >
-                  <div className="p-1.5 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg text-white shadow-lg shadow-amber-500/30">
-                      <Crown size={14} fill="currentColor" />
-                  </div>
-                  <div className="text-left">
-                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400">Upgrade to Pro</p>
-                      <p className="text-[9px] text-amber-600/70 dark:text-amber-400/70 font-bold uppercase tracking-wider">Unleash Power</p>
-                  </div>
-              </button>
-          ) : (
-              <div className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl">
-                  <div className="p-1.5 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-lg text-white shadow-lg shadow-emerald-500/30">
-                      <Crown size={14} fill="currentColor" />
-                  </div>
-                  <div>
-                      <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Pro Active</p>
-                      <p className="text-[9px] text-emerald-600/70 dark:text-emerald-400/70 font-bold uppercase tracking-wider">Power User</p>
-                  </div>
-              </div>
-          )}
-      </div>
+      {(!isPro || (isPro && PAYWALL_CONFIG.ENABLED)) && (
+        <div className={`px-4 mb-2 ${isCollapsed ? 'hidden' : 'block'}`}>
+            {!isPro ? (
+                <button 
+                  onClick={onOpenUpgrade}
+                  className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-xl group transition-all hover:scale-[1.02]"
+                >
+                    <div className="p-1.5 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg text-white shadow-lg shadow-amber-500/30">
+                        <Crown size={14} fill="currentColor" />
+                    </div>
+                    <div className="text-left">
+                        <p className="text-xs font-bold text-amber-600 dark:text-amber-400">Upgrade to Pro</p>
+                        <p className="text-[9px] text-amber-600/70 dark:text-amber-400/70 font-bold uppercase tracking-wider">Unleash Power</p>
+                    </div>
+                </button>
+            ) : (
+                <div className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl">
+                    <div className="p-1.5 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-lg text-white shadow-lg shadow-emerald-500/30">
+                        <Crown size={14} fill="currentColor" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Pro Active</p>
+                        <p className="text-[9px] text-emerald-600/70 dark:text-emerald-400/70 font-bold uppercase tracking-wider">Power User</p>
+                    </div>
+                </div>
+            )}
+        </div>
+      )}
 
       {/* Auth Status Section */}
       <div className={`px-4 py-2 ${isCollapsed ? 'hidden' : 'block'}`}>
@@ -627,6 +634,8 @@ const App: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [tests, setTests] = useState<TestResult[]>([]);
   const [targets, setTargets] = useState<Target[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [goals, setGoals] = useState({ Physics: 30, Chemistry: 30, Maths: 30 });
   const [quoteIdx] = useState(() => Math.floor(Math.random() * QUOTES.length));
 
@@ -643,6 +652,9 @@ const App: React.FC = () => {
   // Pro State
   const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
+  
+  // Calculate Effective Pro Access (Paywall Bypass Logic)
+  const hasProAccess = getProStatus(isPro);
 
   // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -1130,6 +1142,8 @@ const App: React.FC = () => {
       setSessions([]);
       setTests([]);
       setTargets([]);
+      setNotes([]);
+      setFolders([]);
   }, [user]);
 
   // Handle Pro Upgrade
@@ -1215,22 +1229,39 @@ const App: React.FC = () => {
             setTargets(snapshot.docs.map(d => d.data() as Target));
         });
 
+        // Library Sync
+        const foldersQ = query(collection(db, 'users', user.uid, 'folders'), orderBy('timestamp', 'desc'));
+        const unsubFolders = onSnapshot(foldersQ, (snapshot: QuerySnapshot<DocumentData>) => {
+            setFolders(snapshot.docs.map(d => d.data() as Folder));
+        });
+
+        const notesQ = query(collection(db, 'users', user.uid, 'notes'), orderBy('timestamp', 'desc'));
+        const unsubNotes = onSnapshot(notesQ, (snapshot: QuerySnapshot<DocumentData>) => {
+            setNotes(snapshot.docs.map(d => d.data() as Note));
+        });
+
         return () => {
             unsubSessions();
             unsubTests();
             unsubTargets();
+            unsubFolders();
+            unsubNotes();
         }
     } else if (isGuest) {
         // --- LocalStorage Sync (Guest Mode) ---
         setSessions(safeJSONParse('trackly_guest_sessions', []));
         setTests(safeJSONParse('trackly_guest_tests', []));
         setTargets(safeJSONParse('trackly_guest_targets', []));
+        setNotes(safeJSONParse('trackly_guest_notes', []));
+        setFolders(safeJSONParse('trackly_guest_folders', []));
         setGoals(safeJSONParse('trackly_guest_goals', { Physics: 30, Chemistry: 30, Maths: 30 }));
     } else {
         // Reset if logged out
         setSessions([]); 
         setTests([]);
         setTargets([]);
+        setNotes([]);
+        setFolders([]);
     }
   }, [user, isGuest]);
 
@@ -1240,6 +1271,54 @@ const App: React.FC = () => {
         localStorage.setItem('trackly_guest_goals', JSON.stringify(goals));
     }
   }, [goals, isGuest]);
+
+  // --- LIBRARY CRUD OPERATIONS ---
+  const handleSaveNote = useCallback(async (note: Note) => {
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'notes', note.id), note);
+    } else if (isGuest) {
+        const existingIndex = notes.findIndex(n => n.id === note.id);
+        let updated;
+        if (existingIndex >= 0) {
+            updated = [...notes];
+            updated[existingIndex] = note;
+        } else {
+            updated = [note, ...notes];
+        }
+        setNotes(updated);
+        localStorage.setItem('trackly_guest_notes', JSON.stringify(updated));
+    }
+  }, [user, isGuest, notes]);
+
+  const handleDeleteNote = useCallback(async (id: string) => {
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'notes', id));
+    } else if (isGuest) {
+        const updated = notes.filter(n => n.id !== id);
+        setNotes(updated);
+        localStorage.setItem('trackly_guest_notes', JSON.stringify(updated));
+    }
+  }, [user, isGuest, notes]);
+
+  const handleSaveFolder = useCallback(async (folder: Folder) => {
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'folders', folder.id), folder);
+    } else if (isGuest) {
+        const updated = [folder, ...folders];
+        setFolders(updated);
+        localStorage.setItem('trackly_guest_folders', JSON.stringify(updated));
+    }
+  }, [user, isGuest, folders]);
+
+  const handleDeleteFolder = useCallback(async (id: string) => {
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'folders', id));
+    } else if (isGuest) {
+        const updated = folders.filter(f => f.id !== id);
+        setFolders(updated);
+        localStorage.setItem('trackly_guest_folders', JSON.stringify(updated));
+    }
+  }, [user, isGuest, folders]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     if (user) {
@@ -1693,7 +1772,7 @@ const App: React.FC = () => {
           isInstalled={isInstalled}
           onInstall={handleInstallClick}
           userName={userName}
-          isPro={isPro}
+          isPro={hasProAccess}
           onOpenUpgrade={() => setShowProModal(true)}
       />
 
@@ -1701,7 +1780,7 @@ const App: React.FC = () => {
       <div className="md:hidden fixed top-0 left-0 w-full z-50 bg-white/80 dark:bg-[#020617]/80 backdrop-blur-xl border-b border-slate-200 dark:border-white/5 px-6 py-4 flex justify-between items-center transition-colors duration-500">
         <TracklyLogo id="trackly-logo-mobile" />
         <div className="flex items-center gap-3">
-            {!isPro && (
+            {!hasProAccess && (
                 <button 
                     onClick={() => setShowProModal(true)}
                     className="p-2 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-all shadow-sm shadow-amber-500/10 active:scale-95"
@@ -1786,7 +1865,7 @@ const App: React.FC = () => {
                             onUpdateDurations={handleDurationUpdate}
                             onAddLog={handleAddLog}
                             onCompleteSession={handleCompleteSession}
-                            isPro={isPro}
+                            isPro={hasProAccess}
                             sessionCount={sessions.length}
                             onOpenUpgrade={() => setShowProModal(true)}
                         />
@@ -1798,15 +1877,25 @@ const App: React.FC = () => {
                           targets={targets} 
                           onSave={handleSaveTest}
                           onDelete={handleDeleteTest}
-                          isPro={isPro}
+                          isPro={hasProAccess}
                           onOpenUpgrade={() => setShowProModal(true)}
+                      />
+                  )}
+                  {view === 'library' && (
+                      <Library 
+                          notes={notes}
+                          folders={folders}
+                          onSaveNote={handleSaveNote}
+                          onDeleteNote={handleDeleteNote}
+                          onSaveFolder={handleSaveFolder}
+                          onDeleteFolder={handleDeleteFolder}
                       />
                   )}
                   {view === 'analytics' && (
                       <Analytics 
                         sessions={sessions} 
                         tests={tests} 
-                        isPro={isPro} 
+                        isPro={hasProAccess} 
                         onOpenUpgrade={() => setShowProModal(true)}
                       />
                   )}
@@ -1933,7 +2022,7 @@ const App: React.FC = () => {
         toggleCustomBackground={toggleCustomBackground}
         customBackgroundAlign={customBackgroundAlign}
         setCustomBackgroundAlign={setCustomBackgroundAlign}
-        isPro={isPro}
+        isPro={hasProAccess}
         onOpenUpgrade={() => setShowProModal(true)}
       />
     </div>

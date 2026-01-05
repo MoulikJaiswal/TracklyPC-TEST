@@ -46,7 +46,7 @@ const TopicDetailModal = ({
         return { attempted, correct, accuracy, mistakes, masteryScore };
     }, [sessions]);
 
-    const mistakeList = Object.entries(stats.mistakes)
+    const mistakeList = (Object.entries(stats.mistakes) as [string, number][])
         .sort((a, b) => b[1] - a[1])
         .filter(([_, count]) => count > 0);
 
