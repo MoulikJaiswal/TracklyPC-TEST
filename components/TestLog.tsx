@@ -117,12 +117,16 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
             const c = t.breakdown?.Chemistry;
             const m = t.breakdown?.Maths;
 
-            // Helper to calc subject %
+            // Helper to calc subject % - NOW SAFE
             const subPct = (sub: SubjectBreakdown | undefined) => {
                 if (!sub) return 0;
-                const attempted = sub.correct + sub.incorrect;
-                const subTotal = attempted + sub.unattempted;
-                const score = (sub.correct * 4) - sub.incorrect;
+                const correct = Number(sub.correct) || 0;
+                const incorrect = Number(sub.incorrect) || 0;
+                const unattempted = Number(sub.unattempted) || 0;
+
+                const attempted = correct + incorrect;
+                const subTotal = attempted + unattempted;
+                const score = (correct * 4) - incorrect;
                 const max = subTotal * 4;
                 return max > 0 ? Math.max(0, (score / max) * 100) : 0;
             };
@@ -1305,9 +1309,9 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                   {t.breakdown && (
                     <div className="flex gap-1 h-2 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-white/5 mt-4">
                         {(['Physics', 'Chemistry', 'Maths'] as const).map(sub => {
-                            const d = t.breakdown![sub];
-                            const correct = Number(d.correct) || 0;
-                            const incorrect = Number(d.incorrect) || 0;
+                            const d = t.breakdown?.[sub];
+                            const correct = Number(d?.correct) || 0;
+                            const incorrect = Number(d?.incorrect) || 0;
                             const accuracy = (correct + incorrect > 0) ? (correct / (correct + incorrect)) : 0;
                             const safeWidth = Number.isFinite(accuracy) ? accuracy * 100 : 0;
                             
