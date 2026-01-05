@@ -1520,11 +1520,17 @@ const App: React.FC = () => {
     const id = generateUUID();
     const timestamp = Date.now();
     const test: TestResult = { ...newTest, id, timestamp };
+
     if (user) {
+        // Optimistically update the UI for a snappier experience.
+        // The list will be replaced by the snapshot listener's data eventually,
+        // but this makes the app feel instant.
+        setTests(prevTests => [test, ...prevTests].sort((a, b) => b.timestamp - a.timestamp));
         await setDoc(doc(db, 'users', user.uid, 'tests', id), test);
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTests(prev => {
-            const updated = [test, ...prev];
+            // Sort to match the behavior of the Firestore query (newest first)
+            const updated = [test, ...prev].sort((a, b) => b.timestamp - a.timestamp);
             localStorage.setItem('trackly_guest_tests', JSON.stringify(updated));
             return updated;
         });
