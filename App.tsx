@@ -52,6 +52,27 @@ const Library = lazy(() => import('./components/Library').then(module => ({ defa
 
 const MotionDiv = motion.div as any;
 
+// Firestore Sanitizer: Recursively removes keys with 'undefined' values from objects.
+// This is crucial because Firestore does not support 'undefined' and will throw an error.
+const sanitizeForFirestore = (data: any): any => {
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeForFirestore(item));
+  }
+
+  if (data !== null && typeof data === 'object' && data.constructor === Object) {
+    const sanitized: { [key: string]: any } = {};
+    Object.keys(data).forEach(key => {
+      const value = data[key];
+      if (value !== undefined) {
+        sanitized[key] = sanitizeForFirestore(value);
+      }
+    });
+    return sanitized;
+  }
+
+  return data;
+};
+
 // UUID Generator
 const generateUUID = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -1074,7 +1095,7 @@ const App: React.FC = () => {
     const isGuestSession = localStorage.getItem('trackly_is_guest') === 'true';
 
     if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'sessions', id), session);
+        await setDoc(doc(db, 'users', user.uid, 'sessions', id), sanitizeForFirestore(session));
     } else if (isGuestSession) {
         setSessions(prev => {
             const updated = [session, ...prev];
@@ -1173,31 +1194,31 @@ const App: React.FC = () => {
     const guestSessions: Session[] = safeJSONParse('trackly_guest_sessions', []);
     if(guestSessions.length > 0) guestSessions.forEach(item => {
         const docRef = doc(db, 'users', uid, 'sessions', item.id);
-        batch.set(docRef, item);
+        batch.set(docRef, sanitizeForFirestore(item));
     });
 
     const guestTests: TestResult[] = safeJSONParse('trackly_guest_tests', []);
     if(guestTests.length > 0) guestTests.forEach(item => {
         const docRef = doc(db, 'users', uid, 'tests', item.id);
-        batch.set(docRef, item);
+        batch.set(docRef, sanitizeForFirestore(item));
     });
 
     const guestTargets: Target[] = safeJSONParse('trackly_guest_targets', []);
     if(guestTargets.length > 0) guestTargets.forEach(item => {
         const docRef = doc(db, 'users', uid, 'targets', item.id);
-        batch.set(docRef, item);
+        batch.set(docRef, sanitizeForFirestore(item));
     });
 
     const guestNotes: Note[] = safeJSONParse('trackly_guest_notes', []);
     if(guestNotes.length > 0) guestNotes.forEach(item => {
         const docRef = doc(db, 'users', uid, 'notes', item.id);
-        batch.set(docRef, item);
+        batch.set(docRef, sanitizeForFirestore(item));
     });
     
     const guestFolders: Folder[] = safeJSONParse('trackly_guest_folders', []);
     if(guestFolders.length > 0) guestFolders.forEach(item => {
         const docRef = doc(db, 'users', uid, 'folders', item.id);
-        batch.set(docRef, item);
+        batch.set(docRef, sanitizeForFirestore(item));
     });
 
     try {
@@ -1286,11 +1307,11 @@ const App: React.FC = () => {
     try {
       const batch = writeBatch(db);
       
-      sessions.forEach(item => batch.set(doc(db, 'users', user.uid, 'sessions', item.id), item));
-      tests.forEach(item => batch.set(doc(db, 'users', user.uid, 'tests', item.id), item));
-      targets.forEach(item => batch.set(doc(db, 'users', user.uid, 'targets', item.id), item));
-      notes.forEach(item => batch.set(doc(db, 'users', user.uid, 'notes', item.id), item));
-      folders.forEach(item => batch.set(doc(db, 'users', user.uid, 'folders', item.id), item));
+      sessions.forEach(item => batch.set(doc(db, 'users', user.uid, 'sessions', item.id), sanitizeForFirestore(item)));
+      tests.forEach(item => batch.set(doc(db, 'users', user.uid, 'tests', item.id), sanitizeForFirestore(item)));
+      targets.forEach(item => batch.set(doc(db, 'users', user.uid, 'targets', item.id), sanitizeForFirestore(item)));
+      notes.forEach(item => batch.set(doc(db, 'users', user.uid, 'notes', item.id), sanitizeForFirestore(item)));
+      folders.forEach(item => batch.set(doc(db, 'users', user.uid, 'folders', item.id), sanitizeForFirestore(item)));
 
       await Promise.race([
         batch.commit(),
@@ -1454,7 +1475,7 @@ const App: React.FC = () => {
   const handleSaveNote = useCallback(async (note: Note) => {
     const isGuestSession = localStorage.getItem('trackly_is_guest') === 'true';
     if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'notes', note.id), note);
+        await setDoc(doc(db, 'users', user.uid, 'notes', note.id), sanitizeForFirestore(note));
     } else if (isGuestSession) {
         setNotes(prev => {
             const existingIndex = prev.findIndex(n => n.id === note.id);
@@ -1480,7 +1501,7 @@ const App: React.FC = () => {
 
   const handleSaveFolder = useCallback(async (folder: Folder) => {
     if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'folders', folder.id), folder);
+        await setDoc(doc(db, 'users', user.uid, 'folders', folder.id), sanitizeForFirestore(folder));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setFolders(prev => {
             const existingIndex = prev.findIndex(f => f.id === folder.id);
@@ -1526,7 +1547,7 @@ const App: React.FC = () => {
         // The list will be replaced by the snapshot listener's data eventually,
         // but this makes the app feel instant.
         setTests(prevTests => [test, ...prevTests].sort((a, b) => b.timestamp - a.timestamp));
-        await setDoc(doc(db, 'users', user.uid, 'tests', id), test);
+        await setDoc(doc(db, 'users', user.uid, 'tests', id), sanitizeForFirestore(test));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTests(prev => {
             // Sort to match the behavior of the Firestore query (newest first)
@@ -1551,7 +1572,7 @@ const App: React.FC = () => {
 
   const handleSaveTarget = useCallback(async (target: Target) => {
     if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'targets', target.id), target);
+        await setDoc(doc(db, 'users', user.uid, 'targets', target.id), sanitizeForFirestore(target));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTargets(prev => {
             const updated = [...prev, target];
@@ -1573,7 +1594,7 @@ const App: React.FC = () => {
     }
 
     if (user) {
-        if (target) await setDoc(doc(db, 'users', user.uid, 'targets', id), { ...target, completed });
+        if (target) await setDoc(doc(db, 'users', user.uid, 'targets', id), sanitizeForFirestore({ ...target, completed }));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTargets(prev => {
             const updated = prev.map(t => t.id === id ? { ...t, completed } : t);
