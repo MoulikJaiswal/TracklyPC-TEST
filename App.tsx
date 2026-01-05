@@ -1070,12 +1070,10 @@ const App: React.FC = () => {
     const id = generateUUID();
     const timestamp = Date.now();
     const session: Session = { ...newSession, id, timestamp };
-
-    const currentUser = auth.currentUser;
     const isGuestSession = localStorage.getItem('trackly_is_guest') === 'true';
 
-    if (currentUser) {
-        await setDoc(doc(db, 'users', currentUser.uid, 'sessions', id), session);
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'sessions', id), session);
     } else if (isGuestSession) {
         setSessions(prev => {
             const updated = [session, ...prev];
@@ -1083,7 +1081,7 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
   // FINAL SAVE: Aggregates logs and saves to Dashboard
   const handleCompleteSession = useCallback(() => {
@@ -1448,10 +1446,9 @@ const App: React.FC = () => {
 
   // --- CRUD OPERATIONS (OPTIMIZED) ---
   const handleSaveNote = useCallback(async (note: Note) => {
-    const currentUser = auth.currentUser;
     const isGuestSession = localStorage.getItem('trackly_is_guest') === 'true';
-    if (currentUser) {
-        await setDoc(doc(db, 'users', currentUser.uid, 'notes', note.id), note);
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'notes', note.id), note);
     } else if (isGuestSession) {
         setNotes(prev => {
             const existingIndex = prev.findIndex(n => n.id === note.id);
@@ -1461,12 +1458,11 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
   const handleDeleteNote = useCallback(async (id: string) => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        await deleteDoc(doc(db, 'users', currentUser.uid, 'notes', id));
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'notes', id));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setNotes(prev => {
             const updated = prev.filter(n => n.id !== id);
@@ -1474,12 +1470,11 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
   const handleSaveFolder = useCallback(async (folder: Folder) => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        await setDoc(doc(db, 'users', currentUser.uid, 'folders', folder.id), folder);
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'folders', folder.id), folder);
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setFolders(prev => {
             const existingIndex = prev.findIndex(f => f.id === folder.id);
@@ -1489,12 +1484,11 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
   const handleDeleteFolder = useCallback(async (id: string) => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        await deleteDoc(doc(db, 'users', currentUser.uid, 'folders', id));
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'folders', id));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setFolders(prev => {
             const updated = prev.filter(f => f.id !== id);
@@ -1502,12 +1496,11 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        await deleteDoc(doc(db, 'users', currentUser.uid, 'sessions', id));
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'sessions', id));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setSessions(prev => {
             const updated = prev.filter(s => s.id !== id);
@@ -1515,15 +1508,14 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
   const handleSaveTest = useCallback(async (newTest: Omit<TestResult, 'id' | 'timestamp'>) => {
     const id = generateUUID();
     const timestamp = Date.now();
     const test: TestResult = { ...newTest, id, timestamp };
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        await setDoc(doc(db, 'users', currentUser.uid, 'tests', id), test);
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'tests', id), test);
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTests(prev => {
             const updated = [test, ...prev];
@@ -1531,12 +1523,11 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
   const handleDeleteTest = useCallback(async (id: string) => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        await deleteDoc(doc(db, 'users', currentUser.uid, 'tests', id));
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'tests', id));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTests(prev => {
             const updated = prev.filter(t => t.id !== id);
@@ -1544,12 +1535,11 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
   const handleSaveTarget = useCallback(async (target: Target) => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        await setDoc(doc(db, 'users', currentUser.uid, 'targets', target.id), target);
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'targets', target.id), target);
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTargets(prev => {
             const updated = [...prev, target];
@@ -1557,10 +1547,10 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
   const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => {
-    const target = targets.find(t => t.id === id); // Dependency on targets is okay here for reminder logic
+    const target = targets.find(t => t.id === id);
     if (target && target.type === 'test' && completed && !target.completed) {
         const messages = [
             "Test completed! Don't forget to analyze it.", "Great effort! Record your score to unlock insights."
@@ -1570,9 +1560,8 @@ const App: React.FC = () => {
         setTimeout(() => setShowTestReminder(false), 8000);
     }
 
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        if (target) await setDoc(doc(db, 'users', currentUser.uid, 'targets', id), { ...target, completed });
+    if (user) {
+        if (target) await setDoc(doc(db, 'users', user.uid, 'targets', id), { ...target, completed });
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTargets(prev => {
             const updated = prev.map(t => t.id === id ? { ...t, completed } : t);
@@ -1580,12 +1569,11 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, [user, isGuest, targets]);
+  }, [user, targets]);
 
   const handleDeleteTarget = useCallback(async (id: string) => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        await deleteDoc(doc(db, 'users', currentUser.uid, 'targets', id));
+    if (user) {
+        await deleteDoc(doc(db, 'users', user.uid, 'targets', id));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTargets(prev => {
             const updated = prev.filter(t => t.id !== id);
@@ -1593,7 +1581,7 @@ const App: React.FC = () => {
             return updated;
         });
     }
-  }, []);
+  }, [user]);
 
 
   // Load Settings from LocalStorage
