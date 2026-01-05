@@ -6,6 +6,7 @@ import { ThemeId } from '../types';
 import { THEME_CONFIG } from '../constants';
 import { BuyMeCoffee } from './BuyMeCoffee';
 import { User } from 'firebase/auth';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ interface SettingsModalProps {
   onLogout: () => void;
   onForceSync: () => void;
   syncStatus: 'idle' | 'syncing' | 'success' | 'error';
+  syncError: string | null;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -101,7 +103,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isGuest,
   onLogout,
   onForceSync,
-  syncStatus
+  syncStatus,
+  syncError
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -552,6 +555,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   >
                     {syncButtonContent()}
                   </button>
+                  <AnimatePresence>
+                    {syncError && syncStatus === 'error' && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="mt-3 p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs text-rose-500 dark:text-rose-400"
+                        >
+                            <p className="font-bold mb-1">Action Required:</p>
+                            <p>{syncError}</p>
+                        </motion.div>
+                    )}
+                  </AnimatePresence>
                </div>
             </div>
           )}

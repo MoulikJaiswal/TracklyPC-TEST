@@ -696,6 +696,7 @@ const App: React.FC = () => {
   const [guestNameInput, setGuestNameInput] = useState('');
   const [isMigrating, setIsMigrating] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // Clock State
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -1271,12 +1272,13 @@ const App: React.FC = () => {
     if (!user) {
       console.error("Cannot force sync: no user logged in.");
       setSyncStatus('error');
-      setTimeout(() => setSyncStatus('idle'), 3000);
+      setSyncError("You must be logged in to sync.");
+      setTimeout(() => setSyncStatus('idle'), 4000);
       return;
     }
     setSyncStatus('syncing');
+    setSyncError(null);
 
-    // Create a timeout promise that rejects after 15 seconds
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Sync operation timed out after 15 seconds.')), 15000)
     );
@@ -1290,19 +1292,23 @@ const App: React.FC = () => {
       notes.forEach(item => batch.set(doc(db, 'users', user.uid, 'notes', item.id), item));
       folders.forEach(item => batch.set(doc(db, 'users', user.uid, 'folders', item.id), item));
 
-      // Race the batch commit against the timeout
       await Promise.race([
         batch.commit(),
         timeoutPromise
       ]);
       
       setSyncStatus('success');
-    } catch (e) {
+      setSyncError(null);
+    } catch (e: any) {
       console.error("Force sync failed:", e);
       setSyncStatus('error');
+      if (e.code === 'permission-denied') {
+          setSyncError("Permission Denied. Please check your Firestore security rules. They should allow logged-in users to write to their own documents (e.g., 'allow write: if request.auth.uid == userId;').");
+      } else {
+          setSyncError(`An unknown error occurred: ${e.message}. Check the console for details.`);
+      }
     } finally {
-      // This will run after success, error, or timeout
-      setTimeout(() => setSyncStatus('idle'), 3000);
+      setTimeout(() => setSyncStatus('idle'), 5000);
     }
   }, [user, sessions, tests, targets, notes, folders]);
 
@@ -2230,6 +2236,7 @@ const App: React.FC = () => {
         }}
         onForceSync={handleForceSync}
         syncStatus={syncStatus}
+        syncError={syncError}
       />
     </div>
   );
