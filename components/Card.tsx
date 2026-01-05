@@ -15,7 +15,7 @@ export const Card: React.FC<CardProps> = React.memo(({ children, className = '',
       relative
       backdrop-blur-lg md:backdrop-blur-xl 
       border
-      rounded-3xl p-5 md:p-6 shadow-xl dark:shadow-2xl 
+      rounded-[1.75rem] p-5 md:p-6 shadow-xl dark:shadow-2xl 
       transform-gpu
       ${onClick ? 'cursor-pointer active:scale-95' : ''}
       ${className}
@@ -34,7 +34,7 @@ export const Card: React.FC<CardProps> = React.memo(({ children, className = '',
     }}
   >
     {/* Hover State Layer - Simulates hover effect without repainting the blur */}
-    <div className="absolute inset-0 rounded-3xl bg-white/0 hover:bg-white/20 dark:hover:bg-slate-900/10 transition-colors duration-300 pointer-events-none" />
+    <div className="absolute inset-0 rounded-[1.75rem] bg-white/0 hover:bg-white/20 dark:hover:bg-slate-900/10 transition-colors duration-300 pointer-events-none" />
     
     <div className="relative z-10">
       {children}
@@ -47,7 +47,7 @@ export const FloatingCard: React.FC<CardProps> = React.memo(({ children, classNa
     className={`
       backdrop-blur-lg md:backdrop-blur-2xl 
       border
-      rounded-3xl p-5 md:p-6 shadow-xl
+      rounded-[1.75rem] p-5 md:p-6 shadow-xl
       transform-gpu will-change-transform
       ${className}
     `}

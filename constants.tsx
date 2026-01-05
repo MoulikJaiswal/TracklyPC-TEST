@@ -109,7 +109,7 @@ export const THEME_CONFIG: Record<ThemeId, {
     label: 'Standard Dark',
     description: 'The classic Trackly experience',
     mode: 'dark',
-    colors: { bg: '#020617', card: '#0f172a', accent: '#4f46e5', accentGlow: '#6366f1', text: '#f1f5f9' },
+    colors: { bg: '#080a12', card: '#11131e', accent: '#6366f1', accentGlow: '#818cf8', text: '#f1f5f9' },
     icon: Moon
   },
   'default-light': {

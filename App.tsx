@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { 
@@ -410,7 +411,6 @@ const TABS = [
   { id: 'planner', label: 'Plan', icon: CalendarIcon },
   { id: 'focus', label: 'Focus', icon: Timer },
   { id: 'tests', label: 'Tests', icon: PenTool },
-  { id: 'library', label: 'Library', icon: Book },
   { id: 'analytics', label: 'Stats', icon: BarChart3 },
 ];
 
@@ -451,10 +451,10 @@ const TOUR_STEPS: TutorialStep[] = [
     icon: PenTool 
   },
   { 
-    view: 'library', 
+    view: 'planner', 
     targetId: 'library-container', 
     title: 'Resource Vault', 
-    description: 'Upload notes and cheatsheets. Click the "Image Plus" icon on any PDF card to set a custom thumbnail cover.', 
+    description: 'Access your Library within the Plan tab. Upload notes and cheatsheets here.', 
     icon: Book 
   },
   { 
@@ -1897,6 +1897,12 @@ const App: React.FC = () => {
                           onAdd={handleSaveTarget}
                           onToggle={handleUpdateTarget}
                           onDelete={handleDeleteTarget}
+                          notes={notes}
+                          folders={folders}
+                          onSaveNote={handleSaveNote}
+                          onDeleteNote={handleDeleteNote}
+                          onSaveFolder={handleSaveFolder}
+                          onDeleteFolder={handleDeleteFolder}
                       />
                   )}
                   {view === 'focus' && (
@@ -1933,16 +1939,6 @@ const App: React.FC = () => {
                           onDelete={handleDeleteTest}
                           isPro={hasProAccess}
                           onOpenUpgrade={() => setShowProModal(true)}
-                      />
-                  )}
-                  {view === 'library' && (
-                      <Library 
-                          notes={notes}
-                          folders={folders}
-                          onSaveNote={handleSaveNote}
-                          onDeleteNote={handleDeleteNote}
-                          onSaveFolder={handleSaveFolder}
-                          onDeleteFolder={handleDeleteFolder}
                       />
                   )}
                   {view === 'analytics' && (

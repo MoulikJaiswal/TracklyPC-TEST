@@ -36,106 +36,68 @@ const DEFAULT_BREAKDOWN: SubjectBreakdown = {
 const safeNum = (n: any) => Number.isFinite(n) ? n : 0;
 const safeDiv = (n: number, d: number) => d === 0 ? 0 : n / d;
 
-// --- CUSTOM INPUT COMPONENT ---
-const NumberScrollInput = memo(({ 
-    label, 
-    value, 
-    onChange, 
-    min = 0, 
-    max = 300, 
-    presets,
-    step = 1, 
-    color = 'indigo'
-}: { 
-    label: string, 
-    value: number, 
-    onChange: (val: number) => void, 
-    min?: number, 
-    max?: number, 
-    presets?: number[],
-    step?: number, 
-    color?: 'indigo' | 'emerald' | 'rose'
-}) => {
-    const scrollRef = useRef<HTMLDivElement>(null);
-
-    // Theme Configuration
+// --- NEW STAT INPUT COMPONENTS ---
+const StatInput = memo(({ label, value, onChange, max, color }: { label: string, value: number, onChange: (val: number) => void, max: number, color: 'emerald' | 'rose' }) => {
     const theme = {
-        indigo: { bg: 'bg-slate-800', text: 'text-indigo-400', active: 'text-indigo-400', border: 'focus-within:border-indigo-500' },
-        emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', active: 'text-emerald-400', border: 'border-emerald-500/20 focus-within:border-emerald-500' },
-        rose: { bg: 'bg-rose-500/10', text: 'text-rose-500', active: 'text-rose-400', border: 'border-rose-500/20 focus-within:border-rose-500' }
+        emerald: { text: 'text-emerald-400', bg: 'bg-emerald-900/50', border: 'border-emerald-500/30' },
+        rose: { text: 'text-rose-400', bg: 'bg-rose-900/50', border: 'border-rose-500/30' }
     }[color];
 
-    // Generate options - Memoized heavily
-    const options = useMemo(() => {
-        if (presets) return presets;
-        const opts = [];
-        // Generate reverse range (High to Low)
-        for (let i = max; i >= min; i -= step) {
-            opts.push(i);
+    const handleManualChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = parseInt(e.target.value);
+        if (isNaN(val)) {
+            onChange(0);
+        } else {
+            onChange(Math.max(0, Math.min(val, max)));
         }
-        return opts;
-    }, [min, max, presets, step]);
-
-    // Ensure value is in the scroll list logic (handled via UI selection mostly)
-    // We do NOT rebuild the options list just because 'value' changes, to save Perf.
-    // Instead we trust the list covers the range.
-
-    // Scroll to value on mount or when value changes externally
-    useEffect(() => {
-        if (scrollRef.current) {
-            const btn = scrollRef.current.querySelector(`button[data-value="${value}"]`);
-            if (btn) {
-                // Use behavior: 'auto' for initial render to prevent jump, 'smooth' for updates
-                // Or simplified: just use auto to be snappy and less CPU intensive
-                btn.scrollIntoView({ block: 'center', behavior: 'smooth' });
-            }
-        }
-    }, [value]); // Trigger only on value change
+    };
 
     return (
-        <div className={`relative flex h-16 ${theme.bg} rounded-xl overflow-hidden border ${color === 'indigo' ? 'border-slate-700' : ''} ${theme.border} transition-all group shadow-sm will-change-transform`}>
-            <div className="flex-1 flex flex-col justify-center px-3 min-w-0">
-                <label className={`text-[10px] uppercase font-bold ${theme.text} mb-0.5 tracking-wide`}>{label}</label>
-                <input 
-                    type="number" 
-                    className={`bg-transparent text-xl font-mono font-bold ${color === 'indigo' ? 'text-white' : theme.text} outline-none w-full appearance-none`}
-                    value={value.toString()} // Handle leading zeros removal
-                    onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        onChange(isNaN(val) ? 0 : val);
-                    }}
+        <div className={`p-3 rounded-2xl border ${theme.bg} ${theme.border} transition-colors`}>
+            <label className={`block text-center text-[10px] font-bold uppercase tracking-widest ${theme.text} mb-2`}>{label}</label>
+            <div className="flex items-center justify-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => onChange(Math.max(0, value - 1))}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-black/20 hover:bg-black/40 text-slate-300 transition-colors"
+                >
+                    -
+                </button>
+                <input
+                    type="number"
+                    value={value}
+                    onChange={handleManualChange}
                     onFocus={(e) => e.target.select()}
+                    className="w-16 text-center bg-transparent text-3xl font-mono font-bold text-white outline-none appearance-none"
+                    style={{ MozAppearance: 'textfield' }} // For Firefox
                 />
+                <button
+                    type="button"
+                    onClick={() => onChange(Math.min(max, value + 1))}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-black/20 hover:bg-black/40 text-slate-300 transition-colors"
+                >
+                    +
+                </button>
             </div>
-            
-            {/* Scroll Strip */}
-            <div className={`w-px ${color === 'indigo' ? 'bg-slate-700' : 'bg-black/10'}`} />
-            <div 
-                ref={scrollRef}
-                className="w-14 bg-black/10 overflow-y-auto no-scrollbar snap-y snap-mandatory text-center relative hover:bg-black/20 transition-colors"
-                style={{ contain: 'strict' }}
-            >
-                <div className="py-2 space-y-1">
-                    {options.map((opt) => (
-                        <button
-                            key={opt}
-                            data-value={opt}
-                            type="button" 
-                            onClick={() => onChange(opt)}
-                            className={`w-full py-1 text-[10px] font-mono font-bold snap-center transition-all ${value === opt ? `${theme.active} scale-110` : 'text-slate-500 hover:text-slate-400'}`}
-                        >
-                            {opt}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            
-            {/* Fade overlays for scroll hint */}
-            <div className="absolute top-0 right-0 w-14 h-4 bg-gradient-to-b from-black/10 to-transparent pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-14 h-4 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
         </div>
     );
 });
+
+const StatDisplay = memo(({ label, value, color }: { label: string, value: number, color: 'slate' }) => {
+    const theme = {
+        slate: { text: 'text-slate-400', bg: 'bg-slate-800/50', border: 'border-slate-700/50' }
+    }[color];
+
+    return (
+        <div className={`relative p-3 rounded-2xl border ${theme.bg} ${theme.border} h-full flex flex-col justify-center`}>
+            <label className={`block text-center text-[10px] font-bold uppercase tracking-widest ${theme.text} mb-2`}>{label}</label>
+            <div className="flex items-center justify-center">
+                <span className="text-3xl font-mono font-bold text-slate-500">{value}</span>
+            </div>
+        </div>
+    );
+});
+
 
 // --- ANALYTICS COMPONENT ---
 const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
@@ -461,6 +423,10 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
     total: 300,
     temperament: 'Calm',
     type: 'full',
+    testType: 'Generic',
+    pypYear: new Date().getFullYear() - 1,
+    pypSession: 'Jan Shift 1',
+    coachingName: '',
     syllabus: { Physics: [], Chemistry: [], Maths: [] },
     attachment: undefined,
     attachmentType: undefined,
@@ -763,6 +729,10 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
       total: 300,
       temperament: 'Calm',
       type: 'full',
+      testType: 'Generic',
+      pypYear: new Date().getFullYear() - 1,
+      pypSession: 'Jan Shift 1',
+      coachingName: '',
       syllabus: { Physics: [], Chemistry: [], Maths: [] },
       attachment: undefined,
       attachmentType: undefined,
@@ -775,6 +745,16 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
       }
     });
     setGlobalQCount(75);
+  };
+
+  const getTestSubtitle = (test: TestResult) => {
+    if (test.testType === 'PYP') {
+        return `PYP • ${test.pypYear} ${test.pypSession || ''}`;
+    }
+    if (test.testType === 'Coaching Mock') {
+        return `Mock • ${test.coachingName || 'Coaching Test'}`;
+    }
+    return test.type === 'part' ? 'PART TEST' : 'FULL SYLLABUS';
   };
 
   const upcomingTests = useMemo(() => {
@@ -864,32 +844,87 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                 />
               </div>
 
-              {/* Test Type Toggle */}
+              {/* Test Category Toggle */}
               <div className="md:col-span-2 space-y-2">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Test Scope</label>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Test Category</label>
                   <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
-                      <button 
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, type: 'full' }))}
-                          className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'full' ? 'shadow-md' : 'text-slate-400 hover:text-white'}`}
-                          style={formData.type === 'full' ? { backgroundColor: 'var(--theme-accent)', color: 'var(--theme-on-accent)' } : {}}
-                      >
-                          Full Syllabus
-                      </button>
-                      <button 
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, type: 'part' }))}
-                          className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'part' ? 'shadow-md' : 'text-slate-400 hover:text-white'}`}
-                          style={formData.type === 'part' ? { backgroundColor: 'var(--theme-accent)', color: 'var(--theme-on-accent)' } : {}}
-                      >
-                          Part Test
-                      </button>
+                      {(['Generic', 'PYP', 'Coaching Mock'] as const).map(cat => (
+                           <button 
+                              key={cat}
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, testType: cat, type: cat === 'Generic' ? prev.type : 'full' }))}
+                              className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.testType === cat ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                           >
+                              {cat === 'Coaching Mock' ? 'Mock' : cat}
+                           </button>
+                      ))}
                   </div>
               </div>
 
+              {/* Conditional Fields */}
+              {formData.testType === 'PYP' && (
+                  <div className="md:col-span-2 grid grid-cols-2 gap-4 animate-in fade-in duration-300">
+                      <div className="space-y-2">
+                          <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Year</label>
+                          <input 
+                              type="number" required placeholder="e.g., 2023"
+                              className="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl text-sm text-white focus:border-indigo-500 outline-none transition-all placeholder:text-slate-500"
+                              value={formData.pypYear}
+                              onChange={e => setFormData({...formData, pypYear: parseInt(e.target.value) || undefined})}
+                          />
+                      </div>
+                      <div className="space-y-2">
+                          <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Session</label>
+                          <input 
+                              type="text" required placeholder="e.g., Jan Shift 1"
+                              className="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl text-sm text-white focus:border-indigo-500 outline-none transition-all placeholder:text-slate-500"
+                              value={formData.pypSession}
+                              onChange={e => setFormData({...formData, pypSession: e.target.value})}
+                          />
+                      </div>
+                  </div>
+              )}
+
+              {formData.testType === 'Coaching Mock' && (
+                  <div className="md:col-span-2 space-y-2 animate-in fade-in duration-300">
+                      <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Coaching / Series Name</label>
+                      <input 
+                          type="text" required placeholder="e.g., Allen Major Test 3"
+                          className="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl text-sm text-white focus:border-indigo-500 outline-none transition-all placeholder:text-slate-500"
+                          value={formData.coachingName}
+                          onChange={e => setFormData({...formData, coachingName: e.target.value})}
+                      />
+                  </div>
+              )}
+
+              {/* Test Type Toggle */}
+              {formData.testType === 'Generic' && (
+                  <div className="md:col-span-2 space-y-2 animate-in fade-in duration-300">
+                      <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Test Scope</label>
+                      <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
+                          <button 
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, type: 'full' }))}
+                              className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'full' ? 'shadow-md' : 'text-slate-400 hover:text-white'}`}
+                              style={formData.type === 'full' ? { backgroundColor: 'var(--theme-accent)', color: 'var(--theme-on-accent)' } : {}}
+                          >
+                              Full Syllabus
+                          </button>
+                          <button 
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, type: 'part' }))}
+                              className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'part' ? 'shadow-md' : 'text-slate-400 hover:text-white'}`}
+                              style={formData.type === 'part' ? { backgroundColor: 'var(--theme-accent)', color: 'var(--theme-on-accent)' } : {}}
+                          >
+                              Part Test
+                          </button>
+                      </div>
+                  </div>
+              )}
+
               {/* Syllabus Selection (Part Test Only) */}
-              {formData.type === 'part' && (
-                  <div className="md:col-span-2 space-y-3 bg-slate-800/30 rounded-2xl p-4 border border-slate-700">
+              {formData.testType === 'Generic' && formData.type === 'part' && (
+                  <div className="md:col-span-2 space-y-3 bg-slate-800/30 rounded-2xl p-4 border border-slate-700 animate-in fade-in duration-300">
                       <div className="flex justify-between items-center">
                           <label className="text-[10px] uppercase font-bold text-indigo-400 flex items-center gap-2">
                               <BookOpen size={14} /> Select Syllabus
@@ -1072,36 +1107,27 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                         </div>
                      </div>
 
-                     <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-1">
-                           <NumberScrollInput 
+                      <div className="grid grid-cols-3 gap-4">
+                          <StatInput
                               label="Correct"
                               value={formData.breakdown?.[activeTab].correct || 0}
                               onChange={(val) => handleStatChange(activeTab, 'correct', val)}
                               max={activeTotalQuestions}
                               color="emerald"
-                           />
-                        </div>
-                        <div className="space-y-1">
-                           <NumberScrollInput 
+                          />
+                          <StatInput
                               label="Wrong"
                               value={formData.breakdown?.[activeTab].incorrect || 0}
                               onChange={(val) => handleStatChange(activeTab, 'incorrect', val)}
                               max={activeTotalQuestions}
                               color="rose"
-                           />
-                        </div>
-                        <div className="space-y-1 opacity-60">
-                           <label className="text-[9px] uppercase font-bold text-slate-400 ml-1">Skipped</label>
-                           <input 
-                              type="number" 
-                              readOnly
-                              disabled
-                              className="w-full h-16 bg-slate-700/50 border border-slate-700 p-3 rounded-xl text-center text-xl font-mono font-bold text-slate-400 cursor-not-allowed"
+                          />
+                          <StatDisplay
+                              label="Skipped"
                               value={formData.breakdown?.[activeTab].unattempted || 0}
-                           />
-                        </div>
-                     </div>
+                              color="slate"
+                          />
+                      </div>
 
                      <div className="p-4 bg-rose-500/10 rounded-xl border border-rose-500/20">
                         <div className="flex justify-between items-center mb-4">
@@ -1237,6 +1263,16 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                                      Part
                                  </span>
                              )}
+                             {t.testType === 'PYP' && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-sky-100 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 text-[8px] font-bold uppercase tracking-wider">
+                                    PYP
+                                </span>
+                             )}
+                            {t.testType === 'Coaching Mock' && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-300 text-[8px] font-bold uppercase tracking-wider">
+                                    Mock
+                                </span>
+                            )}
                          </div>
                          <h3 className="text-slate-900 dark:text-white font-bold text-base line-clamp-1 leading-tight">{t.name}</h3>
                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider mt-2 w-fit ${
@@ -1338,8 +1374,12 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                               <div className="flex items-center gap-2 mb-2">
                                   <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{viewingReport.date}</span>
                                   <span className="w-1 h-1 bg-white/40 rounded-full" />
-                                  <span className={`text-[10px] font-bold uppercase tracking-widest ${viewingReport.type === 'part' ? 'text-purple-300' : 'text-emerald-400'}`}>
-                                      {viewingReport.type === 'part' ? 'PART TEST' : 'FULL SYLLABUS'}
+                                  <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                                      viewingReport.testType === 'PYP' ? 'text-sky-300' :
+                                      viewingReport.testType === 'Coaching Mock' ? 'text-teal-300' :
+                                      viewingReport.type === 'part' ? 'text-purple-300' : 'text-emerald-400'
+                                  }`}>
+                                      {getTestSubtitle(viewingReport)}
                                   </span>
                               </div>
                               <h2 className="text-2xl font-bold text-white leading-tight">{viewingReport.name}</h2>

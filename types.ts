@@ -48,6 +48,10 @@ export interface TestResult {
     Chemistry: string[];
     Maths: string[];
   };
+  testType?: 'Generic' | 'PYP' | 'Coaching Mock';
+  pypYear?: number;
+  pypSession?: string;
+  coachingName?: string;
   analysis?: string; // Legacy field
   breakdown?: {
     Physics: SubjectBreakdown;
