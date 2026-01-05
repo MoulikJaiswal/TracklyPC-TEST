@@ -1067,17 +1067,19 @@ const App: React.FC = () => {
     const timestamp = Date.now();
     const session: Session = { ...newSession, id, timestamp };
 
-    if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'sessions', id), session);
-    } else if (isGuest) {
-        // Need to read fresh state to avoid closure staleness if calling multiple times quickly
-        // But for guest mode, we usually do this:
-        const currentSessions = safeJSONParse('trackly_guest_sessions', []);
-        const updated = [session, ...currentSessions];
-        setSessions(updated);
-        localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    const isGuestSession = localStorage.getItem('trackly_is_guest') === 'true';
+
+    if (currentUser) {
+        await setDoc(doc(db, 'users', currentUser.uid, 'sessions', id), session);
+    } else if (isGuestSession) {
+        setSessions(prev => {
+            const updated = [session, ...prev];
+            localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, sessions]);
+  }, []);
 
   // FINAL SAVE: Aggregates logs and saves to Dashboard
   const handleCompleteSession = useCallback(() => {
@@ -1322,136 +1324,155 @@ const App: React.FC = () => {
     }
   }, [goals, isGuest]);
 
-  // --- LIBRARY CRUD OPERATIONS ---
+  // --- CRUD OPERATIONS (OPTIMIZED) ---
   const handleSaveNote = useCallback(async (note: Note) => {
-    if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'notes', note.id), note);
-    } else if (isGuest) {
-        const existingIndex = notes.findIndex(n => n.id === note.id);
-        let updated;
-        if (existingIndex >= 0) {
-            updated = [...notes];
-            updated[existingIndex] = note;
-        } else {
-            updated = [note, ...notes];
-        }
-        setNotes(updated);
-        localStorage.setItem('trackly_guest_notes', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    const isGuestSession = localStorage.getItem('trackly_is_guest') === 'true';
+    if (currentUser) {
+        await setDoc(doc(db, 'users', currentUser.uid, 'notes', note.id), note);
+    } else if (isGuestSession) {
+        setNotes(prev => {
+            const existingIndex = prev.findIndex(n => n.id === note.id);
+            const updated = existingIndex >= 0 ? [...prev] : [note, ...prev];
+            if (existingIndex >= 0) updated[existingIndex] = note;
+            localStorage.setItem('trackly_guest_notes', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, notes]);
+  }, []);
 
   const handleDeleteNote = useCallback(async (id: string) => {
-    if (user) {
-        await deleteDoc(doc(db, 'users', user.uid, 'notes', id));
-    } else if (isGuest) {
-        const updated = notes.filter(n => n.id !== id);
-        setNotes(updated);
-        localStorage.setItem('trackly_guest_notes', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'notes', id));
+    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
+        setNotes(prev => {
+            const updated = prev.filter(n => n.id !== id);
+            localStorage.setItem('trackly_guest_notes', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, notes]);
+  }, []);
 
   const handleSaveFolder = useCallback(async (folder: Folder) => {
-    if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'folders', folder.id), folder);
-    } else if (isGuest) {
-        const updated = [folder, ...folders];
-        setFolders(updated);
-        localStorage.setItem('trackly_guest_folders', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        await setDoc(doc(db, 'users', currentUser.uid, 'folders', folder.id), folder);
+    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
+        setFolders(prev => {
+            const existingIndex = prev.findIndex(f => f.id === folder.id);
+            const updated = existingIndex >= 0 ? [...prev] : [folder, ...prev];
+            if (existingIndex >= 0) updated[existingIndex] = folder;
+            localStorage.setItem('trackly_guest_folders', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, folders]);
+  }, []);
 
   const handleDeleteFolder = useCallback(async (id: string) => {
-    if (user) {
-        await deleteDoc(doc(db, 'users', user.uid, 'folders', id));
-    } else if (isGuest) {
-        const updated = folders.filter(f => f.id !== id);
-        setFolders(updated);
-        localStorage.setItem('trackly_guest_folders', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'folders', id));
+    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
+        setFolders(prev => {
+            const updated = prev.filter(f => f.id !== id);
+            localStorage.setItem('trackly_guest_folders', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, folders]);
+  }, []);
 
   const handleDeleteSession = useCallback(async (id: string) => {
-    if (user) {
-        await deleteDoc(doc(db, 'users', user.uid, 'sessions', id));
-    } else if (isGuest) {
-        const updated = sessions.filter(s => s.id !== id);
-        setSessions(updated);
-        localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'sessions', id));
+    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
+        setSessions(prev => {
+            const updated = prev.filter(s => s.id !== id);
+            localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, sessions]);
+  }, []);
 
   const handleSaveTest = useCallback(async (newTest: Omit<TestResult, 'id' | 'timestamp'>) => {
     const id = generateUUID();
     const timestamp = Date.now();
     const test: TestResult = { ...newTest, id, timestamp };
-
-    if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'tests', id), test);
-    } else if (isGuest) {
-        const updated = [test, ...tests];
-        setTests(updated);
-        localStorage.setItem('trackly_guest_tests', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        await setDoc(doc(db, 'users', currentUser.uid, 'tests', id), test);
+    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
+        setTests(prev => {
+            const updated = [test, ...prev];
+            localStorage.setItem('trackly_guest_tests', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, tests]);
+  }, []);
 
   const handleDeleteTest = useCallback(async (id: string) => {
-    if (user) {
-        await deleteDoc(doc(db, 'users', user.uid, 'tests', id));
-    } else if (isGuest) {
-        const updated = tests.filter(t => t.id !== id);
-        setTests(updated);
-        localStorage.setItem('trackly_guest_tests', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'tests', id));
+    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
+        setTests(prev => {
+            const updated = prev.filter(t => t.id !== id);
+            localStorage.setItem('trackly_guest_tests', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, tests]);
+  }, []);
 
   const handleSaveTarget = useCallback(async (target: Target) => {
-    if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'targets', target.id), target);
-    } else if (isGuest) {
-        const updated = [...targets, target];
-        setTargets(updated);
-        localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        await setDoc(doc(db, 'users', currentUser.uid, 'targets', target.id), target);
+    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
+        setTargets(prev => {
+            const updated = [...prev, target];
+            localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, targets]);
+  }, []);
 
   const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => {
-    // 1. Trigger Test Reminder logic if completing a test
-    const target = targets.find(t => t.id === id);
+    const target = targets.find(t => t.id === id); // Dependency on targets is okay here for reminder logic
     if (target && target.type === 'test' && completed && !target.completed) {
         const messages = [
-            "Test completed! Don't forget to analyze it.",
-            "Test completed! Log your marks and prepare for the next one.",
-            "Finish line crossed. Now, let's look at the data.",
-            "Great effort! Record your score to unlock insights.",
-            "One step closer to your goal. Log this test now."
+            "Test completed! Don't forget to analyze it.", "Great effort! Record your score to unlock insights."
         ];
         setReminderMessage(messages[Math.floor(Math.random() * messages.length)]);
         setShowTestReminder(true);
-        // Auto-dismiss after 8 seconds if not interacted with
         setTimeout(() => setShowTestReminder(false), 8000);
     }
 
-    // 2. Perform DB Update
-    if (user) {
-        if (target) {
-            await setDoc(doc(db, 'users', user.uid, 'targets', id), { ...target, completed });
-        }
-    } else if (isGuest) {
-        const updated = targets.map(t => t.id === id ? { ...t, completed } : t);
-        setTargets(updated);
-        localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        if (target) await setDoc(doc(db, 'users', currentUser.uid, 'targets', id), { ...target, completed });
+    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
+        setTargets(prev => {
+            const updated = prev.map(t => t.id === id ? { ...t, completed } : t);
+            localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
+            return updated;
+        });
     }
   }, [user, isGuest, targets]);
 
   const handleDeleteTarget = useCallback(async (id: string) => {
-    if (user) {
-        await deleteDoc(doc(db, 'users', user.uid, 'targets', id));
-    } else if (isGuest) {
-        const updated = targets.filter(t => t.id !== id);
-        setTargets(updated);
-        localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'targets', id));
+    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
+        setTargets(prev => {
+            const updated = prev.filter(t => t.id !== id);
+            localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
+            return updated;
+        });
     }
-  }, [user, isGuest, targets]);
+  }, []);
+
 
   // Load Settings from LocalStorage
   useEffect(() => {

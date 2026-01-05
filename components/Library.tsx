@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -19,10 +20,12 @@ import {
   Eye,
   Loader2,
   ImagePlus,
-  Paperclip
+  Paperclip,
+  Pencil
 } from 'lucide-react';
 import { Note, Folder as FolderType, Attachment } from '../types';
 import { Card } from './Card';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface LibraryProps {
   notes: Note[];
@@ -73,6 +76,21 @@ export const Library: React.FC<LibraryProps> = ({
   // Filtering
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Inline Renaming State
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Deletion State
+  const [deleteRequest, setDeleteRequest] = useState<{id: string, type: 'note' | 'folder'} | null>(null);
+  
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+        renameInputRef.current.focus();
+        renameInputRef.current.select();
+    }
+  }, [renamingId]);
+
   // --- DERIVED DATA ---
   const currentItems = useMemo(() => {
     if (searchQuery.trim()) {
@@ -122,6 +140,73 @@ export const Library: React.FC<LibraryProps> = ({
   }, [viewingFile]);
 
   // --- ACTIONS ---
+  const handleDeleteNoteWithConfirmation = (e: React.MouseEvent, noteId: string) => {
+    e.stopPropagation();
+    setDeleteRequest({ id: noteId, type: 'note' });
+  };
+
+  const handleDeleteFolderWithConfirmation = (e: React.MouseEvent, folderId: string) => {
+    e.stopPropagation();
+    setDeleteRequest({ id: folderId, type: 'folder' });
+  };
+  
+  const confirmDelete = () => {
+    if (!deleteRequest) return;
+    
+    if (deleteRequest.type === 'folder') {
+        const folderIdToDelete = deleteRequest.id;
+
+        const getItemsToDelete = (folderId: string): { folderIds: string[], noteIds: string[] } => {
+            let items = { folderIds: [folderId], noteIds: [] as string[] };
+            
+            const childNotes = notes.filter(n => n.folderId === folderId);
+            items.noteIds.push(...childNotes.map(n => n.id));
+
+            const childFolders = folders.filter(f => f.parentId === folderId);
+            childFolders.forEach(child => {
+                const childItems = getItemsToDelete(child.id);
+                items.folderIds.push(...childItems.folderIds);
+                items.noteIds.push(...childItems.noteIds);
+            });
+
+            return items;
+        };
+        
+        const { folderIds, noteIds } = getItemsToDelete(folderIdToDelete);
+        
+        noteIds.forEach(id => onDeleteNote(id));
+        // Reverse to delete children folders first
+        folderIds.reverse().forEach(id => onDeleteFolder(id));
+
+    } else { // type is 'note'
+        onDeleteNote(deleteRequest.id);
+    }
+    setDeleteRequest(null);
+  };
+  
+  const handleStartRename = (e: React.MouseEvent, item: FolderType | Note) => {
+    e.stopPropagation();
+    setRenamingId(item.id);
+    setRenameValue('name' in item ? item.name : item.title);
+  };
+
+  const handleConfirmRename = () => {
+    if (!renamingId || !renameValue.trim()) {
+        setRenamingId(null);
+        return;
+    }
+
+    const folder = folders.find(f => f.id === renamingId);
+    if (folder) {
+        onSaveFolder({ ...folder, name: renameValue });
+    } else {
+        const note = notes.find(n => n.id === renamingId);
+        if (note) {
+            onSaveNote({ ...note, title: renameValue });
+        }
+    }
+    setRenamingId(null);
+  };
 
   const handleNavigate = (folderId: string | null, folderName: string) => {
     setCurrentFolderId(folderId);
@@ -157,7 +242,7 @@ export const Library: React.FC<LibraryProps> = ({
   const handleCreateNote = () => {
     const newNote: Note = {
       id: generateUUID(),
-      title: '',
+      title: 'Untitled Note',
       content: '',
       folderId: currentFolderId,
       timestamp: Date.now(),
@@ -169,7 +254,6 @@ export const Library: React.FC<LibraryProps> = ({
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // FIX: Add explicit File type to ensure correct type inference for file properties.
     const file: File | undefined = e.target.files?.[0];
     if (!file) return;
 
@@ -214,11 +298,10 @@ export const Library: React.FC<LibraryProps> = ({
     const files = e.target.files;
     if (!files || files.length === 0 || !activeNote) return;
 
-    // FIX: Iterate directly over the FileList. `Array.from(files)` was causing `file` to be of type `unknown`.
     for (const file of files) {
       if (file.size > 4 * 1024 * 1024) {
         alert(`File "${file.name}" is too large. Please attach files under 4MB.`);
-        continue; // Skip this file
+        continue;
       }
 
       const reader = new FileReader();
@@ -283,16 +366,6 @@ export const Library: React.FC<LibraryProps> = ({
       };
       reader.readAsDataURL(file);
       e.target.value = ''; // Reset input
-  };
-
-  const handleDeleteFolderRecursive = (folderId: string) => {
-    if (window.confirm("Delete this folder and all its contents?")) {
-      onDeleteFolder(folderId);
-      const childNotes = notes.filter(n => n.folderId === folderId);
-      childNotes.forEach(n => onDeleteNote(n.id));
-      const childFolders = folders.filter(f => f.parentId === folderId);
-      childFolders.forEach(f => handleDeleteFolderRecursive(f.id));
-    }
   };
 
   const handleViewAttachment = (attachment: Attachment) => {
@@ -442,6 +515,18 @@ export const Library: React.FC<LibraryProps> = ({
 
   return (
     <div id="library-container" className="space-y-6 pb-20 animate-in fade-in duration-500">
+      <ConfirmationModal
+        isOpen={!!deleteRequest}
+        onClose={() => setDeleteRequest(null)}
+        onConfirm={confirmDelete}
+        title={deleteRequest?.type === 'folder' ? "Delete Folder?" : "Delete File?"}
+        message={
+            deleteRequest?.type === 'folder' 
+            ? "Are you sure you want to delete this folder and all its contents? This cannot be undone."
+            : "Are you sure you want to delete this file? This cannot be undone."
+        }
+      />
+
       <input 
           type="file" 
           ref={thumbnailInputRef}
@@ -550,22 +635,45 @@ export const Library: React.FC<LibraryProps> = ({
          {currentItems.visibleFolders.map(folder => (
            <div 
              key={folder.id}
-             onClick={() => handleNavigate(folder.id, folder.name)}
+             onClick={() => renamingId !== folder.id && handleNavigate(folder.id, folder.name)}
              className="group relative bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 hover:border-indigo-400 dark:hover:border-indigo-500/50 p-4 rounded-2xl cursor-pointer transition-all hover:shadow-lg active:scale-95 flex flex-col justify-between aspect-[4/3]"
            >
               <div className="flex justify-between items-start">
                  <div className="p-3 bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded-xl group-hover:scale-110 transition-transform">
                     <Folder size={24} fill="currentColor" className="fill-current opacity-50" />
                  </div>
-                 <button 
-                    onClick={(e) => { e.stopPropagation(); handleDeleteFolderRecursive(folder.id); }}
-                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                 >
-                    <Trash2 size={14} />
-                 </button>
+                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                        onClick={(e) => handleStartRename(e, folder)}
+                        className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg"
+                    >
+                        <Pencil size={14} />
+                    </button>
+                    <button 
+                        onClick={(e) => handleDeleteFolderWithConfirmation(e, folder.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                 </div>
               </div>
               <div>
-                 <h4 className="font-bold text-slate-800 dark:text-white truncate" title={folder.name}>{folder.name}</h4>
+                 {renamingId === folder.id ? (
+                    <input
+                        ref={renameInputRef}
+                        type="text" value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={handleConfirmRename}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleConfirmRename();
+                            if (e.key === 'Escape') setRenamingId(null);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full bg-slate-100 dark:bg-slate-800 outline-none ring-2 ring-indigo-500 rounded p-1 -m-1 font-bold text-slate-800 dark:text-white"
+                    />
+                 ) : (
+                    <h4 className="font-bold text-slate-800 dark:text-white truncate" title={folder.name}>{folder.name}</h4>
+                 )}
                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-1">
                     {notes.filter(n => n.folderId === folder.id).length} Items
                  </p>
@@ -576,7 +684,7 @@ export const Library: React.FC<LibraryProps> = ({
          {currentItems.visibleNotes.map(note => (
            <div 
              key={note.id}
-             onClick={() => handleNoteClick(note)}
+             onClick={() => renamingId !== note.id && handleNoteClick(note)}
              className="group relative bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 hover:border-indigo-400 dark:hover:border-indigo-500/50 rounded-2xl cursor-pointer transition-all hover:shadow-lg active:scale-95 flex flex-col aspect-[4/3] overflow-hidden"
            >
               {(note.type === 'image' || (note.type === 'pdf' && note.thumbnail)) ? (
@@ -587,8 +695,9 @@ export const Library: React.FC<LibraryProps> = ({
                             alt={note.title} 
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
                         />
-                        <div className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); onDeleteNote(note.id); }}>
-                            <Trash2 size={12} />
+                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button className="p-1.5 bg-black/50 text-white rounded-lg" onClick={(e) => handleStartRename(e, note)}><Pencil size={12} /></button>
+                            <button className="p-1.5 bg-black/50 text-white rounded-lg" onClick={(e) => handleDeleteNoteWithConfirmation(e, note.id)}><Trash2 size={12} /></button>
                         </div>
                         {note.type === 'pdf' && (
                             <div className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-rose-500 text-white text-[9px] font-bold uppercase rounded tracking-wider shadow-sm">
@@ -597,9 +706,19 @@ export const Library: React.FC<LibraryProps> = ({
                         )}
                     </div>
                     <div className="p-3 flex flex-col justify-center flex-1">
-                        <h4 className="font-bold text-slate-800 dark:text-white truncate text-xs mb-0.5" title={note.title}>
-                            {note.title}
-                        </h4>
+                        {renamingId === note.id ? (
+                            <input
+                                ref={renameInputRef}
+                                type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
+                                onBlur={handleConfirmRename} onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmRename(); if (e.key === 'Escape') setRenamingId(null); }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full bg-slate-100 dark:bg-slate-800 outline-none ring-2 ring-indigo-500 rounded p-1 -m-1 font-bold text-slate-800 dark:text-white text-xs"
+                            />
+                        ) : (
+                           <h4 className="font-bold text-slate-800 dark:text-white truncate text-xs mb-0.5" title={note.title}>
+                             {note.title}
+                           </h4>
+                        )}
                         <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">{note.type === 'pdf' ? 'Document' : 'Image'}</span>
                     </div>
                   </>
@@ -609,26 +728,25 @@ export const Library: React.FC<LibraryProps> = ({
                         <div className="p-2.5 bg-rose-50 dark:bg-rose-500/10 text-rose-500 rounded-xl">
                             <FileText size={20} />
                         </div>
-                        <div className="flex items-center">
-                          <button 
-                              onClick={(e) => handleThumbnailUploadClick(e, note.id)}
-                              className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                              title="Add preview image"
-                          >
-                              <ImagePlus size={14} />
-                          </button>
-                          <button 
-                              onClick={(e) => { e.stopPropagation(); onDeleteNote(note.id); }}
-                              className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                              <Trash2 size={14} />
-                          </button>
+                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={(e) => handleStartRename(e, note)} className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg"><Pencil size={14} /></button>
+                            <button onClick={(e) => handleThumbnailUploadClick(e, note.id)} className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg" title="Add preview image"><ImagePlus size={14} /></button>
+                            <button onClick={(e) => handleDeleteNoteWithConfirmation(e, note.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg"><Trash2 size={14} /></button>
                         </div>
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-800 dark:text-white truncate text-sm mb-1" title={note.title}>
-                            {note.title}
-                        </h4>
+                        {renamingId === note.id ? (
+                           <input
+                             ref={renameInputRef} type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
+                             onBlur={handleConfirmRename} onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmRename(); if (e.key === 'Escape') setRenamingId(null); }}
+                             onClick={(e) => e.stopPropagation()}
+                             className="w-full bg-slate-100 dark:bg-slate-800 outline-none ring-2 ring-indigo-500 rounded p-1 -m-1 font-bold text-slate-800 dark:text-white text-sm mb-1"
+                           />
+                        ) : (
+                           <h4 className="font-bold text-slate-800 dark:text-white truncate text-sm mb-1" title={note.title}>
+                             {note.title}
+                           </h4>
+                        )}
                         <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">PDF Document</span>
                       </div>
                   </div>
@@ -655,16 +773,25 @@ export const Library: React.FC<LibraryProps> = ({
                               </div>
                             )}
                           </div>
-                          <button onClick={(e) => { e.stopPropagation(); onDeleteNote(note.id); }}
-                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all">
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={(e) => handleStartRename(e, note)} className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg"><Pencil size={14} /></button>
+                            <button onClick={(e) => handleDeleteNoteWithConfirmation(e, note.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg"><Trash2 size={14} /></button>
+                          </div>
                         </div>
     
                         <div className="flex-1 overflow-hidden mt-2">
-                          <h4 className="font-bold text-slate-800 dark:text-white truncate text-sm mb-1" title={note.title || 'Untitled'}>
-                            {note.title || 'Untitled Note'}
-                          </h4>
+                          {renamingId === note.id ? (
+                            <input
+                              ref={renameInputRef} type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
+                              onBlur={handleConfirmRename} onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmRename(); if (e.key === 'Escape') setRenamingId(null); }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full bg-slate-100 dark:bg-slate-800 outline-none ring-2 ring-indigo-500 rounded p-1 -m-1 font-bold text-slate-800 dark:text-white text-sm mb-1"
+                            />
+                          ) : (
+                            <h4 className="font-bold text-slate-800 dark:text-white truncate text-sm mb-1" title={note.title || 'Untitled'}>
+                              {note.title || 'Untitled Note'}
+                            </h4>
+                          )}
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
                             {note.content || 'No content...'}
                           </p>
