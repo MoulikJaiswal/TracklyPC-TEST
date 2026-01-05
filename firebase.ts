@@ -21,16 +21,18 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Enable Offline Persistence
-// This allows the app to work with cached data if the network is lost
-try {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code == 'failed-precondition') {
-        console.log('Persistence failed: Multiple tabs open');
-    } else if (err.code == 'unimplemented') {
-        console.log('Persistence failed: Browser not supported');
+// Create and export a promise that resolves when persistence is enabled.
+// The app will wait for this promise before performing any DB operations.
+export const dbReadyPromise = (async () => {
+  try {
+    await enableIndexedDbPersistence(db);
+  } catch (err: any) {
+    if (err.code === 'failed-precondition') {
+      console.warn('Firebase persistence failed: Multiple tabs open. Data will not be saved offline.');
+    } else if (err.code === 'unimplemented') {
+      console.warn('Firebase persistence failed: Browser not supported. Data will not be saved offline.');
+    } else {
+      console.error("Firebase persistence error:", err);
     }
-  });
-} catch (e) {
-  console.log("Persistence initialization error", e);
-}
+  }
+})();

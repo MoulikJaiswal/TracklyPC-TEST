@@ -37,7 +37,7 @@ import { getProStatus, PAYWALL_CONFIG } from './components/proController';
 import { GoogleIcon } from './components/GoogleIcon';
 
 // Firebase Imports
-import { auth, db, googleProvider } from './firebase';
+import { auth, db, googleProvider, dbReadyPromise } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch } from 'firebase/firestore';
 
@@ -691,6 +691,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isFirebaseReady, setIsFirebaseReady] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [guestNameInput, setGuestNameInput] = useState('');
   const [isMigrating, setIsMigrating] = useState(false);
@@ -1349,6 +1350,13 @@ const App: React.FC = () => {
     return () => window.removeEventListener('click', handleClick);
   }, [soundEnabled, soundPitch, soundVolume]);
 
+  // 0. Firebase Persistence Initializer
+  useEffect(() => {
+    dbReadyPromise.then(() => {
+      setIsFirebaseReady(true);
+    });
+  }, []);
+
   // 1. Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -1374,8 +1382,10 @@ const App: React.FC = () => {
       }
   }, [user]);
 
-  // 2. Data Syncing (Firestore OR LocalStorage)
+  // 2. Data Syncing (Firestore OR LocalStorage) - GATED BY isFirebaseReady
   useEffect(() => {
+    if (!isFirebaseReady) return; // <-- CRITICAL: Do not run until DB is ready.
+
     if (user) {
         // --- Firebase Sync ---
         const sessionsQ = query(collection(db, 'users', user.uid, 'sessions'), orderBy('timestamp', 'desc'));
@@ -1427,7 +1437,7 @@ const App: React.FC = () => {
         setNotes([]);
         setFolders([]);
     }
-  }, [user, isGuest]);
+  }, [user, isGuest, isFirebaseReady]);
 
   // Persist Goals to LS if Guest
   useEffect(() => {
@@ -1812,7 +1822,7 @@ const App: React.FC = () => {
         }
   `}, [themeConfig, theme]);
 
-  if (isAuthLoading || isMigrating) {
+  if (isAuthLoading || !isFirebaseReady || isMigrating) {
     return (
         <div className={`min-h-screen flex items-center justify-center ${themeConfig.mode === 'dark' ? 'bg-[#020617]' : 'bg-slate-50'}`}>
             <div className="flex flex-col items-center gap-4">
