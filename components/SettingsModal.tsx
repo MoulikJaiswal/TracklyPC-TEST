@@ -1,6 +1,6 @@
 
 import React, { useRef } from 'react';
-import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate, LogOut } from 'lucide-react';
+import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate, LogOut, Check, Loader2, UploadCloud } from 'lucide-react';
 import { Card } from './Card';
 import { ThemeId } from '../types';
 import { THEME_CONFIG } from '../constants';
@@ -53,6 +53,8 @@ interface SettingsModalProps {
   user: User | null;
   isGuest: boolean;
   onLogout: () => void;
+  onForceSync: () => void;
+  syncStatus: 'idle' | 'syncing' | 'success' | 'error';
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -97,7 +99,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenUpgrade,
   user,
   isGuest,
-  onLogout
+  onLogout,
+  onForceSync,
+  syncStatus
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -142,6 +146,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
     reader.readAsDataURL(file);
+  };
+
+  const syncButtonContent = () => {
+    switch (syncStatus) {
+      case 'syncing':
+        return <><Loader2 size={14} className="animate-spin" /> Syncing...</>;
+      case 'success':
+        return <><Check size={14} /> Synced!</>;
+      case 'error':
+        return <><AlertTriangle size={14} /> Sync Failed</>;
+      default:
+        return <>Force Save to Cloud</>;
+    }
   };
 
   return (
@@ -513,8 +530,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
              </div>
           </div>
+          
+          {/* --- SECTION 4: CLOUD SYNC --- */}
+          {user && !isGuest && (
+            <div className="space-y-4">
+               <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2">
+                  <UploadCloud size={16} />
+                  <span className="text-xs font-bold uppercase tracking-widest">Cloud Sync</span>
+               </div>
+               <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl space-y-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">If you suspect data isn't syncing correctly, you can manually push all your current app data to the cloud.</p>
+                  <button
+                    onClick={onForceSync}
+                    disabled={syncStatus === 'syncing' || syncStatus === 'success'}
+                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-70
+                      ${syncStatus === 'success' ? 'bg-emerald-600 text-white' : 
+                       syncStatus === 'error' ? 'bg-rose-600 text-white' : 
+                       'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 active:scale-95'
+                      }
+                    `}
+                  >
+                    {syncButtonContent()}
+                  </button>
+               </div>
+            </div>
+          )}
 
-          {/* --- SECTION 4: SUPPORT & GUIDE --- */}
+          {/* --- SECTION 5: SUPPORT & GUIDE --- */}
           <div className="space-y-4">
              <div className="flex items-center gap-2 text-amber-500 dark:text-amber-400 border-b border-amber-100 dark:border-amber-500/20 pb-2">
                 <HelpCircle size={16} />
@@ -546,7 +588,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              </div>
           </div>
 
-          {/* --- SECTION 5: DANGER ZONE --- */}
+          {/* --- SECTION 6: DANGER ZONE --- */}
           <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-white/10">
              <div className="flex items-center gap-2 text-rose-500">
                 <AlertTriangle size={14} />

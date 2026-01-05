@@ -694,6 +694,7 @@ const App: React.FC = () => {
   const [userName, setUserName] = useState<string | null>(null);
   const [guestNameInput, setGuestNameInput] = useState('');
   const [isMigrating, setIsMigrating] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
 
   // Clock State
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -1266,6 +1267,31 @@ const App: React.FC = () => {
         localStorage.removeItem('trackly_guest_name');
     }
   }, [user, isGuest]);
+
+  const handleForceSync = useCallback(async () => {
+    if (!user) {
+      console.error("Cannot force sync: no user logged in.");
+      return;
+    }
+    setSyncStatus('syncing');
+    try {
+      const batch = writeBatch(db);
+      
+      sessions.forEach(item => batch.set(doc(db, 'users', user.uid, 'sessions', item.id), item));
+      tests.forEach(item => batch.set(doc(db, 'users', user.uid, 'tests', item.id), item));
+      targets.forEach(item => batch.set(doc(db, 'users', user.uid, 'targets', item.id), item));
+      notes.forEach(item => batch.set(doc(db, 'users', user.uid, 'notes', item.id), item));
+      folders.forEach(item => batch.set(doc(db, 'users', user.uid, 'folders', item.id), item));
+
+      await batch.commit();
+      setSyncStatus('success');
+    } catch (e) {
+      console.error("Force sync failed:", e);
+      setSyncStatus('error');
+    } finally {
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    }
+  }, [user, sessions, tests, targets, notes, folders]);
 
   // Handle Pro Upgrade
   const handleUpgrade = useCallback(() => {
@@ -2190,6 +2216,8 @@ const App: React.FC = () => {
             handleLogout();
             setIsSettingsOpen(false);
         }}
+        onForceSync={handleForceSync}
+        syncStatus={syncStatus}
       />
     </div>
   );
