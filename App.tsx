@@ -1271,9 +1271,17 @@ const App: React.FC = () => {
   const handleForceSync = useCallback(async () => {
     if (!user) {
       console.error("Cannot force sync: no user logged in.");
+      setSyncStatus('error');
+      setTimeout(() => setSyncStatus('idle'), 3000);
       return;
     }
     setSyncStatus('syncing');
+
+    // Create a timeout promise that rejects after 15 seconds
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Sync operation timed out after 15 seconds.')), 15000)
+    );
+
     try {
       const batch = writeBatch(db);
       
@@ -1283,12 +1291,18 @@ const App: React.FC = () => {
       notes.forEach(item => batch.set(doc(db, 'users', user.uid, 'notes', item.id), item));
       folders.forEach(item => batch.set(doc(db, 'users', user.uid, 'folders', item.id), item));
 
-      await batch.commit();
+      // Race the batch commit against the timeout
+      await Promise.race([
+        batch.commit(),
+        timeoutPromise
+      ]);
+      
       setSyncStatus('success');
     } catch (e) {
       console.error("Force sync failed:", e);
       setSyncStatus('error');
     } finally {
+      // This will run after success, error, or timeout
       setTimeout(() => setSyncStatus('idle'), 3000);
     }
   }, [user, sessions, tests, targets, notes, folders]);
@@ -1804,7 +1818,7 @@ const App: React.FC = () => {
             <div className="flex flex-col items-center gap-4">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
                 <span className="text-sm font-bold uppercase tracking-widest text-slate-500">
-                  {isMigrating ? 'Migrating Data...' : 'Syncing Data...'}
+                  {isMigrating ? 'Migrating Data...' : 'Connecting...'}
                 </span>
             </div>
         </div>
