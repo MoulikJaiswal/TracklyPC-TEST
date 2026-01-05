@@ -21,8 +21,9 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Enable Offline Persistence
+// Enable Offline Persistence - DISABLING TO DEBUG SYNC ISSUE
 // This allows the app to work with cached data if the network is lost
+/*
 try {
   enableIndexedDbPersistence(db).catch((err) => {
     if (err.code == 'failed-precondition') {
@@ -34,3 +35,4 @@ try {
 } catch (e) {
   console.log("Persistence initialization error", e);
 }
+*/

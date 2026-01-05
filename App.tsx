@@ -1255,20 +1255,17 @@ const App: React.FC = () => {
   }, [guestNameInput]);
 
   const handleLogout = useCallback(async () => {
-      if (user) {
-          await signOut(auth);
-      }
-      setIsGuest(false);
-      localStorage.removeItem('trackly_is_guest');
-      localStorage.removeItem('trackly_guest_name');
-      setUserName(null);
-      // Reset state
-      setSessions([]);
-      setTests([]);
-      setTargets([]);
-      setNotes([]);
-      setFolders([]);
-  }, [user]);
+    if (user) {
+        await signOut(auth);
+        // onAuthStateChanged will handle clearing user state.
+    } else if (isGuest) {
+        // This is a guest session, just clear local state flags.
+        // The data-syncing useEffect will clear data arrays.
+        setIsGuest(false);
+        localStorage.removeItem('trackly_is_guest');
+        localStorage.removeItem('trackly_guest_name');
+    }
+  }, [user, isGuest]);
 
   // Handle Pro Upgrade
   const handleUpgrade = useCallback(() => {
@@ -1319,6 +1316,9 @@ const App: React.FC = () => {
       if (currentUser) {
           setIsGuest(false);
           setUserName(currentUser.displayName || 'User');
+      } else {
+          // Explicitly clear user-specific state on logout
+          setUserName(null);
       }
       setIsAuthLoading(false);
     });
