@@ -1,7 +1,7 @@
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { getFirestore, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -25,10 +25,11 @@ export const googleProvider = new GoogleAuthProvider();
 // The app will wait for this promise before performing any DB operations.
 export const dbReadyPromise = (async () => {
   try {
-    await enableIndexedDbPersistence(db);
+    // Use multi-tab persistence to ensure data syncs across all open tabs.
+    await enableMultiTabIndexedDbPersistence(db);
   } catch (err: any) {
     if (err.code === 'failed-precondition') {
-      console.warn('Firebase persistence failed: Multiple tabs open. Data will not be saved offline.');
+      console.warn('Firebase persistence failed: Could not acquire lock. Is another app using IndexedDB?');
     } else if (err.code === 'unimplemented') {
       console.warn('Firebase persistence failed: Browser not supported. Data will not be saved offline.');
     } else {
