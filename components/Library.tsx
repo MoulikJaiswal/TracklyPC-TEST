@@ -18,7 +18,8 @@ import {
   Download,
   X,
   Eye,
-  Loader2
+  Loader2,
+  ImagePlus
 } from 'lucide-react';
 import { Note, Folder as FolderType } from '../types';
 import { Card } from './Card';
@@ -57,11 +58,14 @@ export const Library: React.FC<LibraryProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [viewingFile, setViewingFile] = useState<Note | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   // Creation State
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const [editingThumbnailFor, setEditingThumbnailFor] = useState<string | null>(null);
 
   // Filtering
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,7 +77,7 @@ export const Library: React.FC<LibraryProps> = ({
       const q = searchQuery.toLowerCase();
       return {
         visibleFolders: folders.filter(f => f.name.toLowerCase().includes(q)),
-        visibleNotes: notes.filter(n => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q))
+        visibleNotes: notes.filter(n => n.title.toLowerCase().includes(q) || (n.content && n.content.toLowerCase().includes(q)))
       };
     }
     
@@ -87,12 +91,10 @@ export const Library: React.FC<LibraryProps> = ({
   useEffect(() => {
     if (viewingFile && viewingFile.type === 'pdf' && viewingFile.attachment) {
         try {
-            // Extract pure base64 if data URI prefix exists
             const base64Data = viewingFile.attachment.includes(',') 
                 ? viewingFile.attachment.split(',')[1] 
                 : viewingFile.attachment;
             
-            // Convert to binary
             const binaryString = window.atob(base64Data);
             const len = binaryString.length;
             const bytes = new Uint8Array(len);
@@ -100,12 +102,10 @@ export const Library: React.FC<LibraryProps> = ({
                 bytes[i] = binaryString.charCodeAt(i);
             }
             
-            // Create Blob and URL
             const blob = new Blob([bytes], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
             setPdfBlobUrl(url);
 
-            // Cleanup
             return () => {
                 URL.revokeObjectURL(url);
             };
@@ -125,7 +125,6 @@ export const Library: React.FC<LibraryProps> = ({
     if (folderId === null) {
       setFolderPath([{ id: null, name: 'Library' }]);
     } else {
-      // Check if we are going deeper or jumping back
       const existingIndex = folderPath.findIndex(p => p.id === folderId);
       if (existingIndex !== -1) {
         setFolderPath(folderPath.slice(0, existingIndex + 1));
@@ -133,7 +132,7 @@ export const Library: React.FC<LibraryProps> = ({
         setFolderPath([...folderPath, { id: folderId, name: folderName }]);
       }
     }
-    setSearchQuery(''); // Clear search on nav
+    setSearchQuery('');
   };
 
   const handleCreateFolder = (e: React.FormEvent) => {
@@ -166,49 +165,80 @@ export const Library: React.FC<LibraryProps> = ({
     setIsEditing(true);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Limit size to 2MB for safe storage
-    if (file.size > 2 * 1024 * 1024) {
-        alert("File too large. Please upload files under 2MB.");
+    if (file.size > 4 * 1024 * 1024) {
+        alert("File too large. Please upload files under 4MB.");
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const result = event.target?.result as string;
+    setIsProcessing(true);
+
+    try {
         const type = file.type.includes('pdf') ? 'pdf' : 'image';
-        
-        const newNote: Note = {
-            id: generateUUID(),
-            title: file.name,
-            content: '', // Optional description can be added later
-            folderId: currentFolderId,
-            timestamp: Date.now(),
-            lastModified: Date.now(),
-            type: type,
-            attachment: result,
-            fileName: file.name
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const result = event.target?.result as string;
+            
+            const newNote: Note = {
+                id: generateUUID(),
+                title: file.name,
+                content: '', 
+                folderId: currentFolderId,
+                timestamp: Date.now(),
+                lastModified: Date.now(),
+                type: type,
+                attachment: result,
+                fileName: file.name,
+                thumbnail: type === 'image' ? result : undefined
+            };
+            onSaveNote(newNote);
+            setIsProcessing(false);
         };
-        onSaveNote(newNote);
-    };
-    reader.readAsDataURL(file);
-    // Reset input
+        reader.readAsDataURL(file);
+    } catch (error) {
+        console.error("Upload failed", error);
+        setIsProcessing(false);
+    }
+    
     e.target.value = '';
+  };
+
+  const handleThumbnailUploadClick = (e: React.MouseEvent, noteId: string) => {
+    e.stopPropagation();
+    setEditingThumbnailFor(noteId);
+    thumbnailInputRef.current?.click();
+  };
+
+  const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !editingThumbnailFor) return;
+
+      if (file.size > 1 * 1024 * 1024) { // 1MB limit for thumbnails
+          alert("Thumbnail image too large. Please use an image under 1MB.");
+          return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+          const thumbnailData = reader.result as string;
+          const noteToUpdate = notes.find(n => n.id === editingThumbnailFor);
+          if (noteToUpdate) {
+              onSaveNote({ ...noteToUpdate, thumbnail: thumbnailData });
+          }
+          setEditingThumbnailFor(null);
+      };
+      reader.readAsDataURL(file);
+      e.target.value = ''; // Reset input
   };
 
   const handleDeleteFolderRecursive = (folderId: string) => {
     if (window.confirm("Delete this folder and all its contents?")) {
-      // 1. Delete the folder itself
       onDeleteFolder(folderId);
-      
-      // 2. Find and delete all direct child notes
       const childNotes = notes.filter(n => n.folderId === folderId);
       childNotes.forEach(n => onDeleteNote(n.id));
-
-      // 3. Find direct child folders and recurse
       const childFolders = folders.filter(f => f.parentId === folderId);
       childFolders.forEach(f => handleDeleteFolderRecursive(f.id));
     }
@@ -223,11 +253,9 @@ export const Library: React.FC<LibraryProps> = ({
       }
   };
 
-  // --- NOTE EDITOR VIEW ---
   if (isEditing && activeNote) {
     return (
       <div className="h-[calc(100vh-140px)] flex flex-col animate-in slide-in-from-right-4 duration-300">
-        {/* Editor Toolbar */}
         <div className="flex justify-between items-center mb-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md p-3 rounded-2xl border border-slate-200 dark:border-white/10">
           <button 
             onClick={() => setIsEditing(false)}
@@ -249,7 +277,6 @@ export const Library: React.FC<LibraryProps> = ({
           </div>
         </div>
 
-        {/* Editor Content */}
         <Card className="flex-1 flex flex-col p-6 md:p-8 bg-white dark:bg-slate-900 border-none shadow-none">
            <input 
              type="text" 
@@ -273,11 +300,16 @@ export const Library: React.FC<LibraryProps> = ({
     );
   }
 
-  // --- BROWSER VIEW ---
   return (
-    <div className="space-y-6 pb-20 animate-in fade-in duration-500">
-      
-      {/* Header & Controls */}
+    <div id="library-container" className="space-y-6 pb-20 animate-in fade-in duration-500">
+      <input 
+          type="file" 
+          ref={thumbnailInputRef}
+          className="hidden" 
+          accept="image/*"
+          onChange={handleThumbnailFileChange}
+      />
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Library</h2>
@@ -287,7 +319,6 @@ export const Library: React.FC<LibraryProps> = ({
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto">
-           {/* Search Bar */}
            <div className="relative flex-1 md:w-64 group">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
               <input 
@@ -301,7 +332,6 @@ export const Library: React.FC<LibraryProps> = ({
         </div>
       </div>
 
-      {/* Breadcrumb Navigation */}
       {!searchQuery && (
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
           {folderPath.map((item, index) => (
@@ -324,7 +354,6 @@ export const Library: React.FC<LibraryProps> = ({
         </div>
       )}
 
-      {/* Action Bar (Create) */}
       {!searchQuery && (
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
            {isCreatingFolder ? (
@@ -363,9 +392,11 @@ export const Library: React.FC<LibraryProps> = ({
 
            <button 
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-indigo-500/20 transition-all active:scale-95 whitespace-nowrap"
+              disabled={isProcessing}
+              className={`flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-indigo-500/20 transition-all active:scale-95 whitespace-nowrap ${isProcessing ? 'opacity-70 cursor-wait' : ''}`}
            >
-              <Upload size={16} /> Upload
+              {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} 
+              {isProcessing ? 'Processing' : 'Upload'}
            </button>
            <input 
               type="file" 
@@ -377,9 +408,7 @@ export const Library: React.FC<LibraryProps> = ({
         </div>
       )}
 
-      {/* Content Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-         {/* Folders */}
          {currentItems.visibleFolders.map(folder => (
            <div 
              key={folder.id}
@@ -406,26 +435,34 @@ export const Library: React.FC<LibraryProps> = ({
            </div>
          ))}
 
-         {/* Notes */}
          {currentItems.visibleNotes.map(note => (
            <div 
              key={note.id}
              onClick={() => handleNoteClick(note)}
              className="group relative bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 hover:border-indigo-400 dark:hover:border-indigo-500/50 rounded-2xl cursor-pointer transition-all hover:shadow-lg active:scale-95 flex flex-col aspect-[4/3] overflow-hidden"
            >
-              {note.type === 'image' && note.attachment ? (
+              {(note.type === 'image' || (note.type === 'pdf' && note.thumbnail)) ? (
                   <>
                     <div className="h-2/3 w-full bg-slate-100 dark:bg-black/20 overflow-hidden relative">
-                        <img src={note.attachment} alt={note.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                        <img 
+                            src={note.thumbnail || note.attachment} 
+                            alt={note.title} 
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                        />
                         <div className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); onDeleteNote(note.id); }}>
                             <Trash2 size={12} />
                         </div>
+                        {note.type === 'pdf' && (
+                            <div className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-rose-500 text-white text-[9px] font-bold uppercase rounded tracking-wider shadow-sm">
+                                PDF
+                            </div>
+                        )}
                     </div>
                     <div className="p-3 flex flex-col justify-center flex-1">
                         <h4 className="font-bold text-slate-800 dark:text-white truncate text-xs mb-0.5" title={note.title}>
                             {note.title}
                         </h4>
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Image</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">{note.type === 'pdf' ? 'Document' : 'Image'}</span>
                     </div>
                   </>
               ) : note.type === 'pdf' ? (
@@ -434,12 +471,21 @@ export const Library: React.FC<LibraryProps> = ({
                         <div className="p-2.5 bg-rose-50 dark:bg-rose-500/10 text-rose-500 rounded-xl">
                             <FileText size={20} />
                         </div>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onDeleteNote(note.id); }}
-                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                            <Trash2 size={14} />
-                        </button>
+                        <div className="flex items-center">
+                          <button 
+                              onClick={(e) => handleThumbnailUploadClick(e, note.id)}
+                              className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                              title="Add preview image"
+                          >
+                              <ImagePlus size={14} />
+                          </button>
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); onDeleteNote(note.id); }}
+                              className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                              <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <h4 className="font-bold text-slate-800 dark:text-white truncate text-sm mb-1" title={note.title}>
@@ -477,7 +523,6 @@ export const Library: React.FC<LibraryProps> = ({
            </div>
          ))}
 
-         {/* Empty State */}
          {currentItems.visibleFolders.length === 0 && currentItems.visibleNotes.length === 0 && (
             <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-3xl">
                 <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-full mb-3">
@@ -491,7 +536,6 @@ export const Library: React.FC<LibraryProps> = ({
          )}
       </div>
 
-      {/* Viewing Modal for Files */}
       {viewingFile && createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
               <div className="bg-white dark:bg-[#0f172a] w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-white/10">

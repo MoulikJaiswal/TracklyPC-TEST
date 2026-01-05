@@ -57,6 +57,7 @@ export interface TestResult {
   attachment?: string; // Base64 string of the file
   attachmentType?: 'image' | 'pdf';
   fileName?: string;
+  thumbnail?: string;
 }
 
 export interface Target {
@@ -86,6 +87,7 @@ export interface Note {
   type?: 'text' | 'image' | 'pdf';
   attachment?: string;
   fileName?: string;
+  thumbnail?: string;
 }
 
 export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'resources' | 'library';

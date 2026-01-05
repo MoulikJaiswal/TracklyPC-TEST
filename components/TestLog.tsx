@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2 } from 'lucide-react';
+import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus } from 'lucide-react';
 import { TestResult, Target as TargetType, SubjectBreakdown, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES, JEE_SYLLABUS } from '../constants';
@@ -440,12 +440,15 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
 export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onOpenUpgrade }: TestLogProps) => {
   const [isAdding, setIsAdding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [previewFile, setPreviewFile] = useState<{ name: string; type: 'image' | 'pdf' } | null>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const [previewFile, setPreviewFile] = useState<{ name: string; type: 'image' | 'pdf', thumbnail?: string } | null>(null);
   const [viewingAttachment, setViewingAttachment] = useState<TestResult | null>(null);
   const [viewingReport, setViewingReport] = useState<TestResult | null>(null);
   const [reportSubject, setReportSubject] = useState<'Physics' | 'Chemistry' | 'Maths' | null>(null);
   const [activeTab, setActiveTab] = useState<'Physics' | 'Chemistry' | 'Maths'>('Physics');
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [isProcessingAttachment, setIsProcessingAttachment] = useState(false);
+  const [isProcessingThumbnail, setIsProcessingThumbnail] = useState(false);
   
   // Syllabus Picker State
   const [syllabusTab, setSyllabusTab] = useState<'Physics' | 'Chemistry' | 'Maths'>('Physics');
@@ -463,6 +466,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
     attachment: undefined,
     attachmentType: undefined,
     fileName: undefined,
+    thumbnail: undefined,
     breakdown: {
       Physics: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
       Chemistry: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
@@ -560,29 +564,62 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
       }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 800 * 1024) {
-      alert("File is too large! Please upload an image/PDF smaller than 800KB.");
+    if (file.size > 4 * 1024 * 1024) {
+      alert("File is too large! Please upload an image/PDF smaller than 4MB.");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      const type = file.type.includes('pdf') ? 'pdf' : 'image';
-      
-      setFormData(prev => ({
-        ...prev,
-        attachment: result,
-        attachmentType: type,
-        fileName: file.name
-      }));
-      setPreviewFile({ name: file.name, type });
-    };
-    reader.readAsDataURL(file);
+    setIsProcessingAttachment(true);
+    
+    try {
+        const type = file.type.includes('pdf') ? 'pdf' : 'image';
+    
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const result = event.target?.result as string;
+          
+          setFormData(prev => ({
+            ...prev,
+            attachment: result,
+            attachmentType: type,
+            fileName: file.name,
+            thumbnail: type === 'image' ? result : undefined
+          }));
+          setPreviewFile({ name: file.name, type, thumbnail: type === 'image' ? result : undefined });
+          setIsProcessingAttachment(false);
+        };
+        reader.readAsDataURL(file);
+    } catch(err) {
+        alert("Failed to process file.");
+        setIsProcessingAttachment(false);
+    }
+  };
+
+  const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (file.size > 1 * 1024 * 1024) {
+          alert("Thumbnail image is too large! Please use an image under 1MB.");
+          return;
+      }
+
+      setIsProcessingThumbnail(true);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+          const thumbnailData = reader.result as string;
+          setFormData(prev => ({ ...prev, thumbnail: thumbnailData }));
+          if (previewFile) {
+              setPreviewFile({ ...previewFile, thumbnail: thumbnailData });
+          }
+          setIsProcessingThumbnail(false);
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
   };
 
   const removeAttachment = () => {
@@ -590,7 +627,8 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
       ...prev,
       attachment: undefined,
       attachmentType: undefined,
-      fileName: undefined
+      fileName: undefined,
+      thumbnail: undefined
     }));
     setPreviewFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -730,6 +768,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
       attachment: undefined,
       attachmentType: undefined,
       fileName: undefined,
+      thumbnail: undefined,
       breakdown: {
         Physics: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
         Chemistry: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
@@ -798,6 +837,14 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
       {isAdding && (
         <Card className="bg-slate-900/50 dark:bg-slate-900/50 border border-slate-800 max-w-2xl mx-auto shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-8">
+            <input 
+                type="file" 
+                ref={thumbnailInputRef} 
+                className="hidden" 
+                accept="image/*"
+                onChange={handleThumbnailFileChange}
+            />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Test Name</label>
@@ -1102,32 +1149,52 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Attachment</label>
                {!previewFile ? (
                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-slate-700 hover:border-indigo-500 bg-black/20 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all group"
+                    onClick={() => !isProcessingAttachment && fileInputRef.current?.click()}
+                    className={`w-full border-2 border-dashed border-slate-700 bg-black/20 rounded-2xl p-6 flex flex-col items-center justify-center transition-all group ${isProcessingAttachment ? 'cursor-wait' : 'hover:border-indigo-500 cursor-pointer'}`}
                  >
-                    <div className="p-3 bg-white/5 rounded-full mb-2 group-hover:scale-110 transition-transform shadow-sm">
-                        <UploadCloud className="text-indigo-400" size={20} />
+                    <div className={`p-3 bg-white/5 rounded-full mb-2 group-hover:scale-110 transition-transform shadow-sm ${isProcessingAttachment ? 'animate-spin' : ''}`}>
+                        {isProcessingAttachment ? <Loader2 className="text-indigo-400" size={20} /> : <UploadCloud className="text-indigo-400" size={20} />}
                     </div>
-                    <p className="text-xs font-bold text-slate-400 group-hover:text-indigo-400 transition-colors">Click to upload Scorecard / PDF</p>
+                    <p className="text-xs font-bold text-slate-400 group-hover:text-indigo-400 transition-colors">
+                        {isProcessingAttachment ? 'Processing...' : 'Click to upload Scorecard / PDF'}
+                    </p>
                     <input 
                         type="file" 
                         ref={fileInputRef} 
                         className="hidden" 
                         accept="image/*,application/pdf"
                         onChange={handleFileChange}
+                        disabled={isProcessingAttachment}
                     />
                  </div>
                ) : (
-                 <div className="flex items-center justify-between p-3 bg-black/20 border border-slate-700 rounded-xl">
+                 <div className="flex items-center justify-between p-3 bg-black/20 border border-slate-700 rounded-xl gap-2">
                     <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400 shrink-0">
-                            {previewFile.type === 'pdf' ? <FileText size={18} /> : <ImageIcon size={18} />}
-                        </div>
+                        {previewFile.thumbnail || (previewFile.type === 'image' && formData.attachment) ? (
+                            <img src={previewFile.thumbnail || formData.attachment} alt="Preview" className="w-10 h-10 rounded-md object-cover"/>
+                        ) : (
+                            <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400 shrink-0">
+                                {previewFile.type === 'pdf' ? <FileText size={18} /> : <ImageIcon size={18} />}
+                            </div>
+                        )}
                         <span className="text-xs font-bold text-slate-200 truncate">{previewFile.name}</span>
                     </div>
-                    <button type="button" onClick={removeAttachment} className="p-2 hover:bg-rose-500/10 rounded-lg text-rose-500 transition-colors">
-                        <X size={16} />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {previewFile.type === 'pdf' && (
+                            <button 
+                                type="button" 
+                                onClick={() => thumbnailInputRef.current?.click()}
+                                className="p-2 hover:bg-indigo-500/10 rounded-lg text-indigo-400 transition-colors"
+                                title="Add custom preview"
+                                disabled={isProcessingThumbnail}
+                            >
+                                {isProcessingThumbnail ? <Loader2 size={16} className="animate-spin"/> : <ImagePlus size={16}/>}
+                            </button>
+                        )}
+                        <button type="button" onClick={removeAttachment} className="p-2 hover:bg-rose-500/10 rounded-lg text-rose-500 transition-colors">
+                            <X size={16} />
+                        </button>
+                    </div>
                  </div>
                )}
             </div>
@@ -1187,11 +1254,17 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                           <span className="text-xs text-slate-400 font-medium ml-0.5">/{t.total}</span>
                       </div>
                       <span className="text-[10px] font-bold text-indigo-500 mt-1">
-                          {Math.round((t.marks/t.total)*100)}% Score
+                          {t.total > 0 ? Math.round((t.marks/t.total)*100) : 0}% Score
                       </span>
                     </div>
                   </div>
                   
+                  {t.thumbnail && (
+                      <div className="aspect-video rounded-lg overflow-hidden my-4 border border-slate-200 dark:border-white/5">
+                          <img src={t.thumbnail} alt="Test Preview" className="w-full h-full object-cover" />
+                      </div>
+                  )}
+
                   {/* Visual Bar Breakdown */}
                   {t.breakdown && (
                     <div className="flex gap-1 h-2 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-white/5 mt-4">
@@ -1284,7 +1357,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                           <div className="flex flex-col mb-2">
                               <span className="text-sm font-medium text-white/60">/ {viewingReport.total}</span>
                               <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">
-                                  {Math.round((viewingReport.marks / viewingReport.total) * 100)}% Score
+                                  {viewingReport.total > 0 ? Math.round((viewingReport.marks / viewingReport.total) * 100) : 0}% Score
                               </span>
                           </div>
                       </div>
