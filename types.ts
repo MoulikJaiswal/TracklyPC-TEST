@@ -59,10 +59,10 @@ export interface TestResult {
     Maths: SubjectBreakdown;
   };
   timestamp: number;
-  attachment?: string; // Base64 string of the file
-  attachmentType?: 'image' | 'pdf';
-  fileName?: string;
-  thumbnail?: string;
+  attachment?: string | null;
+  attachmentType?: 'image' | 'pdf' | null;
+  fileName?: string | null;
+  thumbnail?: string | null;
 }
 
 export interface Target {
@@ -102,10 +102,10 @@ export interface Note {
   attachments?: Attachment[];
 
   // For type='image' or 'pdf' notes
-  attachment?: string;
-  fileName?: string;
+  attachment?: string | null;
+  fileName?: string | null;
   
-  thumbnail?: string;
+  thumbnail?: string | null;
 }
 
 export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'resources' | 'library';

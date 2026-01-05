@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus } from 'lucide-react';
@@ -428,10 +429,10 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
     pypSession: 'Jan Shift 1',
     coachingName: '',
     syllabus: { Physics: [], Chemistry: [], Maths: [] },
-    attachment: undefined,
-    attachmentType: undefined,
-    fileName: undefined,
-    thumbnail: undefined,
+    attachment: null,
+    attachmentType: null,
+    fileName: null,
+    thumbnail: null,
     breakdown: {
       Physics: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
       Chemistry: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
@@ -552,7 +553,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
             attachment: result,
             attachmentType: type,
             fileName: file.name,
-            thumbnail: type === 'image' ? result : undefined
+            thumbnail: type === 'image' ? result : null
           }));
           setPreviewFile({ name: file.name, type, thumbnail: type === 'image' ? result : undefined });
           setIsProcessingAttachment(false);
@@ -590,10 +591,10 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
   const removeAttachment = () => {
     setFormData(prev => ({
       ...prev,
-      attachment: undefined,
-      attachmentType: undefined,
-      fileName: undefined,
-      thumbnail: undefined
+      attachment: null,
+      attachmentType: null,
+      fileName: null,
+      thumbnail: null
     }));
     setPreviewFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -734,10 +735,10 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
       pypSession: 'Jan Shift 1',
       coachingName: '',
       syllabus: { Physics: [], Chemistry: [], Maths: [] },
-      attachment: undefined,
-      attachmentType: undefined,
-      fileName: undefined,
-      thumbnail: undefined,
+      attachment: null,
+      attachmentType: null,
+      fileName: null,
+      thumbnail: null,
       breakdown: {
         Physics: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
         Chemistry: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
@@ -869,7 +870,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                           <input 
                               type="number" required placeholder="e.g., 2023"
                               className="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl text-sm text-white focus:border-indigo-500 outline-none transition-all placeholder:text-slate-500"
-                              value={formData.pypYear}
+                              value={formData.pypYear || ''}
                               onChange={e => setFormData({...formData, pypYear: parseInt(e.target.value) || undefined})}
                           />
                       </div>
@@ -1196,7 +1197,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                  <div className="flex items-center justify-between p-3 bg-black/20 border border-slate-700 rounded-xl gap-2">
                     <div className="flex items-center gap-3 overflow-hidden">
                         {previewFile.thumbnail || (previewFile.type === 'image' && formData.attachment) ? (
-                            <img src={previewFile.thumbnail || formData.attachment} alt="Preview" className="w-10 h-10 rounded-md object-cover"/>
+                            <img src={previewFile.thumbnail || formData.attachment || undefined} alt="Preview" className="w-10 h-10 rounded-md object-cover"/>
                         ) : (
                             <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400 shrink-0">
                                 {previewFile.type === 'pdf' ? <FileText size={18} /> : <ImageIcon size={18} />}
