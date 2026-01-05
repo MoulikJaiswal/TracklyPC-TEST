@@ -16,6 +16,7 @@ export interface Session {
   correct: number;
   mistakes: MistakeCounts;
   timestamp: number;
+  duration?: number; // Total seconds spent in this session
 }
 
 export interface QuestionLog {
@@ -76,6 +77,13 @@ export interface Folder {
   timestamp: number;
 }
 
+export interface Attachment {
+  id: string;
+  data: string;
+  fileName: string;
+  type: 'image' | 'pdf';
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -85,8 +93,14 @@ export interface Note {
   lastModified: number;
   tags?: string[];
   type?: 'text' | 'image' | 'pdf';
+
+  // For type='text' notes
+  attachments?: Attachment[];
+
+  // For type='image' or 'pdf' notes
   attachment?: string;
   fileName?: string;
+  
   thumbnail?: string;
 }
 

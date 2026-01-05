@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -19,9 +18,10 @@ import {
   X,
   Eye,
   Loader2,
-  ImagePlus
+  ImagePlus,
+  Paperclip
 } from 'lucide-react';
-import { Note, Folder as FolderType } from '../types';
+import { Note, Folder as FolderType, Attachment } from '../types';
 import { Card } from './Card';
 
 interface LibraryProps {
@@ -33,7 +33,7 @@ interface LibraryProps {
   onDeleteFolder: (id: string) => void;
 }
 
-// UUID Generator (duplicated locally to keep component pure)
+// UUID Generator
 const generateUUID = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -64,6 +64,9 @@ export const Library: React.FC<LibraryProps> = ({
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  
+  // Thumbnail State
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [editingThumbnailFor, setEditingThumbnailFor] = useState<string | null>(null);
 
@@ -166,7 +169,8 @@ export const Library: React.FC<LibraryProps> = ({
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    // FIX: Add explicit File type to ensure correct type inference for file properties.
+    const file: File | undefined = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 4 * 1024 * 1024) {
@@ -204,6 +208,53 @@ export const Library: React.FC<LibraryProps> = ({
     }
     
     e.target.value = '';
+  };
+
+  const handleAttachmentAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !activeNote) return;
+
+    // FIX: Iterate directly over the FileList. `Array.from(files)` was causing `file` to be of type `unknown`.
+    for (const file of files) {
+      if (file.size > 4 * 1024 * 1024) {
+        alert(`File "${file.name}" is too large. Please attach files under 4MB.`);
+        continue; // Skip this file
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        const attachmentType = file.type.includes('pdf') ? 'pdf' : 'image';
+        
+        const newAttachment: Attachment = {
+          id: generateUUID(),
+          data: result,
+          fileName: file.name,
+          type: attachmentType,
+        };
+
+        setActiveNote(prev => {
+          if (!prev) return null;
+          const existingAttachments = prev.attachments || [];
+          return {
+            ...prev,
+            attachments: [...existingAttachments, newAttachment],
+          };
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = ''; // Reset input
+  };
+
+  const handleAttachmentRemove = (attachmentId: string) => {
+    setActiveNote(prev => {
+        if (!prev || !prev.attachments) return prev;
+        return {
+            ...prev,
+            attachments: prev.attachments.filter(att => att.id !== attachmentId),
+        };
+    });
   };
 
   const handleThumbnailUploadClick = (e: React.MouseEvent, noteId: string) => {
@@ -244,19 +295,71 @@ export const Library: React.FC<LibraryProps> = ({
     }
   };
 
+  const handleViewAttachment = (attachment: Attachment) => {
+    // Create a temporary note-like object for the viewer
+    const tempNoteForViewer: Note = {
+        id: attachment.id,
+        title: attachment.fileName,
+        type: attachment.type,
+        attachment: attachment.data,
+        fileName: attachment.fileName,
+        // other fields are not needed for the viewer but need to be present for the type
+        content: '',
+        folderId: null,
+        timestamp: Date.now(),
+        lastModified: Date.now(),
+    };
+    setViewingFile(tempNoteForViewer);
+  };
+
   const handleNoteClick = (note: Note) => {
-      if (note.type === 'text' || !note.type) {
-          setActiveNote(note);
-          setIsEditing(true);
-      } else {
+      // Legacy single-file notes
+      if (note.type === 'image' || note.type === 'pdf') {
           setViewingFile(note);
+          return;
+      }
+
+      // Text notes (the main type now)
+      if (note.type === 'text' || !note.type) {
+          // CONVENIENCE SHORTCUT: If a note has no text content and only one PDF, open the PDF viewer directly.
+          if (
+              !note.content?.trim() && 
+              note.attachments?.length === 1 && 
+              note.attachments[0].type === 'pdf'
+          ) {
+              const attachment = note.attachments[0];
+              const tempNoteForViewer: Note = {
+                  id: note.id,
+                  title: note.title || attachment.fileName,
+                  type: 'pdf',
+                  attachment: attachment.data,
+                  fileName: attachment.fileName,
+                  content: '',
+                  folderId: note.folderId,
+                  timestamp: note.timestamp,
+                  lastModified: note.lastModified,
+              };
+              setViewingFile(tempNoteForViewer);
+          } else {
+              // Default behavior for text notes: open the editor.
+              setActiveNote(note);
+              setIsEditing(true);
+          }
       }
   };
 
   if (isEditing && activeNote) {
     return (
-      <div className="h-[calc(100vh-140px)] flex flex-col animate-in slide-in-from-right-4 duration-300">
-        <div className="flex justify-between items-center mb-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md p-3 rounded-2xl border border-slate-200 dark:border-white/10">
+      <div className="h-[calc(100vh-260px)] md:h-[calc(100vh-160px)] flex flex-col animate-in slide-in-from-right-4 duration-300">
+        <input 
+          type="file" 
+          ref={attachmentInputRef} 
+          className="hidden" 
+          accept="image/*,application/pdf"
+          onChange={handleAttachmentAdd}
+          multiple
+        />
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md p-3 rounded-2xl border border-slate-200 dark:border-white/10">
           <button 
             onClick={() => setIsEditing(false)}
             className="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors text-xs font-bold uppercase tracking-wider"
@@ -264,7 +367,13 @@ export const Library: React.FC<LibraryProps> = ({
             <ArrowLeft size={16} /> Back
           </button>
           
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+             <button
+              onClick={() => attachmentInputRef.current?.click()}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95"
+            >
+              <Paperclip size={14} /> <span className="hidden sm:inline">Attach File</span>
+            </button>
              <button 
                onClick={() => {
                  onSaveNote({ ...activeNote, lastModified: Date.now() });
@@ -272,7 +381,7 @@ export const Library: React.FC<LibraryProps> = ({
                }}
                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
              >
-               <Save size={14} /> Save Note
+               <Save size={14} /> <span className="hidden sm:inline">Save Note</span>
              </button>
           </div>
         </div>
@@ -292,6 +401,37 @@ export const Library: React.FC<LibraryProps> = ({
              value={activeNote.content}
              onChange={(e) => setActiveNote({...activeNote, content: e.target.value})}
            />
+
+           {activeNote.attachments && activeNote.attachments.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5 animate-in fade-in duration-300">
+                <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Attachments ({activeNote.attachments.length})</span>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {activeNote.attachments.map(att => (
+                    <div key={att.id} className="p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-white/10 flex items-center justify-between gap-3">
+                      <div 
+                        onClick={() => handleViewAttachment(att)}
+                        className="flex items-center gap-3 overflow-hidden flex-1 cursor-pointer group"
+                      >
+                        {att.type === 'image' ? (
+                          <img src={att.data} alt="Attachment preview" className="w-10 h-10 rounded-lg object-cover" />
+                        ) : (
+                          <div className="p-2.5 bg-rose-100 dark:bg-rose-500/10 text-rose-500 rounded-lg">
+                            <FileText size={16} />
+                          </div>
+                        )}
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate group-hover:text-indigo-500 transition-colors">{att.fileName}</span>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); handleAttachmentRemove(att.id); }} className="p-1.5 text-rose-500 hover:text-rose-700 rounded-full hover:bg-rose-100 dark:hover:bg-rose-500/10 transition-colors shrink-0">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
            <div className="pt-4 text-[10px] text-slate-400 font-mono text-right">
               {activeNote.content.length} chars • Last edited {new Date(activeNote.lastModified).toLocaleTimeString()}
            </div>
@@ -342,7 +482,7 @@ export const Library: React.FC<LibraryProps> = ({
                 className={`
                   flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap
                   ${index === folderPath.length - 1 
-                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300' 
+                    ? 'bg-indigo-100 text-theme-accent-on-light dark:bg-indigo-500/20 dark:text-indigo-300' 
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5'}
                 `}
               >
@@ -355,7 +495,7 @@ export const Library: React.FC<LibraryProps> = ({
       )}
 
       {!searchQuery && (
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+        <div className="flex flex-wrap gap-2 pb-2">
            {isCreatingFolder ? (
              <form onSubmit={handleCreateFolder} className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 pl-3 rounded-xl border border-indigo-500 animate-in fade-in zoom-in-95 min-w-[200px]">
                 <Folder size={16} className="text-indigo-500 shrink-0" />
@@ -387,8 +527,6 @@ export const Library: React.FC<LibraryProps> = ({
            >
               <FilePlus size={16} /> New Note
            </button>
-
-           <div className="h-auto w-px bg-slate-200 dark:bg-white/10 mx-1" />
 
            <button 
               onClick={() => fileInputRef.current?.click()}
@@ -495,30 +633,49 @@ export const Library: React.FC<LibraryProps> = ({
                       </div>
                   </div>
               ) : (
-                  <div className="flex flex-col h-full p-4 justify-between">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl">
-                            <FileText size={20} />
-                        </div>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onDeleteNote(note.id); }}
-                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                        >
+                  (() => {
+                    const firstImageAttachment = note.attachments?.find(att => att.type === 'image');
+                    return (
+                      <div className="flex flex-col h-full p-4">
+                        {firstImageAttachment && (
+                          <div className="h-24 -mx-4 -mt-4 mb-4 overflow-hidden border-b border-slate-100 dark:border-white/5">
+                            <img src={firstImageAttachment.data} alt="Note attachment" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                        
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2">
+                            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                              <FileText size={20} />
+                            </div>
+                            {note.attachments && note.attachments.length > 0 && (
+                              <div className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg text-slate-400 flex items-center gap-1.5">
+                                <Paperclip size={14} />
+                                <span className="text-xs font-bold">{note.attachments.length}</span>
+                              </div>
+                            )}
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); onDeleteNote(note.id); }}
+                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all">
                             <Trash2 size={14} />
-                        </button>
-                      </div>
-                      <div className="flex-1 overflow-hidden">
-                        <h4 className="font-bold text-slate-800 dark:text-white truncate text-sm mb-1" title={note.title || 'Untitled'}>
+                          </button>
+                        </div>
+    
+                        <div className="flex-1 overflow-hidden mt-2">
+                          <h4 className="font-bold text-slate-800 dark:text-white truncate text-sm mb-1" title={note.title || 'Untitled'}>
                             {note.title || 'Untitled Note'}
-                        </h4>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                          </h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
                             {note.content || 'No content...'}
+                          </p>
+                        </div>
+    
+                        <p className="text-[9px] text-slate-400 font-mono mt-auto pt-2 border-t border-slate-100 dark:border-white/5">
+                          {new Date(note.lastModified).toLocaleDateString()}
                         </p>
                       </div>
-                      <p className="text-[9px] text-slate-400 font-mono mt-2 pt-2 border-t border-slate-100 dark:border-white/5">
-                        {new Date(note.lastModified).toLocaleDateString()}
-                      </p>
-                  </div>
+                    );
+                  })()
               )}
            </div>
          ))}

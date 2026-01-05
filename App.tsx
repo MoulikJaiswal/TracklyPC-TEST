@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { 
@@ -416,14 +415,62 @@ const TABS = [
 ];
 
 const TOUR_STEPS: TutorialStep[] = [
-  { view: 'daily', targetId: 'trackly-logo', title: 'Welcome to Trackly', description: 'Your command center for academic excellence. This guided tour will show you how to maximize your study efficiency.', icon: LayoutDashboard },
-  { view: 'daily', targetId: 'dashboard-subjects', title: 'Track Subjects', description: 'These pods are your daily drivers. Click on Physics, Chemistry, or Maths to log your sessions and track syllabus progress.', icon: Atom },
-  { view: 'planner', targetId: 'planner-container', title: 'Strategic Planning', description: 'Use the Planner to schedule tasks for the week or month ahead. Switch views to see your entire month at a glance.', icon: CalendarIcon },
-  { view: 'focus', targetId: 'timer-container', title: 'Deep Focus Timer', description: 'Select a specific task from your planner to work on. Enable Brown Noise for isolation and track your flow state.', icon: Timer },
-  { view: 'tests', targetId: 'test-log-container', title: 'Test Analysis', description: 'Log your mock test scores here. Record not just your marks, but your temperament and specific mistake patterns.', icon: PenTool },
-  { view: 'library', targetId: 'library-container', title: 'Notes Library', description: 'Store your important formulas, short notes, and concepts here. Organize them with folders.', icon: Book },
-  { view: 'analytics', targetId: 'analytics-container', title: 'Smart Analytics', description: 'Visualize your syllabus mastery with the new Topic Heatmap. See exactly which chapters are green (mastered) or red (needs work).', icon: BarChart3 },
-  { view: 'daily', targetId: 'settings-btn', title: 'Themes & Controls', description: 'Customize your workspace. Switch themes, toggle Parallax Effects and Background Elements, or enable High Performance mode.', icon: Settings }
+  { 
+    view: 'daily', 
+    targetId: 'trackly-logo', 
+    title: 'Welcome to Trackly', 
+    description: 'Trackly is an analytics engine for your exam prep. This brief tour will show you how to track accuracy, not just hours.', 
+    icon: LayoutDashboard 
+  },
+  { 
+    view: 'daily', 
+    targetId: 'dashboard-subjects', 
+    title: 'Subject Command', 
+    description: 'Tap any subject card to manually log an offline session, view chapter history, or check your mistake patterns.', 
+    icon: Atom 
+  },
+  { 
+    view: 'planner', 
+    targetId: 'planner-container', 
+    title: 'Strategic Planner', 
+    description: 'Plan ahead. Toggle the "Scheduled Test" button on any task to create a countdown timer on your dashboard.', 
+    icon: CalendarIcon 
+  },
+  { 
+    view: 'focus', 
+    targetId: 'timer-container', 
+    title: 'Active Recall Timer', 
+    description: 'The heart of Trackly. Select a goal, play a soundscape, and use the "+1 Solved" button to log questions and tag errors immediately.', 
+    icon: Timer 
+  },
+  { 
+    view: 'tests', 
+    targetId: 'test-log-container', 
+    title: 'Test Gallery', 
+    description: 'Log mock tests here. You can attach your question paper (PDF) and upload a custom cover image to create a visual archive.', 
+    icon: PenTool 
+  },
+  { 
+    view: 'library', 
+    targetId: 'library-container', 
+    title: 'Resource Vault', 
+    description: 'Upload notes and cheatsheets. Click the "Image Plus" icon on any PDF card to set a custom thumbnail cover.', 
+    icon: Book 
+  },
+  { 
+    view: 'analytics', 
+    targetId: 'analytics-container', 
+    title: 'Mastery Heatmap', 
+    description: 'Identify your weak chapters instantly. The Heatmap uses color coding (Red to Green) to show your accuracy trends.', 
+    icon: BarChart3 
+  },
+  { 
+    view: 'daily', 
+    targetId: 'settings-btn', 
+    title: 'Your Space', 
+    description: 'Customize your experience. Enable "Lite Mode" for better battery life or switch to the "Midnight" theme for late-night study.', 
+    icon: Settings 
+  }
 ];
 
 const Sidebar = React.memo(({ 
@@ -1055,13 +1102,16 @@ const App: React.FC = () => {
               }
           });
 
+          const totalDuration = logs.reduce((acc, log) => acc + (log.duration || 0), 0);
+
           // Save to persistent storage
           handleSaveSession({
               subject,
               topic: 'Focus Session', // Generic topic for timer sessions
               attempted,
               correct,
-              mistakes
+              mistakes,
+              duration: totalDuration
           });
       });
 
@@ -1588,9 +1638,10 @@ const App: React.FC = () => {
     
     // Determine optimal text color for accent backgrounds
     // Themes with light/bright accents (like white, yellow, lime) need dark text.
-    // Themes with dark/deep accents (like indigo, blue) need white text.
     const lightAccentThemes: ThemeId[] = ['midnight', 'forest', 'void', 'obsidian', 'earth', 'morning'];
     const onAccentColor = lightAccentThemes.includes(theme) ? '#020617' : '#ffffff';
+    const onLightAccentBgColor = lightAccentThemes.includes(theme) ? onAccentColor : themeConfig.colors.accent;
+
 
     return `
         :root {
@@ -1603,12 +1654,14 @@ const App: React.FC = () => {
           --theme-text-main: ${themeConfig.colors.text};
           --theme-text-sub: ${themeConfig.mode === 'dark' ? 'rgba(255,255,255,0.5)' : '#334155'};
           --theme-on-accent: ${onAccentColor};
+          --theme-accent-text-on-light: ${onLightAccentBgColor};
         }
         .text-indigo-50, .text-indigo-100, .text-indigo-200, .text-indigo-300, .text-indigo-400, .text-indigo-500, .text-indigo-600, .text-indigo-700, .text-indigo-800, .text-indigo-900 {
             color: var(--theme-accent) !important;
         }
         .bg-indigo-400, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700 {
             background-color: var(--theme-accent) !important;
+            color: var(--theme-on-accent) !important;
         }
         .border-indigo-100, .border-indigo-200, .border-indigo-300, .border-indigo-400, .border-indigo-500, .border-indigo-600 {
             border-color: var(--theme-accent) !important;
@@ -1850,6 +1903,7 @@ const App: React.FC = () => {
                       <div className="min-h-[80vh] flex flex-col justify-center">
                         <FocusTimer 
                             targets={targets} 
+                            sessions={sessions}
                             mode={timerMode}
                             timeLeft={timeLeft}
                             isActive={isTimerActive}
@@ -1933,7 +1987,7 @@ const App: React.FC = () => {
                             changeView('tests');
                             setShowTestReminder(false);
                         }}
-                        className="flex-shrink-0 flex items-center gap-1 px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors"
+                        className="flex-shrink-0 flex items-center gap-1 px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-theme-accent-on-light text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors"
                     >
                         Log Now <ArrowRight size={12} />
                     </button>
