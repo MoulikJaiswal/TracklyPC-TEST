@@ -34,6 +34,7 @@ import { PerformanceToast } from './components/PerformanceToast';
 import { ProUpgradeModal } from './components/ProUpgradeModal';
 import { SmartRecommendationToast } from './components/SmartRecommendationToast';
 import { getProStatus, PAYWALL_CONFIG } from './components/proController';
+import { GoogleIcon } from './components/GoogleIcon';
 
 // Firebase Imports
 import { auth, db, googleProvider } from './firebase';
@@ -1167,11 +1168,10 @@ const App: React.FC = () => {
   const handleLogin = useCallback(async () => {
     try {
         await signInWithPopup(auth, googleProvider);
+        // onAuthStateChanged will handle setting the user, no need to do it here
     } catch (error: any) {
-        console.error("Login error:", error);
-        if (error.code === 'auth/unauthorized-domain') {
-            alert("Domain not authorized for Firebase Auth. \n\nPlease use 'Continue Offline' (Guest Mode) if you are running a preview or local build.");
-        }
+        console.error("Google Sign-In error:", error);
+        alert("Could not sign in with Google. Please try again or continue as a guest.");
     }
   }, []);
 
@@ -1740,33 +1740,48 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="bg-white/10 dark:bg-slate-900/30 backdrop-blur-xl p-8 rounded-3xl border border-white/10 text-center max-w-sm w-full shadow-2xl cv-auto mt-6">
-                    <h2 className="text-xl font-bold mb-2 text-white">Welcome</h2>
+                    <h2 className="text-xl font-bold mb-2 text-white">Welcome Back</h2>
                     <p className="text-xs text-slate-300 mb-6 leading-relaxed">
-                        Your personal command center for academic focus.
+                        Sign in to sync your progress across devices.
                     </p>
                     
                     <div className="space-y-4">
-                        <input
-                            type="text"
-                            placeholder="Enter your name..."
-                            value={guestNameInput}
-                            onChange={(e) => setGuestNameInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && guestNameInput.trim() && handleGuestLogin()}
-                            className="w-full p-4 bg-black/20 text-white rounded-2xl border border-white/10 transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none placeholder:text-slate-400 text-center font-medium"
-                        />
                         <button 
-                            onClick={handleGuestLogin}
-                            disabled={!guestNameInput.trim()}
-                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold uppercase tracking-widest border border-indigo-500/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/20"
+                            onClick={handleLogin}
+                            className="w-full py-4 bg-white hover:bg-slate-100 text-slate-800 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 shadow-lg"
                         >
-                            <span>Enter Workspace</span>
-                            <ArrowRight size={16} />
+                            <GoogleIcon />
+                            <span>Sign in with Google</span>
                         </button>
+
+                        <div className="flex items-center gap-4">
+                            <div className="flex-1 h-px bg-white/10"></div>
+                            <span className="text-xs font-bold text-slate-400 uppercase">Or</span>
+                            <div className="flex-1 h-px bg-white/10"></div>
+                        </div>
+
+                        <form onSubmit={(e) => { e.preventDefault(); handleGuestLogin(); }} className="space-y-3">
+                            <input
+                                type="text"
+                                placeholder="Enter your name to continue"
+                                value={guestNameInput}
+                                onChange={(e) => setGuestNameInput(e.target.value)}
+                                className="w-full p-3 bg-black/20 text-white rounded-xl border border-white/10 transition-all focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 outline-none placeholder:text-slate-400 text-center font-medium"
+                            />
+                            <button 
+                                type="submit"
+                                disabled={!guestNameInput.trim()}
+                                className="w-full py-3 bg-indigo-600/50 hover:bg-indigo-600 text-white rounded-xl font-bold uppercase tracking-widest border border-indigo-500/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-600/10"
+                            >
+                                <span>Continue Offline</span>
+                                <ArrowRight size={16} />
+                            </button>
+                        </form>
                     </div>
                 </div>
                 
                 <div className="mt-8 text-[10px] text-white/30 uppercase tracking-widest font-bold">
-                    Local Session • Data stored on device
+                    Data syncs automatically when you sign in.
                 </div>
              </div>
         </div>
@@ -2099,12 +2114,5 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-// Simple Arrow Icon for Login Button
-const ArrowRightIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M6 12L10 8L6 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-);
 
 export default App;
