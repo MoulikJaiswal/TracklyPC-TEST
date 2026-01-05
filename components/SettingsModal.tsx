@@ -1,10 +1,11 @@
 
 import React, { useRef } from 'react';
-import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate } from 'lucide-react';
+import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate, LogOut } from 'lucide-react';
 import { Card } from './Card';
 import { ThemeId } from '../types';
 import { THEME_CONFIG } from '../constants';
 import { BuyMeCoffee } from './BuyMeCoffee';
+import { User } from 'firebase/auth';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -48,6 +49,10 @@ interface SettingsModalProps {
   setCustomBackgroundAlign: (align: 'center' | 'top' | 'bottom') => void;
   isPro: boolean;
   onOpenUpgrade: () => void;
+  // Account Props
+  user: User | null;
+  isGuest: boolean;
+  onLogout: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -89,7 +94,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   customBackgroundAlign,
   setCustomBackgroundAlign,
   isPro,
-  onOpenUpgrade
+  onOpenUpgrade,
+  user,
+  isGuest,
+  onLogout
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -544,6 +552,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <AlertTriangle size={14} />
                 <span className="text-xs font-bold uppercase tracking-widest">Danger Zone</span>
              </div>
+
+             {/* Logout Button */}
+             {(user || isGuest) && (
+                <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl">
+                    <div>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">End Session</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-500 uppercase font-bold tracking-wider">
+                            Sign out of your account
+                        </p>
+                    </div>
+                    <button 
+                        onClick={onLogout}
+                        className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm transition-all active:scale-95 flex items-center gap-2 bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+                    >
+                        <LogOut size={14} /> Log Out
+                    </button>
+                </div>
+            )}
+
              <button 
                onClick={handleClearData}
                className="w-full flex items-center justify-between p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors group"

@@ -39,7 +39,7 @@ import { GoogleIcon } from './components/GoogleIcon';
 // Firebase Imports
 import { auth, db, googleProvider } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch } from 'firebase/firestore';
 
 // Lazy Load Components
 const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
@@ -693,6 +693,7 @@ const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
   const [guestNameInput, setGuestNameInput] = useState('');
+  const [isMigrating, setIsMigrating] = useState(false);
 
   // Clock State
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -1164,16 +1165,87 @@ const App: React.FC = () => {
       }
   };
 
+  const migrateGuestDataToFirebase = useCallback(async (uid: string) => {
+    console.log("Migrating guest data to user account:", uid);
+    const batch = writeBatch(db);
+
+    const guestSessions: Session[] = safeJSONParse('trackly_guest_sessions', []);
+    if(guestSessions.length > 0) guestSessions.forEach(item => {
+        const docRef = doc(db, 'users', uid, 'sessions', item.id);
+        batch.set(docRef, item);
+    });
+
+    const guestTests: TestResult[] = safeJSONParse('trackly_guest_tests', []);
+    if(guestTests.length > 0) guestTests.forEach(item => {
+        const docRef = doc(db, 'users', uid, 'tests', item.id);
+        batch.set(docRef, item);
+    });
+
+    const guestTargets: Target[] = safeJSONParse('trackly_guest_targets', []);
+    if(guestTargets.length > 0) guestTargets.forEach(item => {
+        const docRef = doc(db, 'users', uid, 'targets', item.id);
+        batch.set(docRef, item);
+    });
+
+    const guestNotes: Note[] = safeJSONParse('trackly_guest_notes', []);
+    if(guestNotes.length > 0) guestNotes.forEach(item => {
+        const docRef = doc(db, 'users', uid, 'notes', item.id);
+        batch.set(docRef, item);
+    });
+    
+    const guestFolders: Folder[] = safeJSONParse('trackly_guest_folders', []);
+    if(guestFolders.length > 0) guestFolders.forEach(item => {
+        const docRef = doc(db, 'users', uid, 'folders', item.id);
+        batch.set(docRef, item);
+    });
+
+    try {
+        await batch.commit();
+        console.log("Guest data migration complete.");
+    } catch (e) {
+        console.error("Error migrating guest data:", e);
+    }
+  }, []);
+
   // Auth Handlers
   const handleLogin = useCallback(async () => {
     try {
-        await signInWithPopup(auth, googleProvider);
-        // onAuthStateChanged will handle setting the user, no need to do it here
+        const isCurrentlyGuest = localStorage.getItem('trackly_is_guest') === 'true';
+        const guestDataExists = [
+            'trackly_guest_sessions',
+            'trackly_guest_tests',
+            'trackly_guest_targets',
+            'trackly_guest_notes',
+            'trackly_guest_folders'
+        ].some(key => localStorage.getItem(key) && localStorage.getItem(key) !== '[]');
+
+        const result = await signInWithPopup(auth, googleProvider);
+        const user = result.user;
+
+        if (user && isCurrentlyGuest && guestDataExists) {
+            setIsMigrating(true);
+            await migrateGuestDataToFirebase(user.uid);
+            
+            // Clean up guest state
+            localStorage.removeItem('trackly_is_guest');
+            localStorage.removeItem('trackly_guest_name');
+            localStorage.removeItem('trackly_guest_sessions');
+            localStorage.removeItem('trackly_guest_tests');
+            localStorage.removeItem('trackly_guest_targets');
+            localStorage.removeItem('trackly_guest_notes');
+            localStorage.removeItem('trackly_guest_folders');
+            localStorage.removeItem('trackly_guest_goals');
+            
+            setIsMigrating(false);
+        }
     } catch (error: any) {
         console.error("Google Sign-In error:", error);
-        alert("Could not sign in with Google. Please try again or continue as a guest.");
+        if (error.code !== 'auth/popup-closed-by-user') {
+            alert("Could not sign in with Google. Please try again or continue as a guest.");
+        }
+        setIsMigrating(false);
     }
-  }, []);
+  }, [migrateGuestDataToFirebase]);
 
   const handleGuestLogin = useCallback(() => {
       if (!guestNameInput.trim()) return;
@@ -1700,12 +1772,14 @@ const App: React.FC = () => {
         }
   `}, [themeConfig, theme]);
 
-  if (isAuthLoading) {
+  if (isAuthLoading || isMigrating) {
     return (
         <div className={`min-h-screen flex items-center justify-center ${themeConfig.mode === 'dark' ? 'bg-[#020617]' : 'bg-slate-50'}`}>
             <div className="flex flex-col items-center gap-4">
                 <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-                <span className="text-sm font-bold uppercase tracking-widest text-slate-500">Syncing Data...</span>
+                <span className="text-sm font-bold uppercase tracking-widest text-slate-500">
+                  {isMigrating ? 'Migrating Data...' : 'Syncing Data...'}
+                </span>
             </div>
         </div>
     );
@@ -1877,7 +1951,7 @@ const App: React.FC = () => {
                     <Crown size={20} fill="currentColor" />
                 </button>
             )}
-            <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
+            <button id="settings-btn" onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
                 <Settings size={24} className="text-slate-600 dark:text-slate-300" />
             </button>
         </div>
@@ -2110,6 +2184,12 @@ const App: React.FC = () => {
         setCustomBackgroundAlign={setCustomBackgroundAlign}
         isPro={hasProAccess}
         onOpenUpgrade={() => setShowProModal(true)}
+        user={user}
+        isGuest={isGuest}
+        onLogout={() => {
+            handleLogout();
+            setIsSettingsOpen(false);
+        }}
       />
     </div>
   );
