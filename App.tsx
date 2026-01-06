@@ -462,7 +462,7 @@ const TOUR_STEPS: TutorialStep[] = [
     view: 'focus', 
     targetId: 'timer-container', 
     title: 'Active Recall Timer', 
-    description: 'The heart of Trackly. Select a goal, play a soundscape, and use the "+1 Solved" button to log questions and tag errors immediately.', 
+    description: 'The heart of Trackly. Select a goal, and use the "+1 Solved" button to log questions and tag errors immediately.', 
     icon: Timer 
   },
   { 
@@ -748,8 +748,6 @@ const App: React.FC = () => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [soundPitch, setSoundPitch] = useState(600);
   const [soundVolume, setSoundVolume] = useState(0.5);
-  // Audio Settings (Ambient)
-  const [activeSound, setActiveSound] = useState<'off' | 'rain' | 'forest' | 'lofi' | 'cafe'>('off');
   
   // NEW: Custom Background
   const [customBackground, setCustomBackground] = useState<string | null>(null);
@@ -795,9 +793,6 @@ const App: React.FC = () => {
 
   const timerRef = useRef<any>(null);
   const endTimeRef = useRef<number>(0);
-  const brownNoiseCtxRef = useRef<AudioContext | null>(null);
-  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
 
   // Initialize Performance Monitor (Only active if graphics are ON and Lag Detection is ENABLED)
   const { isLagging, dismiss: dismissLag } = usePerformanceMonitor(graphicsEnabled && lagDetectionEnabled);
@@ -977,113 +972,13 @@ const App: React.FC = () => {
                   setIsTimerActive(false);
                   clearInterval(timerRef.current);
                   playTimerEndSound(); // Play Bell
-                  if (activeSound !== 'off') setActiveSound('off'); // Stop ambient sound when time ends
               } else {
                   setTimeLeft(diff);
               }
           }, 1000);
       }
       return () => clearInterval(timerRef.current);
-  }, [isTimerActive, activeSound, playTimerEndSound]);
-
-  // Persistent Audio Logic (Ambient Soundscapes)
-  useEffect(() => {
-      // Cleanup previous sound
-      if (sourceNodeRef.current) {
-          try { sourceNodeRef.current.stop(); } catch(e){}
-          sourceNodeRef.current.disconnect();
-          sourceNodeRef.current = null;
-      }
-      if (gainNodeRef.current) {
-          gainNodeRef.current.disconnect();
-          gainNodeRef.current = null;
-      }
-
-      if (activeSound !== 'off') {
-          if (!brownNoiseCtxRef.current) {
-              brownNoiseCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-          }
-          const ctx = brownNoiseCtxRef.current;
-          if (ctx?.state === 'suspended') ctx.resume();
-          
-          const bufferSize = ctx!.sampleRate * 2;
-          const buffer = ctx!.createBuffer(1, bufferSize, ctx!.sampleRate);
-          const data = buffer.getChannelData(0);
-
-          // 1. Noise Generation
-          if (activeSound === 'cafe' || activeSound === 'lofi') {
-             // Brown Noise Base
-             let lastOut = 0;
-             for (let i = 0; i < bufferSize; i++) {
-                 const white = Math.random() * 2 - 1;
-                 data[i] = (lastOut + (0.02 * white)) / 1.02;
-                 lastOut = data[i];
-                 data[i] *= 3.5;
-                 
-                 // Add crackle for lofi vinyl effect
-                 if (activeSound === 'lofi' && Math.random() > 0.9995) {
-                    data[i] += (Math.random() * 0.8); 
-                 }
-             }
-          } else {
-             // Pink Noise Base (Rain/Forest)
-             let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
-             for (let i = 0; i < bufferSize; i++) {
-                 const white = Math.random() * 2 - 1;
-                 b0 = 0.99886 * b0 + white * 0.0555179;
-                 b1 = 0.99332 * b1 + white * 0.0750759;
-                 b2 = 0.96900 * b2 + white * 0.1538520;
-                 b3 = 0.86650 * b3 + white * 0.3104856;
-                 b4 = 0.55000 * b4 + white * 0.5329522;
-                 b5 = -0.7616 * b5 - white * 0.0168980;
-                 data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-                 data[i] *= 0.11;
-                 b6 = white * 0.115926;
-             }
-          }
-
-          const source = ctx!.createBufferSource();
-          source.buffer = buffer;
-          source.loop = true;
-          const gain = ctx!.createGain();
-          
-          // 2. Volume & EQ
-          if (activeSound === 'forest') {
-               gain.gain.value = 0.08;
-               // High pass for wind/rustle
-               const filter = ctx!.createBiquadFilter();
-               filter.type = 'highpass';
-               filter.frequency.value = 600;
-               source.connect(filter);
-               filter.connect(gain);
-          } else if (activeSound === 'rain') {
-               gain.gain.value = 0.12;
-               // Low pass for heavy rain sound
-               const filter = ctx!.createBiquadFilter();
-               filter.type = 'lowpass';
-               filter.frequency.value = 800;
-               source.connect(filter);
-               filter.connect(gain);
-          } else if (activeSound === 'lofi') {
-               gain.gain.value = 0.15;
-               // Bandpass to simulate radio/vinyl bandwidth
-               const filter = ctx!.createBiquadFilter();
-               filter.type = 'lowpass';
-               filter.frequency.value = 2000;
-               source.connect(filter);
-               filter.connect(gain);
-          } else { // cafe (brown)
-               gain.gain.value = 0.1;
-               source.connect(gain);
-          }
-
-          gain.connect(ctx!.destination);
-          source.start();
-          
-          sourceNodeRef.current = source;
-          gainNodeRef.current = gain;
-      }
-  }, [activeSound]);
+  }, [isTimerActive, playTimerEndSound]);
 
   // Timer Handlers
   const handleTimerToggle = useCallback(() => {
@@ -1101,8 +996,7 @@ const App: React.FC = () => {
       setIsTimerActive(false);
       setTimeLeft(timerDurations[timerMode] * 60);
       setSessionLogs([]); 
-      if (activeSound !== 'off') setActiveSound('off');
-  }, [timerMode, timerDurations, activeSound]);
+  }, [timerMode, timerDurations]);
 
   const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => {
       setTimerMode(mode);
@@ -1679,19 +1573,6 @@ const App: React.FC = () => {
     setSoundVolume(Number(safeJSONParse('zenith_sound_volume', 0.5)));
     setTimerDurations(safeJSONParse('zenith_timer_durations', { focus: 25, short: 5, long: 15 }));
 
-    // Sound Mixer Load (Backward compatibility)
-    const savedSound = localStorage.getItem('zenith_active_sound');
-    if (savedSound) {
-       setActiveSound(savedSound as any);
-    } else {
-       // fallback for legacy boolean setting
-       const oldBool = safeJSONParse('zenith_sound_enabled', false); 
-       // Note: reusing key name accidently in original logic, assuming the ambient sound was meant.
-       // The original App had setBrownNoiseEnabled(safeJSONParse('zenith_brown_noise', false))? No, it wasn't persisted in useEffect.
-       // It seems brown noise state wasn't persisted in previous version.
-       // We'll just default to 'off'.
-    }
-
     // Load Custom Background
     const savedBg = localStorage.getItem('zenith_custom_bg');
     if (savedBg) setCustomBackground(savedBg);
@@ -1729,7 +1610,6 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem('zenith_sound_volume', String(soundVolume)); }, [soundVolume]);
   useEffect(() => { localStorage.setItem('zenith_sidebar_collapsed', JSON.stringify(sidebarCollapsed)); }, [sidebarCollapsed]);
   useEffect(() => { localStorage.setItem('zenith_timer_durations', JSON.stringify(timerDurations)); }, [timerDurations]);
-  useEffect(() => { localStorage.setItem('zenith_active_sound', activeSound); }, [activeSound]);
   
   // Persist Custom Background & Toggle
   useEffect(() => {
@@ -2132,8 +2012,6 @@ const App: React.FC = () => {
                             timeLeft={timeLeft}
                             isActive={isTimerActive}
                             durations={timerDurations}
-                            activeSound={activeSound}
-                            onSetSound={setActiveSound}
                             sessionLogs={sessionLogs}
                             lastLogTime={lastLogTime}
                             onToggleTimer={handleTimerToggle}
@@ -2316,4 +2194,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-  

@@ -19,11 +19,6 @@ import {
   Plus, 
   Timer as TimerIcon, 
   Clock, 
-  Crown, 
-  CloudRain, 
-  Trees, 
-  Music, 
-  VolumeX, 
   Minus,
   Maximize2,
   Minimize2,
@@ -38,13 +33,11 @@ interface FocusTimerProps {
   timeLeft: number;
   isActive: boolean;
   durations: { focus: number; short: number; long: number };
-  activeSound: 'off' | 'rain' | 'forest' | 'lofi' | 'cafe';
   sessionLogs: QuestionLog[];
   lastLogTime: number;
   onToggleTimer: () => void;
   onResetTimer: () => void;
   onSwitchMode: (mode: 'focus' | 'short' | 'long') => void;
-  onSetSound: (type: 'off' | 'rain' | 'forest' | 'lofi' | 'cafe') => void;
   onUpdateDurations: (newDuration: number, mode: 'focus' | 'short' | 'long') => void;
   onAddLog: (log: QuestionLog, subject: string) => void;
   onCompleteSession: () => void;
@@ -130,13 +123,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
     timeLeft, 
     isActive, 
     durations, 
-    activeSound, 
     sessionLogs, 
     lastLogTime,
     onToggleTimer,
     onResetTimer,
     onSwitchMode,
-    onSetSound,
     onUpdateDurations,
     onAddLog,
     onCompleteSession,
@@ -240,19 +231,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
   };
   const theme = getTheme();
 
-  // Circle Math
-  const radius = 160; 
+  // Circle Math - Using SVG ViewBox 0 0 100 100
+  const radius = 45; 
   const circumference = 2 * Math.PI * radius;
   const progressPercentage = timeLeft / (durations[mode] * 60);
   const strokeDashoffset = Number.isFinite(progressPercentage) ? circumference * (1 - progressPercentage) : circumference;
-
-  const SOUND_OPTIONS = [
-      { id: 'rain', label: 'Rain', icon: CloudRain },
-      { id: 'forest', label: 'Forest', icon: Trees },
-      { id: 'cafe', label: 'Cafe', icon: Coffee },
-      { id: 'lofi', label: 'Lo-fi', icon: Music },
-      { id: 'off', label: 'Silent', icon: VolumeX },
-  ];
 
   const modeSelector = (
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 p-2 rounded-3xl shadow-sm">
@@ -326,7 +309,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
           {/* The Interactive Timer Visualization */}
           <div 
             onClick={onToggleTimer}
-            className="relative w-[320px] h-[320px] md:w-[480px] md:h-[480px] flex items-center justify-center cursor-pointer group select-none"
+            className="relative w-[300px] h-[300px] md:w-[450px] md:h-[450px] flex items-center justify-center cursor-pointer group select-none mx-auto"
           >
               {/* Pulse Effect */}
               <div className={`
@@ -335,36 +318,43 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                   ${theme.bg}
               `} />
               
-              <svg className="w-full h-full transform -rotate-90 relative z-10 drop-shadow-2xl overflow-visible">
+              <svg className="w-full h-full transform -rotate-90 relative z-10 drop-shadow-2xl overflow-visible" viewBox="0 0 100 100">
                   {/* Track */}
-                  <circle cx="50%" cy="50%" r={radius} className="stroke-slate-200 dark:stroke-white/5 fill-transparent" strokeWidth="4" />
+                  <circle cx="50" cy="50" r={radius} className="stroke-slate-200 dark:stroke-white/5 fill-transparent" strokeWidth="3" vectorEffect="non-scaling-stroke" />
                   {/* Progress */}
                   <circle 
-                      cx="50%" cy="50%" r={radius} 
+                      cx="50" cy="50" r={radius} 
                       className={`fill-transparent transition-all duration-1000 ease-linear ${theme.color}`}
-                      strokeWidth="8"
+                      strokeWidth="5"
                       strokeLinecap="round"
                       strokeDasharray={circumference}
                       strokeDashoffset={strokeDashoffset}
-                      style={{ filter: `drop-shadow(0 0 10px currentColor)` }}
+                      style={{ filter: `drop-shadow(0 0 2px currentColor)` }}
                   />
-                  {/* Knob (Optional, aesthetic) */}
+                  {/* Knob */}
                   {isActive && (
                       <circle 
-                          cx="50%" cy="50%" r="6" 
+                          cx="50" cy="50" r="2" 
                           className="fill-white"
                           style={{
-                              transformOrigin: 'center',
+                              transformOrigin: '50px 50px',
                               transform: `rotate(${progressPercentage * 360}deg) translate(${radius}px)`,
-                              transition: 'transform 1s linear'
+                              transition: 'transform 1s linear',
+                              filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.5))'
                           }}
                       />
                   )}
               </svg>
 
               {/* Digital Time */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-                  <div className={`text-7xl md:text-9xl font-display font-black tracking-tighter tabular-nums transition-colors duration-300 ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'}`}>
+              <div className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none">
+                  <div 
+                    className={`
+                        text-6xl md:text-8xl font-display font-black tracking-tighter tabular-nums leading-none transition-colors duration-300
+                        ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'}
+                    `}
+                    style={{ transform: 'translateY(-2%)' }}
+                  >
                       {formatTime(timeLeft)}
                   </div>
                   <div className={`flex items-center gap-2 mt-4 px-4 py-1.5 rounded-full border border-current transition-all duration-500 ${isActive ? theme.color + ' bg-opacity-10 bg-white dark:bg-white/5' : 'text-slate-400 border-transparent'}`}>
@@ -383,10 +373,10 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                   </div>
               </div>
 
-              {/* Settings Trigger (Beside Timer) */}
+              {/* Settings Trigger */}
               <button 
-                  onClick={handleOpenSettings}
-                  className="absolute top-0 right-4 p-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-full text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 shadow-lg border border-slate-200 dark:border-white/10 transition-all z-30 hover:scale-110 active:scale-95"
+                  onClick={(e) => { e.stopPropagation(); handleOpenSettings(e); }}
+                  className="absolute top-0 right-0 m-4 p-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-full text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 shadow-lg border border-slate-200 dark:border-white/10 transition-all z-30 hover:scale-110 active:scale-95"
                   title="Timer Configuration"
               >
                   <Settings2 size={18} />
@@ -501,39 +491,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                               {pendingTasks.map(t => <option key={t.id} value={t.id}>{t.text}</option>)}
                           </select>
                           <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-                  </div>
-
-                  {/* Soundscape Control */}
-                  <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                              <Music size={14} /> Soundscape
-                          </label>
-                          <button 
-                              onClick={handleOpenSettings} 
-                              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                          >
-                              <Settings2 size={14} />
-                          </button>
-                      </div>
-                      <div className="grid grid-cols-5 gap-2">
-                          {SOUND_OPTIONS.map(opt => (
-                              <button
-                                  key={opt.id}
-                                  onClick={() => onSetSound(opt.id as any)}
-                                  className={`
-                                      flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl transition-all
-                                      ${activeSound === opt.id 
-                                          ? 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30' 
-                                          : 'bg-slate-50 dark:bg-black/20 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 border border-transparent'
-                                      }
-                                  `}
-                                  title={opt.label}
-                              >
-                                  <opt.icon size={18} />
-                              </button>
-                          ))}
                       </div>
                   </div>
               </div>
