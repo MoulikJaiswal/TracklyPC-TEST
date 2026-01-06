@@ -930,6 +930,42 @@ const App: React.FC = () => {
       changeView('focus');
   };
 
+  const playTimerEndSound = useCallback(() => {
+      if (!soundEnabled) return;
+      try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          
+          // Bell-like sound: Sine wave, sudden attack, long decay
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+          osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 1.5);
+          
+          gain.gain.setValueAtTime(0.5, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+          
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 1.5);
+          
+          // Harmonic for richness
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(440, ctx.currentTime); // A4
+          gain2.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 2);
+          osc2.start(ctx.currentTime);
+          osc2.stop(ctx.currentTime + 2);
+
+      } catch (e) { console.error("Audio play failed", e); }
+  }, [soundEnabled]);
+
   // Persistent Timer Logic
   useEffect(() => {
       if (isTimerActive) {
@@ -940,14 +976,15 @@ const App: React.FC = () => {
                   setTimeLeft(0);
                   setIsTimerActive(false);
                   clearInterval(timerRef.current);
-                  if (activeSound !== 'off') setActiveSound('off'); // Stop sound when time ends
+                  playTimerEndSound(); // Play Bell
+                  if (activeSound !== 'off') setActiveSound('off'); // Stop ambient sound when time ends
               } else {
                   setTimeLeft(diff);
               }
           }, 1000);
       }
       return () => clearInterval(timerRef.current);
-  }, [isTimerActive, activeSound]);
+  }, [isTimerActive, activeSound, playTimerEndSound]);
 
   // Persistent Audio Logic (Ambient Soundscapes)
   useEffect(() => {
@@ -2102,7 +2139,6 @@ const App: React.FC = () => {
                             onToggleTimer={handleTimerToggle}
                             onResetTimer={handleTimerReset}
                             onSwitchMode={handleModeSwitch}
-                            onToggleSound={() => {/* Deprecated */}}
                             onUpdateDurations={handleDurationUpdate}
                             onAddLog={handleAddLog}
                             onCompleteSession={handleCompleteSession}
@@ -2132,6 +2168,16 @@ const App: React.FC = () => {
                   )}
                   {view === 'resources' && (
                       <Resources />
+                  )}
+                  {view === 'library' && (
+                      <Library 
+                          notes={notes}
+                          folders={folders}
+                          onSaveNote={handleSaveNote}
+                          onDeleteNote={handleDeleteNote}
+                          onSaveFolder={handleSaveFolder}
+                          onDeleteFolder={handleDeleteFolder}
+                      />
                   )}
                 </Suspense>
              </MotionDiv>
@@ -2270,3 +2316,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+  

@@ -166,7 +166,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
-      <Card className="w-full max-w-lg bg-white dark:bg-[#0f172a] border-slate-200 dark:border-white/10 shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col [&>div.z-10]:flex [&>div.z-10]:flex-col [&>div.z-10]:h-full [&>div.z-10]:overflow-hidden">
+      <Card 
+        className="w-full max-w-lg shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col [&>div.z-10]:flex [&>div.z-10]:flex-col [&>div.z-10]:h-full [&>div.z-10]:overflow-hidden"
+        style={{ 
+            backgroundColor: 'rgba(var(--theme-card-rgb), 0.85)',
+            backgroundImage: `
+                radial-gradient(circle at top left, rgba(var(--theme-accent-rgb), 0.25), transparent 70%),
+                radial-gradient(circle at bottom right, rgba(var(--theme-accent-rgb), 0.15), transparent 70%)
+            `,
+            borderColor: 'rgba(var(--theme-accent-rgb), 0.3)',
+            borderWidth: '1px',
+            boxShadow: '0 25px 50px -12px rgba(var(--theme-accent-rgb), 0.3), 0 0 15px rgba(var(--theme-accent-rgb), 0.1)',
+            backdropFilter: 'blur(24px)'
+        }}
+      >
         <div className="flex justify-between items-center mb-6 shrink-0">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             Settings
@@ -183,7 +196,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           
           {/* --- SECTION 1: APPEARANCE --- */}
           <div className="space-y-4">
-             <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2">
+             <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
                 <Palette size={16} />
                 <span className="text-xs font-bold uppercase tracking-widest">Appearance</span>
              </div>
@@ -196,7 +209,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <button
                       key={id}
                       onClick={() => setTheme(id as ThemeId)}
-                      className={`relative p-3 rounded-xl border-2 text-left transition-all group overflow-hidden ${isSelected ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-500/10' : 'border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'}`}
+                      className={`relative p-3 rounded-xl border-2 text-left transition-all group overflow-hidden ${isSelected ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'}`}
+                      style={isSelected ? { borderColor: 'var(--theme-accent)' } : {}}
                     >
                       <div className="flex items-center gap-3 mb-2 relative z-10">
                         <div 
@@ -208,7 +222,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <div className="flex-1 min-w-0">
                            <p className={`text-xs font-bold truncate ${isSelected ? 'text-indigo-900 dark:text-white' : 'text-slate-700 dark:text-slate-200'}`}>{config.label}</p>
                         </div>
-                        {isSelected && <CheckCircle2 size={16} className="text-indigo-500 dark:text-indigo-400 shrink-0" />}
+                        {isSelected && <CheckCircle2 size={16} style={{ color: 'var(--theme-accent)' }} className="shrink-0" />}
                       </div>
                       
                       {/* Preview Gradient Background */}
@@ -222,7 +236,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              </div>
 
              {/* Custom Background (PRO) */}
-             <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl">
+             <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
                  <div className="flex justify-between items-center mb-4">
                      <div className="flex items-center gap-2">
                          <div className="p-1.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
@@ -234,6 +248,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                          <button 
                             onClick={toggleCustomBackground}
                             className={`w-10 h-5 rounded-full relative transition-colors ${customBackgroundEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                            style={customBackgroundEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}
                          >
                             <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${customBackgroundEnabled ? 'left-6' : 'left-1'}`} />
                          </button>
@@ -277,9 +292,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                  onClick={() => setCustomBackgroundAlign(align)}
                                                  className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
                                                      customBackgroundAlign === align 
-                                                     ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm' 
+                                                     ? 'bg-white dark:bg-slate-700 shadow-sm' 
                                                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
                                                  }`}
+                                                 style={customBackgroundAlign === align ? { color: 'var(--theme-accent)' } : {}}
                                              >
                                                  {align}
                                              </button>
@@ -402,16 +418,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className={`
                         relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 group
                         ${graphicsEnabled 
-                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10' 
+                            ? 'bg-indigo-50 dark:bg-indigo-500/10' 
                             : 'border-slate-200 dark:border-white/5 hover:border-indigo-200 dark:hover:border-white/20'
                         }
                     `}
+                    style={graphicsEnabled ? { borderColor: 'var(--theme-accent)' } : {}}
                 >
-                    {graphicsEnabled && <div className="absolute top-3 right-3 text-indigo-500"><CheckCircle2 size={16} /></div>}
-                    <div className={`p-3 rounded-full mb-3 transition-colors ${graphicsEnabled ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-white/5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`}>
+                    {graphicsEnabled && <div className="absolute top-3 right-3" style={{ color: 'var(--theme-accent)' }}><CheckCircle2 size={16} /></div>}
+                    <div className={`p-3 rounded-full mb-3 transition-colors ${graphicsEnabled ? 'bg-indigo-100 dark:bg-indigo-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} style={graphicsEnabled ? { color: 'var(--theme-accent)' } : {}}>
                         <Eye size={24} />
                     </div>
-                    <span className={`text-sm font-bold transition-colors ${graphicsEnabled ? 'text-indigo-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'}`}>Standard</span>
+                    <span className={`text-sm font-bold transition-colors ${graphicsEnabled ? 'dark:text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'}`} style={graphicsEnabled ? { color: 'var(--theme-accent)' } : {}}>Standard</span>
                     <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">High Fidelity</span>
                 </button>
 
@@ -443,6 +460,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <button 
                     onClick={toggleLagDetection}
                     className={`relative w-11 h-6 rounded-full transition-colors duration-200 ease-in-out ${lagDetectionEnabled ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                    style={lagDetectionEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}
                 >
                     <span className={`absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out ${lagDetectionEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>
@@ -451,25 +469,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* --- SECTION 3: INTERACTION --- */}
           <div className="space-y-4">
-             <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2">
+             <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
                 <SlidersHorizontal size={16} />
                 <span className="text-xs font-bold uppercase tracking-widest">Interaction</span>
              </div>
 
              <div className="space-y-3">
                 {/* Audio Settings */}
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl space-y-4">
+                <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl space-y-4">
                     <button
                         onClick={toggleSound}
                         className="w-full flex items-center justify-between p-2 -ml-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/5 transition-colors"
                     >
                         <div className="flex items-center gap-3">
-                            <div className={`p-1.5 rounded-lg ${soundEnabled ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400' : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                            <div className={`p-1.5 rounded-lg ${soundEnabled ? 'bg-indigo-100 dark:bg-indigo-500/20' : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`} style={soundEnabled ? { backgroundColor: 'rgba(var(--theme-accent-rgb), 0.1)', color: 'var(--theme-accent)' } : {}}>
                                 {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
                             </div>
                             <span className="text-sm font-bold text-slate-900 dark:text-white">Click Sounds</span>
                         </div>
-                        <div className={`w-10 h-5 rounded-full relative transition-colors ${soundEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                        <div className={`w-10 h-5 rounded-full relative transition-colors ${soundEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`} style={soundEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}>
                             <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${soundEnabled ? 'left-6' : 'left-1'}`} />
                         </div>
                     </button>
@@ -480,12 +498,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center">
                                     <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Tone Pitch</span>
-                                    <span className="text-xs font-mono font-bold text-indigo-500">{soundPitch}Hz</span>
+                                    <span className="text-xs font-mono font-bold" style={{ color: 'var(--theme-accent)' }}>{soundPitch}Hz</span>
                                 </div>
                                 <input 
                                     type="range" min="200" max="1200" step="50"
                                     value={soundPitch} onChange={(e) => setSoundPitch(Number(e.target.value))}
-                                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-indigo-500"
+                                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
+                                    style={{ accentColor: 'var(--theme-accent)' }}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -504,13 +523,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 {/* Animation Settings */}
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl space-y-4">
+                <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl space-y-4">
                     <button
                         onClick={toggleSwipeAnimation}
                         className="w-full flex items-center justify-between p-2 -ml-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/5 transition-colors"
                     >
                         <span className="text-sm font-bold text-slate-900 dark:text-white">Swipe Transitions</span>
-                        <div className={`w-10 h-5 rounded-full relative transition-colors ${swipeAnimationEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                        <div className={`w-10 h-5 rounded-full relative transition-colors ${swipeAnimationEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`} style={swipeAnimationEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}>
                             <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${swipeAnimationEnabled ? 'left-6' : 'left-1'}`} />
                         </div>
                     </button>
@@ -520,12 +539,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center">
                                     <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Speed</span>
-                                    <span className="text-xs font-mono font-bold text-indigo-500">{swipeStiffness}</span>
+                                    <span className="text-xs font-mono font-bold" style={{ color: 'var(--theme-accent)' }}>{swipeStiffness}</span>
                                 </div>
                                 <input 
                                     type="range" min="50" max="8000" step="50"
                                     value={swipeStiffness} onChange={(e) => setSwipeStiffness(Number(e.target.value))}
-                                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-indigo-500"
+                                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
+                                    style={{ accentColor: 'var(--theme-accent)' }}
                                 />
                             </div>
                         </div>
@@ -537,11 +557,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* --- SECTION 4: CLOUD SYNC --- */}
           {user && !isGuest && (
             <div className="space-y-4">
-               <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2">
+               <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
                   <UploadCloud size={16} />
                   <span className="text-xs font-bold uppercase tracking-widest">Cloud Sync</span>
                </div>
-               <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl space-y-3">
+               <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl space-y-3">
                   <p className="text-xs text-slate-500 dark:text-slate-400">If you suspect data isn't syncing correctly, you can manually push all your current app data to the cloud.</p>
                   <button
                     onClick={onForceSync}
@@ -552,6 +572,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                        'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 active:scale-95'
                       }
                     `}
+                    style={syncStatus === 'idle' ? { backgroundColor: 'var(--theme-accent)', boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.2)' } : {}}
                   >
                     {syncButtonContent()}
                   </button>
@@ -580,10 +601,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              </div>
 
              <div className="grid grid-cols-1 gap-3">
-                 <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl flex items-center justify-between">
+                 <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(var(--theme-accent-rgb), 0.05)', borderColor: 'rgba(var(--theme-accent-rgb), 0.1)' }}>
                     <div>
-                        <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-100">Tutorial</h3>
-                        <p className="text-[10px] text-indigo-700 dark:text-indigo-300 mt-1">Replay the welcome tour.</p>
+                        <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-100" style={{ color: 'var(--theme-text-main)' }}>Tutorial</h3>
+                        <p className="text-[10px] text-indigo-700 dark:text-indigo-300 mt-1" style={{ color: 'var(--theme-accent)' }}>Replay the welcome tour.</p>
                     </div>
                     <button 
                         onClick={() => { onStartTutorial(); onClose(); }}
@@ -613,7 +634,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
              {/* Logout Button */}
              {(user || isGuest) && (
-                <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl">
+                <div className="flex justify-between items-center p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
                     <div>
                         <p className="text-sm font-bold text-slate-700 dark:text-slate-300">End Session</p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-500 uppercase font-bold tracking-wider">
