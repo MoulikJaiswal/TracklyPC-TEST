@@ -22,7 +22,8 @@ import {
   Minus,
   Maximize2,
   Minimize2,
-  History
+  History,
+  Lock
 } from 'lucide-react';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
 import { Target, QuestionLog, Session } from '../types';
@@ -54,7 +55,8 @@ const DurationControl = ({
     min, 
     max, 
     step = 1,
-    colorHex
+    colorHex,
+    disabled = false
 }: { 
     label: string, 
     value: number, 
@@ -62,11 +64,12 @@ const DurationControl = ({
     min: number, 
     max: number, 
     step?: number,
-    colorHex: string
+    colorHex: string,
+    disabled?: boolean
 }) => {
     return (
         <div 
-            className="p-4 rounded-2xl border"
+            className={`p-4 rounded-2xl border transition-opacity duration-300 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             style={{
                 backgroundColor: 'rgba(var(--theme-text-main), 0.03)',
                 borderColor: 'rgba(var(--theme-text-main), 0.1)'
@@ -78,8 +81,9 @@ const DurationControl = ({
             </div>
             <div className="flex items-center gap-3">
                 <button 
-                    onClick={(e) => { e.stopPropagation(); onChange(Math.max(min, value - step)); }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border transition-all active:scale-95"
+                    onClick={(e) => { e.stopPropagation(); if(!disabled) onChange(Math.max(min, value - step)); }}
+                    disabled={disabled}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border transition-all active:scale-95 disabled:active:scale-100 disabled:cursor-not-allowed"
                     style={{
                         backgroundColor: 'var(--theme-card-bg)',
                         borderColor: 'rgba(var(--theme-text-main), 0.1)',
@@ -92,9 +96,10 @@ const DurationControl = ({
                     <input 
                         type="range" min={min} max={max} step={step}
                         value={value}
+                        disabled={disabled}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => onChange(parseFloat(e.target.value))}
-                        className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                        className={`w-full h-1.5 rounded-full appearance-none ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                         style={{ 
                             accentColor: colorHex,
                             backgroundColor: 'rgba(var(--theme-text-main), 0.1)'
@@ -102,8 +107,9 @@ const DurationControl = ({
                     />
                 </div>
                 <button 
-                    onClick={(e) => { e.stopPropagation(); onChange(Math.min(max, value + step)); }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border transition-all active:scale-95"
+                    onClick={(e) => { e.stopPropagation(); if(!disabled) onChange(Math.min(max, value + step)); }}
+                    disabled={disabled}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border transition-all active:scale-95 disabled:active:scale-100 disabled:cursor-not-allowed"
                     style={{
                         backgroundColor: 'var(--theme-card-bg)',
                         borderColor: 'rgba(var(--theme-text-main), 0.1)',
@@ -572,10 +578,15 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                         <h4 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--theme-text-main)' }}>Timer Config</h4>
                         <button onClick={handleCloseSettings} className="p-2 -mr-2 transition-colors" style={{ color: 'var(--theme-text-sub)' }}><X size={18} /></button>
                     </div>
+                    {isActive && (
+                        <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-bold uppercase tracking-wide flex items-center gap-2">
+                            <Lock size={12} /> Pause timer to change durations
+                        </div>
+                    )}
                     <div className="space-y-4">
-                        <DurationControl label="Focus Duration" value={durations.focus} onChange={(val) => onUpdateDurations(val, 'focus')} min={1} max={120} step={1} colorHex="#6366f1" />
-                        <DurationControl label="Short Break" value={durations.short} onChange={(val) => onUpdateDurations(val, 'short')} min={1} max={30} step={1} colorHex="#10b981" />
-                        <DurationControl label="Long Break" value={durations.long} onChange={(val) => onUpdateDurations(val, 'long')} min={5} max={60} step={5} colorHex="#3b82f6" />
+                        <DurationControl label="Focus Duration" value={durations.focus} onChange={(val) => onUpdateDurations(val, 'focus')} min={1} max={120} step={1} colorHex="#6366f1" disabled={isActive} />
+                        <DurationControl label="Short Break" value={durations.short} onChange={(val) => onUpdateDurations(val, 'short')} min={1} max={30} step={1} colorHex="#10b981" disabled={isActive} />
+                        <DurationControl label="Long Break" value={durations.long} onChange={(val) => onUpdateDurations(val, 'long')} min={5} max={60} step={5} colorHex="#3b82f6" disabled={isActive} />
                     </div>
                 </div>
             </div>

@@ -33,6 +33,7 @@ import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
 import { PerformanceToast } from './components/PerformanceToast';
 import { ProUpgradeModal } from './components/ProUpgradeModal';
 import { SmartRecommendationToast } from './components/SmartRecommendationToast';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { getProStatus, PAYWALL_CONFIG } from './components/proController';
 import { GoogleIcon } from './components/GoogleIcon';
 
@@ -1971,93 +1972,95 @@ const App: React.FC = () => {
                 ) : { duration: animationsEnabled ? 0.2 : 0 }}
                 className="w-full will-change-transform"
              >
-                <Suspense fallback={
-                    <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
-                        <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-500" />
-                        <span className="text-xs font-bold uppercase tracking-widest">Loading View...</span>
-                    </div>
-                }>
-                  {view === 'daily' && (
-                      <Dashboard 
-                          sessions={sessions}
-                          targets={targets}
-                          quote={QUOTES[quoteIdx]}
-                          onDelete={handleDeleteSession}
-                          goals={goals}
-                          setGoals={setGoals}
-                          onSaveSession={handleSaveSession}
-                          userName={userName}
-                      />
-                  )}
-                  {view === 'planner' && (
-                      <Planner 
-                          targets={targets}
-                          onAdd={handleSaveTarget}
-                          onToggle={handleUpdateTarget}
-                          onDelete={handleDeleteTarget}
-                          notes={notes}
-                          folders={folders}
-                          onSaveNote={handleSaveNote}
-                          onDeleteNote={handleDeleteNote}
-                          onSaveFolder={handleSaveFolder}
-                          onDeleteFolder={handleDeleteFolder}
-                      />
-                  )}
-                  {view === 'focus' && (
-                      <div className="min-h-[80vh] flex flex-col justify-center">
-                        <FocusTimer 
-                            targets={targets} 
+                <ErrorBoundary key={view} viewKey={view}>
+                    <Suspense fallback={
+                        <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
+                            <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-500" />
+                            <span className="text-xs font-bold uppercase tracking-widest">Loading View...</span>
+                        </div>
+                    }>
+                    {view === 'daily' && (
+                        <Dashboard 
                             sessions={sessions}
-                            mode={timerMode}
-                            timeLeft={timeLeft}
-                            isActive={isTimerActive}
-                            durations={timerDurations}
-                            sessionLogs={sessionLogs}
-                            lastLogTime={lastLogTime}
-                            onToggleTimer={handleTimerToggle}
-                            onResetTimer={handleTimerReset}
-                            onSwitchMode={handleModeSwitch}
-                            onUpdateDurations={handleDurationUpdate}
-                            onAddLog={handleAddLog}
-                            onCompleteSession={handleCompleteSession}
+                            targets={targets}
+                            quote={QUOTES[quoteIdx]}
+                            onDelete={handleDeleteSession}
+                            goals={goals}
+                            setGoals={setGoals}
+                            onSaveSession={handleSaveSession}
+                            userName={userName}
+                        />
+                    )}
+                    {view === 'planner' && (
+                        <Planner 
+                            targets={targets}
+                            onAdd={handleSaveTarget}
+                            onToggle={handleUpdateTarget}
+                            onDelete={handleDeleteTarget}
+                            notes={notes}
+                            folders={folders}
+                            onSaveNote={handleSaveNote}
+                            onDeleteNote={handleDeleteNote}
+                            onSaveFolder={handleSaveFolder}
+                            onDeleteFolder={handleDeleteFolder}
+                        />
+                    )}
+                    {view === 'focus' && (
+                        <div className="min-h-[80vh] flex flex-col justify-center">
+                            <FocusTimer 
+                                targets={targets} 
+                                sessions={sessions}
+                                mode={timerMode}
+                                timeLeft={timeLeft}
+                                isActive={isTimerActive}
+                                durations={timerDurations}
+                                sessionLogs={sessionLogs}
+                                lastLogTime={lastLogTime}
+                                onToggleTimer={handleTimerToggle}
+                                onResetTimer={handleTimerReset}
+                                onSwitchMode={handleModeSwitch}
+                                onUpdateDurations={handleDurationUpdate}
+                                onAddLog={handleAddLog}
+                                onCompleteSession={handleCompleteSession}
+                                isPro={hasProAccess}
+                                sessionCount={sessions.length}
+                                onOpenUpgrade={() => setShowProModal(true)}
+                            />
+                        </div>
+                    )}
+                    {view === 'tests' && (
+                        <TestLog 
+                            tests={tests}
+                            targets={targets} 
+                            onSave={handleSaveTest}
+                            onDelete={handleDeleteTest}
                             isPro={hasProAccess}
-                            sessionCount={sessions.length}
                             onOpenUpgrade={() => setShowProModal(true)}
                         />
-                      </div>
-                  )}
-                  {view === 'tests' && (
-                      <TestLog 
-                          tests={tests}
-                          targets={targets} 
-                          onSave={handleSaveTest}
-                          onDelete={handleDeleteTest}
-                          isPro={hasProAccess}
-                          onOpenUpgrade={() => setShowProModal(true)}
-                      />
-                  )}
-                  {view === 'analytics' && (
-                      <Analytics 
-                        sessions={sessions} 
-                        tests={tests} 
-                        isPro={hasProAccess} 
-                        onOpenUpgrade={() => setShowProModal(true)}
-                      />
-                  )}
-                  {view === 'resources' && (
-                      <Resources />
-                  )}
-                  {view === 'library' && (
-                      <Library 
-                          notes={notes}
-                          folders={folders}
-                          onSaveNote={handleSaveNote}
-                          onDeleteNote={handleDeleteNote}
-                          onSaveFolder={handleSaveFolder}
-                          onDeleteFolder={handleDeleteFolder}
-                      />
-                  )}
-                </Suspense>
+                    )}
+                    {view === 'analytics' && (
+                        <Analytics 
+                            sessions={sessions} 
+                            tests={tests} 
+                            isPro={hasProAccess} 
+                            onOpenUpgrade={() => setShowProModal(true)}
+                        />
+                    )}
+                    {view === 'resources' && (
+                        <Resources />
+                    )}
+                    {view === 'library' && (
+                        <Library 
+                            notes={notes}
+                            folders={folders}
+                            onSaveNote={handleSaveNote}
+                            onDeleteNote={handleDeleteNote}
+                            onSaveFolder={handleSaveFolder}
+                            onDeleteFolder={handleDeleteFolder}
+                        />
+                    )}
+                    </Suspense>
+                </ErrorBoundary>
              </MotionDiv>
            </AnimatePresence>
         </div>
