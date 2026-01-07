@@ -1,6 +1,6 @@
 
 import React, { useRef } from 'react';
-import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate, LogOut, Check, Loader2, UploadCloud } from 'lucide-react';
+import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate, LogOut, Check, Loader2, UploadCloud, Shield } from 'lucide-react';
 import { Card } from './Card';
 import { ThemeId } from '../types';
 import { THEME_CONFIG } from '../constants';
@@ -57,6 +57,7 @@ interface SettingsModalProps {
   onForceSync: () => void;
   syncStatus: 'idle' | 'syncing' | 'success' | 'error';
   syncError: string | null;
+  onOpenPrivacy: () => void; // New Prop
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -104,7 +105,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onLogout,
   onForceSync,
   syncStatus,
-  syncError
+  syncError,
+  onOpenPrivacy
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -617,6 +619,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <Map size={14} /> Start
                     </button>
                  </div>
+
+                 {/* Privacy Policy Link */}
+                 <button
+                    onClick={() => { onOpenPrivacy(); onClose(); }}
+                    className="flex items-center justify-between p-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl hover:border-emerald-400 dark:hover:border-emerald-500/50 group transition-all"
+                 >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg text-emerald-600 dark:text-emerald-400">
+                            <Shield size={16} />
+                        </div>
+                        <div className="text-left">
+                            <span className="block text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-emerald-500">Privacy Policy</span>
+                            <span className="block text-[10px] text-slate-500 uppercase tracking-wider">AdSense & Data Usage</span>
+                        </div>
+                    </div>
+                 </button>
 
                  {/* Buy Me Coffee */}
                  <div className="pt-2">

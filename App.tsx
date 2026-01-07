@@ -36,6 +36,7 @@ import { SmartRecommendationToast } from './components/SmartRecommendationToast'
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { getProStatus, PAYWALL_CONFIG } from './components/proController';
 import { GoogleIcon } from './components/GoogleIcon';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
 
 // Firebase Imports
 import { auth, db, googleProvider, dbReadyPromise } from './firebase';
@@ -2059,6 +2060,9 @@ const App: React.FC = () => {
                             onDeleteFolder={handleDeleteFolder}
                         />
                     )}
+                    {view === 'privacy' && (
+                        <PrivacyPolicy onBack={() => setView('daily')} />
+                    )}
                     </Suspense>
                 </ErrorBoundary>
              </MotionDiv>
@@ -2191,6 +2195,7 @@ const App: React.FC = () => {
         onForceSync={handleForceSync}
         syncStatus={syncStatus}
         syncError={syncError}
+        onOpenPrivacy={() => setView('privacy')}
       />
     </div>
   );
