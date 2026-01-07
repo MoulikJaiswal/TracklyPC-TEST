@@ -345,19 +345,19 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
             onClick={handlePlayClick}
             className="relative w-[300px] h-[300px] md:w-[450px] md:h-[450px] flex items-center justify-center cursor-pointer group select-none mx-auto"
           >
-              {/* Pulse Effect */}
+              {/* Pulse Effect - REDUCED BRIGHTNESS AND OPACITY */}
               <div 
                   className={`
-                      absolute inset-0 rounded-full blur-[60px] opacity-10 transition-all duration-1000 ease-in-out
+                      absolute inset-0 rounded-full blur-[60px] opacity-5 transition-all duration-1000 ease-in-out
                       ${isActive ? 'animate-breathing' : 'scale-100'} 
                   `} 
                   style={{ backgroundColor: 'var(--theme-accent)' }}
               />
               
-              <svg className="w-full h-full transform -rotate-90 relative z-10 drop-shadow-2xl overflow-visible" viewBox="0 0 100 100">
+              <svg className="w-full h-full transform -rotate-90 relative z-10 drop-shadow-lg overflow-visible" viewBox="0 0 100 100">
                   {/* Track */}
                   <circle cx="50" cy="50" r={radius} className="stroke-slate-200 dark:stroke-white/5 fill-transparent" strokeWidth="3" vectorEffect="non-scaling-stroke" />
-                  {/* Progress */}
+                  {/* Progress - REMOVED INTENSE DROP SHADOW FOR CRISP LOOK */}
                   <circle 
                       cx="50" cy="50" r={radius} 
                       className="fill-transparent transition-all duration-1000 ease-linear"
@@ -367,7 +367,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                       strokeDashoffset={strokeDashoffset}
                       style={{ 
                           stroke: 'var(--theme-accent)', 
-                          filter: `drop-shadow(0 0 2px var(--theme-accent))` 
+                          filter: `drop-shadow(0 0 1px var(--theme-accent))` 
                       }}
                   />
                   {/* Knob */}
