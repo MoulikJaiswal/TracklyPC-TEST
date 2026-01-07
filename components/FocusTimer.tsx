@@ -1,4 +1,5 @@
 
+// ... existing imports ...
 import React, { useState, useMemo, memo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -681,7 +682,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                         </div>
                     )}
                     <div className="space-y-4">
-                        <DurationControl label="Focus Duration" value={durations.focus} onChange={(val) => onUpdateDurations(val, 'focus')} min={1} max={120} step={1} colorHex="#6366f1" disabled={isActive} />
+                        <DurationControl label="Focus Duration" value={durations.focus} onChange={(val) => onUpdateDurations(val, 'focus')} min={1} max={360} step={1} colorHex="#6366f1" disabled={isActive} />
                         <DurationControl label="Short Break" value={durations.short} onChange={(val) => onUpdateDurations(val, 'short')} min={1} max={30} step={1} colorHex="#10b981" disabled={isActive} />
                         <DurationControl label="Long Break" value={durations.long} onChange={(val) => onUpdateDurations(val, 'long')} min={5} max={60} step={5} colorHex="#3b82f6" disabled={isActive} />
                     </div>

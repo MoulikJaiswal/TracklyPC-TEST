@@ -1,5 +1,5 @@
 
-import React, { ErrorInfo, ReactNode } from "react";
+import React, { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface Props {
@@ -13,16 +13,11 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends React.Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-    };
-    this.handleReset = this.handleReset.bind(this);
-    this.handleReload = this.handleReload.bind(this);
-  }
+export class ErrorBoundary extends Component<Props, State> {
+  public state: State = {
+    hasError: false,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -38,16 +33,16 @@ export class ErrorBoundary extends React.Component<Props, State> {
     }
   }
 
-  handleReset() {
+  handleReset = () => {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
     }
-  }
+  };
 
-  handleReload() {
+  handleReload = () => {
     window.location.reload();
-  }
+  };
 
   render() {
     if (this.state.hasError) {
