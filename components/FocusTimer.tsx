@@ -1,5 +1,4 @@
 
-// ... existing imports ...
 import React, { useState, useMemo, memo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -30,6 +29,7 @@ import {
 } from 'lucide-react';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
 import { Target, QuestionLog, Session } from '../types';
+import { AdUnit } from './AdUnit';
 
 interface FocusTimerProps {
   targets?: Target[];
@@ -590,6 +590,17 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                       )}
                   </div>
               )}
+          </div>
+      )}
+
+      {/* Ad Unit at the bottom of the grid */}
+      {!zenMode && (
+          <div className="md:col-span-12 mt-8">
+              <AdUnit 
+                  client="ca-pub-YOUR_PUBLISHER_ID_HERE" 
+                  slot="1234567890" 
+                  label="Sponsored"
+              />
           </div>
       )}
 

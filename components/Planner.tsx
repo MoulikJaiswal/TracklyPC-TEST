@@ -4,6 +4,7 @@ import { Plus, Trash2, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, Chev
 import { Target as TargetType, Note, Folder as FolderType } from '../types';
 import { Card } from './Card';
 import { Library } from './Library';
+import { AdUnit } from './AdUnit';
 
 // Helper for local date string YYYY-MM-DD
 const getLocalDate = (d = new Date()) => {
@@ -385,6 +386,13 @@ export const Planner: React.FC<PlannerProps> = memo(({
             />
         </div>
       )}
+
+      {/* Ad Unit at the bottom of the planner */}
+      <AdUnit 
+          client="ca-pub-YOUR_PUBLISHER_ID_HERE" 
+          slot="1234567890" 
+          label="Sponsored"
+      />
     </div>
   );
 });

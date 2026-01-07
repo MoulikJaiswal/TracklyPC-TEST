@@ -5,6 +5,7 @@ import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image 
 import { TestResult, Target as TargetType, SubjectBreakdown, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES, JEE_SYLLABUS } from '../constants';
+import { AdUnit } from './AdUnit';
 
 // Helper for local date string YYYY-MM-DD
 const getLocalDate = () => {
@@ -1520,6 +1521,12 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
           document.body
       )}
 
+      {/* Ad Unit at the bottom of the log */}
+      <AdUnit 
+          client="ca-pub-YOUR_PUBLISHER_ID_HERE" 
+          slot="1234567890" 
+          label="Sponsored"
+      />
     </div>
   );
 });
