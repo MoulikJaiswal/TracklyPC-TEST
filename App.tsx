@@ -1973,7 +1973,7 @@ const App: React.FC = () => {
                 ) : { duration: animationsEnabled ? 0.2 : 0 }}
                 className="w-full will-change-transform"
              >
-                <ErrorBoundary key={view} viewKey={view}>
+                <ErrorBoundary viewKey={view}>
                     <Suspense fallback={
                         <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
                             <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-500" />
@@ -1990,6 +1990,7 @@ const App: React.FC = () => {
                             setGoals={setGoals}
                             onSaveSession={handleSaveSession}
                             userName={userName}
+                            onOpenPrivacy={() => setView('privacy')}
                         />
                     )}
                     {view === 'planner' && (

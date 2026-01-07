@@ -1,9 +1,10 @@
 
 import React, { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
-import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, ShieldCheck } from 'lucide-react';
 import { Session, Target, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
+import { AdUnit } from './AdUnit';
 
 // Helper for local date string YYYY-MM-DD
 const getLocalDate = (d = new Date()) => {
@@ -27,7 +28,44 @@ interface DashboardProps {
   setGoals: React.Dispatch<React.SetStateAction<{ Physics: number; Chemistry: number; Maths: number }>>;
   onSaveSession: (session: Omit<Session, 'id' | 'timestamp'>) => void;
   userName: string | null;
+  onOpenPrivacy: () => void;
 }
+
+const PrivacyConsentBanner = memo(({ onAccept, onReadPolicy }: { onAccept: () => void, onReadPolicy: () => void }) => (
+  <div className="fixed bottom-24 md:bottom-6 left-4 right-4 md:left-auto md:right-6 z-[150] max-w-sm animate-in slide-in-from-bottom-10 fade-in duration-500">
+    <div className="bg-slate-900/95 dark:bg-black/95 backdrop-blur-xl border border-white/10 p-5 rounded-2xl shadow-2xl flex flex-col gap-3 relative overflow-hidden">
+        {/* Decorative glow */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-[40px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+        
+        <div className="flex items-start gap-3 relative z-10">
+            <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
+                <ShieldCheck size={20} />
+            </div>
+            <div>
+                <h4 className="text-sm font-bold text-white leading-tight">Privacy & Data</h4>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                    We use cookies and third-party services to improve your experience and display ads. By continuing, you agree to our policies.
+                </p>
+            </div>
+        </div>
+
+        <div className="flex gap-3 mt-1 relative z-10">
+            <button 
+                onClick={onReadPolicy}
+                className="flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 transition-colors border border-white/5 hover:border-white/10"
+            >
+                Read Policy
+            </button>
+            <button 
+                onClick={onAccept}
+                className="flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+            >
+                Accept
+            </button>
+        </div>
+    </div>
+  </div>
+));
 
 const ActivityHeatmap = memo(({ sessions }: { sessions: Session[] }) => {
   const days = useMemo(() => {
@@ -562,7 +600,8 @@ export const Dashboard = memo(({
   goals, 
   setGoals, 
   onSaveSession, 
-  userName 
+  userName,
+  onOpenPrivacy
 }: DashboardProps) => {
   const todayStr = getLocalDate();
   const todaysSessions = useMemo(() => sessions.filter(s => getLocalDateFromTimestamp(s.timestamp) === todayStr), [sessions, todayStr]);
@@ -634,6 +673,22 @@ export const Dashboard = memo(({
   const openPhysics = useCallback(() => handleOpenSubject('Physics'), [handleOpenSubject]);
   const openChem = useCallback(() => handleOpenSubject('Chemistry'), [handleOpenSubject]);
   const openMaths = useCallback(() => handleOpenSubject('Maths'), [handleOpenSubject]);
+
+  // Privacy Policy Banner Logic
+  const [showPrivacyBanner, setShowPrivacyBanner] = useState(false);
+
+  useEffect(() => {
+      const accepted = localStorage.getItem('trackly_privacy_accepted');
+      if (!accepted) {
+          const t = setTimeout(() => setShowPrivacyBanner(true), 2000);
+          return () => clearTimeout(t);
+      }
+  }, []);
+
+  const handleAcceptPrivacy = useCallback(() => {
+      localStorage.setItem('trackly_privacy_accepted', 'true');
+      setShowPrivacyBanner(false);
+  }, []);
 
   return (
     <>
@@ -727,6 +782,22 @@ export const Dashboard = memo(({
           </div>
         </div>
       </div>
+      
+      {/* Footer Ad Placement */}
+      <AdUnit 
+          client="ca-pub-YOUR_PUBLISHER_ID_HERE" 
+          slot="1234567890" 
+          label="Sponsored"
+      />
+
+      {/* Privacy Banner */}
+      {showPrivacyBanner && (
+          <PrivacyConsentBanner 
+              onAccept={handleAcceptPrivacy} 
+              onReadPolicy={onOpenPrivacy} 
+          />
+      )}
+
       {selectedSubject && (
         <SubjectDetailModal 
           subject={selectedSubject}

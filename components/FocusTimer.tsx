@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, memo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, memo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Play, 
@@ -23,7 +23,9 @@ import {
   Maximize2,
   Minimize2,
   History,
-  Lock
+  Lock,
+  BookOpen,
+  PenTool
 } from 'lucide-react';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
 import { Target, QuestionLog, Session } from '../types';
@@ -152,7 +154,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
   const [showReport, setShowReport] = useState(false);
   const [currentQDuration, setCurrentQDuration] = useState(0); 
   
-  // Automatically show report card when time runs out in Focus Mode
+  // --- Session Intent State ---
+  const [showIntentModal, setShowIntentModal] = useState(false);
+  const [sessionIntent, setSessionIntent] = useState<'questions' | 'theory'>('questions');
+
+  // Automatically show report card when time runs out in Focus Mode (only if logs exist)
   useEffect(() => {
       if (mode === 'focus' && timeLeft === 0 && sessionLogs.length > 0 && !isActive) {
           setShowReport(true);
@@ -165,6 +171,27 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
           if (!confirmed) return;
       }
       onSwitchMode(newMode);
+  };
+
+  const handlePlayClick = () => {
+      if (isActive) {
+          // If already active, just toggle (pause)
+          onToggleTimer();
+      } else {
+          // If starting from paused/stopped state, ask for intent IF in focus mode
+          if (mode === 'focus') {
+              setShowIntentModal(true);
+          } else {
+              // Just start for breaks
+              onToggleTimer();
+          }
+      }
+  };
+
+  const confirmSessionStart = (intent: 'questions' | 'theory') => {
+      setSessionIntent(intent);
+      setShowIntentModal(false);
+      onToggleTimer();
   };
 
   const handlePlusOne = (e?: React.MouseEvent) => {
@@ -226,8 +253,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
   ], []);
 
   const currentSubject = subjects.find(s => s.id === selectedSubject)!;
-  const pendingTasks = useMemo(() => targets.filter(t => !t.completed), [targets]);
-  const activeTaskObj = useMemo(() => targets.find(t => t.id === selectedTask), [targets, selectedTask]);
+  const pendingTasks = useMemo(() => targets ? targets.filter(t => !t.completed) : [], [targets]);
+  const activeTaskObj = useMemo(() => targets ? targets.find(t => t.id === selectedTask) : undefined, [targets, selectedTask]);
 
   // Theme Logic
   const getTheme = () => {
@@ -314,7 +341,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
 
           {/* The Interactive Timer Visualization */}
           <div 
-            onClick={onToggleTimer}
+            onClick={handlePlayClick}
             className="relative w-[300px] h-[300px] md:w-[450px] md:h-[450px] flex items-center justify-center cursor-pointer group select-none mx-auto"
           >
               {/* Pulse Effect */}
@@ -368,7 +395,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                           <>
                             <div className="w-2 h-2 rounded-full bg-current animate-pulse" />
                             <span className="text-xs md:text-sm font-bold uppercase tracking-[0.2em]">
-                                {mode === 'focus' ? 'Deep Work' : 'Recharging'}
+                                {mode === 'focus' ? (sessionIntent === 'theory' ? 'Reading' : 'Solving') : 'Recharging'}
                             </span>
                           </>
                       ) : (
@@ -393,7 +420,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
           <div className="mt-12 md:mt-16 flex flex-col items-center gap-6 relative z-30">
               {isActive ? (
                   <div className="flex flex-col items-center gap-6 animate-in slide-in-from-bottom-4 fade-in duration-500">
-                      {mode === 'focus' && (
+                      {mode === 'focus' && sessionIntent === 'questions' && (
                           <button
                               onClick={handlePlusOne}
                               className={`
@@ -409,6 +436,14 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                                   <span className="block text-[10px] font-bold opacity-80 uppercase tracking-widest mt-1">Capture Progress</span>
                               </div>
                           </button>
+                      )}
+
+                      {/* Theory Mode Visual Indicator */}
+                      {mode === 'focus' && sessionIntent === 'theory' && (
+                          <div className="flex items-center gap-2 px-6 py-3 rounded-full bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400">
+                              <BookOpen size={16} />
+                              <span className="text-xs font-bold uppercase tracking-widest">Theory Session Active</span>
+                          </div>
                       )}
 
                       <div className="flex items-center gap-6">
@@ -429,7 +464,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                   </div>
               ) : (
                   <button
-                      onClick={onToggleTimer}
+                      onClick={handlePlayClick}
                       className={`
                           group relative w-24 h-24 md:w-28 md:h-28 rounded-full flex items-center justify-center 
                           bg-gradient-to-br ${theme.gradient} text-white shadow-2xl ${theme.shadow}
@@ -501,58 +536,120 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                   </div>
               </div>
 
-              {/* 3. Live Session Stats */}
-              <div className="flex-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 p-6 rounded-3xl shadow-sm flex flex-col min-h-[200px]">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <History size={14} /> Session Log
-                  </h3>
-                  
-                  {sessionLogs.length === 0 ? (
-                      <div className="flex-1 flex flex-col items-center justify-center opacity-40 py-8">
-                          <div className="p-3 bg-slate-100 dark:bg-white/5 rounded-full mb-3">
-                              <Clock size={24} />
+              {/* 3. Live Session Stats (Show only if Questions Mode or Logs Exist) */}
+              {(sessionIntent === 'questions' || sessionLogs.length > 0) && (
+                  <div className="flex-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 p-6 rounded-3xl shadow-sm flex flex-col min-h-[200px]">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                          <History size={14} /> Session Log
+                      </h3>
+                      
+                      {sessionLogs.length === 0 ? (
+                          <div className="flex-1 flex flex-col items-center justify-center opacity-40 py-8">
+                              <div className="p-3 bg-slate-100 dark:bg-white/5 rounded-full mb-3">
+                                  <Clock size={24} />
+                              </div>
+                              <p className="text-xs font-bold uppercase tracking-widest text-center">Ready to Log</p>
                           </div>
-                          <p className="text-xs font-bold uppercase tracking-widest text-center">Ready to Start</p>
-                      </div>
-                  ) : (
-                      <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1 -mr-2">
-                          {sessionLogs.map((log, i) => {
-                              const isCorrect = log.result === 'correct';
-                              const mistake = !isCorrect ? MISTAKE_TYPES.find(m => m.id === log.result) : null;
-                              return (
-                                  <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5">
-                                      <div className="flex items-center gap-3">
-                                          <span className="text-[10px] font-mono text-slate-400 w-4">#{sessionLogs.length - i}</span>
-                                          <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isCorrect ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400'}`}>
-                                              {isCorrect ? 'Solved' : mistake?.label || 'Miss'}
+                      ) : (
+                          <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1 -mr-2">
+                              {sessionLogs.map((log, i) => {
+                                  const isCorrect = log.result === 'correct';
+                                  const mistake = !isCorrect ? MISTAKE_TYPES.find(m => m.id === log.result) : null;
+                                  return (
+                                      <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5">
+                                          <div className="flex items-center gap-3">
+                                              <span className="text-[10px] font-mono text-slate-400 w-4">#{sessionLogs.length - i}</span>
+                                              <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isCorrect ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400'}`}>
+                                                  {isCorrect ? 'Solved' : mistake?.label || 'Miss'}
+                                              </div>
                                           </div>
+                                          <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
+                                              {formatTime(log.duration)}
+                                          </span>
                                       </div>
-                                      <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
-                                          {formatTime(log.duration)}
-                                      </span>
-                                  </div>
-                              );
-                          })}
-                      </div>
-                  )}
+                                  );
+                              })}
+                          </div>
+                      )}
 
-                  {sessionLogs.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/5 grid grid-cols-2 gap-4">
-                          <div>
-                              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Qs</p>
-                              <p className="text-2xl font-mono font-bold text-slate-900 dark:text-white">{sessionLogs.length}</p>
+                      {sessionLogs.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/5 grid grid-cols-2 gap-4">
+                              <div>
+                                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Qs</p>
+                                  <p className="text-2xl font-mono font-bold text-slate-900 dark:text-white">{sessionLogs.length}</p>
+                              </div>
+                              <div>
+                                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Avg Pace</p>
+                                  <p className="text-2xl font-mono font-bold text-slate-900 dark:text-white">
+                                      {sessionLogs.length > 0 ? Math.round(sessionLogs.reduce((a,b) => a+b.duration, 0) / sessionLogs.length / 60) : 0}
+                                      <span className="text-sm ml-1 text-slate-500">min</span>
+                                  </p>
+                              </div>
                           </div>
-                          <div>
-                              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Avg Pace</p>
-                              <p className="text-2xl font-mono font-bold text-slate-900 dark:text-white">
-                                  {sessionLogs.length > 0 ? Math.round(sessionLogs.reduce((a,b) => a+b.duration, 0) / sessionLogs.length / 60) : 0}
-                                  <span className="text-sm ml-1 text-slate-500">min</span>
-                              </p>
-                          </div>
-                      </div>
-                  )}
-              </div>
+                      )}
+                  </div>
+              )}
           </div>
+      )}
+
+      {/* --- SESSION INTENT MODAL (PORTAL) --- */}
+      {showIntentModal && createPortal(
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200 backdrop-blur-sm">
+              <div 
+                className="w-full max-w-sm rounded-[2rem] overflow-hidden animate-in zoom-in-95 duration-200 p-6 flex flex-col items-center text-center gap-6"
+                style={{ 
+                    backgroundColor: 'rgba(var(--theme-card-rgb), 0.95)',
+                    border: '1px solid rgba(var(--theme-accent-rgb), 0.2)',
+                    boxShadow: '0 25px 50px -12px rgba(var(--theme-accent-rgb), 0.3)'
+                }}
+              >
+                  <div>
+                      <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--theme-text-main)' }}>Session Goal</h3>
+                      <p className="text-sm" style={{ color: 'var(--theme-text-sub)' }}>What are you focusing on right now?</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 w-full gap-3">
+                      <button 
+                          onClick={() => confirmSessionStart('questions')}
+                          className="group relative flex items-center gap-4 p-4 rounded-2xl border transition-all hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 active:scale-95"
+                          style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)' }}
+                      >
+                          <div className="p-3 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                              <PenTool size={24} />
+                          </div>
+                          <div className="text-left">
+                              <span className="block text-sm font-bold" style={{ color: 'var(--theme-text-main)' }}>Solving Questions</span>
+                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-60" style={{ color: 'var(--theme-text-sub)' }}>Enables Logging & Stats</span>
+                          </div>
+                          <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500">
+                              <Play size={16} fill="currentColor" />
+                          </div>
+                      </button>
+
+                      <button 
+                          onClick={() => confirmSessionStart('theory')}
+                          className="group relative flex items-center gap-4 p-4 rounded-2xl border transition-all hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 active:scale-95"
+                          style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)' }}
+                      >
+                          <div className="p-3 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                              <BookOpen size={24} />
+                          </div>
+                          <div className="text-left">
+                              <span className="block text-sm font-bold" style={{ color: 'var(--theme-text-main)' }}>Reading Theory</span>
+                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-60" style={{ color: 'var(--theme-text-sub)' }}>Timer Only • No Distractions</span>
+                          </div>
+                          <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-500">
+                              <Play size={16} fill="currentColor" />
+                          </div>
+                      </button>
+                  </div>
+
+                  <button onClick={() => setShowIntentModal(false)} className="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                      Cancel
+                  </button>
+              </div>
+          </div>,
+          document.body
       )}
 
       {/* --- SETTINGS MODAL (PORTAL) --- */}

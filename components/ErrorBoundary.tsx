@@ -3,8 +3,8 @@ import React, { ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface Props {
-  children: ReactNode;
-  viewKey?: string; // specific prop to reset state on view change
+  children?: ReactNode;
+  viewKey?: string;
   onReset?: () => void;
 }
 
@@ -20,24 +20,36 @@ export class ErrorBoundary extends React.Component<Props, State> {
       hasError: false,
       error: null,
     };
+    this.handleReset = this.handleReset.bind(this);
+    this.handleReload = this.handleReload.bind(this);
   }
 
-  public static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  public componentDidUpdate(prevProps: Props) {
-      // If the view changes (e.g. switching tabs), reset the error state
-      if (this.props.viewKey !== prevProps.viewKey) {
-          this.setState({ hasError: false, error: null });
-      }
+  componentDidUpdate(prevProps: Props) {
+    if (this.props.viewKey !== prevProps.viewKey) {
+      this.setState({ hasError: false, error: null });
+    }
   }
 
-  public render() {
+  handleReset() {
+    this.setState({ hasError: false, error: null });
+    if (this.props.onReset) {
+      this.props.onReset();
+    }
+  }
+
+  handleReload() {
+    window.location.reload();
+  }
+
+  render() {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-in fade-in zoom-in duration-300">
@@ -53,16 +65,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
           
           <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xs">
             <button
-                onClick={() => {
-                    this.setState({ hasError: false, error: null });
-                    if (this.props.onReset) this.props.onReset();
-                }}
+                onClick={this.handleReset}
                 className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
             >
                 <RefreshCcw size={16} /> Try Again
             </button>
             <button
-                onClick={() => window.location.reload()}
+                onClick={this.handleReload}
                 className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-700 dark:text-white rounded-xl font-bold uppercase text-xs tracking-widest transition-all active:scale-95"
             >
                 Reload App
