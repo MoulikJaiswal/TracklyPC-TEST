@@ -271,8 +271,8 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
                             >
                                 <defs>
                                     <linearGradient id="grad-overall" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.4"/>
-                                        <stop offset="100%" stopColor="#6366f1" stopOpacity="0"/>
+                                        <stop offset="0%" stopColor="var(--theme-accent)" stopOpacity="0.4"/>
+                                        <stop offset="100%" stopColor="var(--theme-accent)" stopOpacity="0"/>
                                     </linearGradient>
                                     <linearGradient id="grad-phys" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3"/>
@@ -307,7 +307,7 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
                                         <path d={generateAreaPath('overall')} fill="url(#grad-overall)" className="transition-all duration-500" />
                                         <path 
                                             d={generatePath('overall')} 
-                                            fill="none" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                                            fill="none" stroke="var(--theme-accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
                                             className="drop-shadow-lg animate-in fade-in duration-1000"
                                             vectorEffect="non-scaling-stroke"
                                         />
@@ -355,12 +355,13 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
                                             <div 
                                                 className={`
                                                     absolute w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 shadow-md transition-all duration-300 pointer-events-none z-10
-                                                    ${hoveredIndex === i ? 'scale-150 bg-indigo-500' : 'bg-indigo-500 scale-100'}
+                                                    ${hoveredIndex === i ? 'scale-150' : 'scale-100'}
                                                 `}
                                                 style={{ 
                                                     left: `${leftPct}%`, 
                                                     top: `${(getY(d.overall) / height) * 100}%`,
-                                                    transform: 'translate(-50%, -50%)'
+                                                    transform: 'translate(-50%, -50%)',
+                                                    backgroundColor: 'var(--theme-accent)'
                                                 }}
                                             />
                                         ) : (

@@ -346,11 +346,13 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
             className="relative w-[300px] h-[300px] md:w-[450px] md:h-[450px] flex items-center justify-center cursor-pointer group select-none mx-auto"
           >
               {/* Pulse Effect */}
-              <div className={`
-                  absolute inset-0 rounded-full blur-[60px] opacity-20 transition-all duration-[4000ms] ease-in-out
-                  ${isActive ? 'scale-110 opacity-30 animate-pulse-slow' : 'scale-100'} 
-                  ${theme.bg}
-              `} />
+              <div 
+                  className={`
+                      absolute inset-0 rounded-full blur-[60px] opacity-20 transition-all duration-[4000ms] ease-in-out
+                      ${isActive ? 'scale-110 opacity-30 animate-pulse-slow' : 'scale-100'} 
+                  `} 
+                  style={{ backgroundColor: 'var(--theme-accent)' }}
+              />
               
               <svg className="w-full h-full transform -rotate-90 relative z-10 drop-shadow-2xl overflow-visible" viewBox="0 0 100 100">
                   {/* Track */}
@@ -358,12 +360,15 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                   {/* Progress */}
                   <circle 
                       cx="50" cy="50" r={radius} 
-                      className={`fill-transparent transition-all duration-1000 ease-linear ${theme.color}`}
+                      className="fill-transparent transition-all duration-1000 ease-linear"
                       strokeWidth="5"
                       strokeLinecap="round"
                       strokeDasharray={circumference}
                       strokeDashoffset={strokeDashoffset}
-                      style={{ filter: `drop-shadow(0 0 2px currentColor)` }}
+                      style={{ 
+                          stroke: 'var(--theme-accent)', 
+                          filter: `drop-shadow(0 0 2px var(--theme-accent))` 
+                      }}
                   />
                   {/* Knob */}
                   {isActive && (
@@ -391,7 +396,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                   >
                       {formatTime(timeLeft)}
                   </div>
-                  <div className={`flex items-center gap-2 mt-4 px-4 py-1.5 rounded-full border border-current transition-all duration-500 ${isActive ? theme.color + ' bg-opacity-10 bg-white dark:bg-white/5' : 'text-slate-400 border-transparent'}`}>
+                  <div className={`flex items-center gap-2 mt-4 px-4 py-1.5 rounded-full border border-current transition-all duration-500 ${isActive ? 'bg-opacity-10 bg-white dark:bg-white/5' : 'text-slate-400 border-transparent'}`} style={isActive ? { color: 'var(--theme-accent)' } : {}}>
                       {isActive ? (
                           <>
                             <div className="w-2 h-2 rounded-full bg-current animate-pulse" />
