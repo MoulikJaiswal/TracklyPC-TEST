@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus } from 'lucide-react';
+import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus, Search, ArrowDownWideNarrow, ArrowUpNarrowWide } from 'lucide-react';
 import { TestResult, Target as TargetType, SubjectBreakdown, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES, JEE_SYLLABUS } from '../constants';
@@ -417,6 +417,10 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
   const [isProcessingAttachment, setIsProcessingAttachment] = useState(false);
   const [isProcessingThumbnail, setIsProcessingThumbnail] = useState(false);
   
+  // Search & Sort State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+
   // Syllabus Picker State
   const [syllabusTab, setSyllabusTab] = useState<'Physics' | 'Chemistry' | 'Maths'>('Physics');
   
@@ -444,6 +448,27 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
       Maths: { ...DEFAULT_BREAKDOWN, unattempted: 25 }
     }
   });
+
+  const processedTests = useMemo(() => {
+      let filtered = tests;
+      
+      if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          filtered = filtered.filter(t => 
+              t.name.toLowerCase().includes(q) || 
+              t.testType?.toLowerCase().includes(q) ||
+              t.date.includes(q)
+          );
+      }
+
+      return filtered.sort((a, b) => {
+          if (sortOrder === 'newest') {
+              return b.timestamp - a.timestamp;
+          } else {
+              return a.timestamp - b.timestamp;
+          }
+      });
+  }, [tests, searchQuery, sortOrder]);
 
   // --- BLOB URL GENERATION FOR VIEWER ---
   useEffect(() => {
@@ -817,6 +842,32 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
 
       {/* --- NEW SAFE ANALYTICS COMPONENT --- */}
       <TestAnalytics tests={tests} />
+
+      {/* --- SEARCH & FILTER TOOLBAR --- */}
+      {tests.length > 0 && !isAdding && (
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/50 dark:bg-slate-900/50 p-2 rounded-2xl border border-slate-200 dark:border-white/5 backdrop-blur-sm animate-in fade-in duration-300">
+              {/* Search */}
+              <div className="relative flex-1 w-full sm:w-auto">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input
+                      type="text"
+                      placeholder="Search tests..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm outline-none focus:border-indigo-500 transition-all placeholder:text-slate-400 text-slate-900 dark:text-white"
+                  />
+              </div>
+
+              {/* Sort Toggle */}
+              <button
+                  onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+                  className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors w-full sm:w-auto justify-center"
+              >
+                  {sortOrder === 'newest' ? <ArrowDownWideNarrow size={16} /> : <ArrowUpNarrowWide size={16} />}
+                  {sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}
+              </button>
+          </div>
+      )}
 
       {/* Add Form */}
       {isAdding && (
@@ -1246,13 +1297,15 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
 
       {/* Grid Layout for Tests */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {tests.length === 0 ? (
+        {processedTests.length === 0 ? (
           <div className="col-span-full text-center py-20 opacity-60 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-3xl bg-white/30 dark:bg-white/5">
             <Trophy size={48} className="mx-auto mb-4 text-slate-400 dark:text-slate-500" />
-            <p className="text-xs uppercase font-bold tracking-[0.3em] text-slate-600 dark:text-slate-400">No test records found</p>
+            <p className="text-xs uppercase font-bold tracking-[0.3em] text-slate-600 dark:text-slate-400">
+                {searchQuery ? 'No matching tests found' : 'No test records found'}
+            </p>
           </div>
         ) : (
-          tests.map((t, i) => (
+          processedTests.map((t, i) => (
             <Card 
                 key={t.id} 
                 className="group flex flex-col justify-between hover:border-indigo-500/30 cursor-pointer overflow-hidden p-0" 
