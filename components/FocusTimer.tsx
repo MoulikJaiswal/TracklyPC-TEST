@@ -348,8 +348,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
               {/* Pulse Effect */}
               <div 
                   className={`
-                      absolute inset-0 rounded-full blur-[60px] opacity-20 transition-all duration-[4000ms] ease-in-out
-                      ${isActive ? 'scale-110 opacity-30 animate-pulse-slow' : 'scale-100'} 
+                      absolute inset-0 rounded-full blur-[60px] opacity-10 transition-all duration-1000 ease-in-out
+                      ${isActive ? 'animate-breathing' : 'scale-100'} 
                   `} 
                   style={{ backgroundColor: 'var(--theme-accent)' }}
               />
