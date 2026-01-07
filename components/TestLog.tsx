@@ -107,7 +107,10 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
     const sortedTests = useMemo(() => {
-        return [...tests].sort((a, b) => a.date.localeCompare(b.date)).slice(-10); // Last 10 tests max
+        // 1. Sort by timestamp DESC to get the absolute latest tests first
+        const recentTests = [...tests].sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
+        // 2. Reverse to display them chronologically (Oldest -> Newest) on the graph
+        return recentTests.reverse();
     }, [tests]);
 
     const dataPoints = useMemo(() => {
