@@ -269,8 +269,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
   const radius = 45; 
   const circumference = 2 * Math.PI * radius;
   const progressPercentage = timeLeft / (durations[mode] * 60);
-  const strokeDashoffset = Number.isFinite(progressPercentage) ? circumference * (1 - progressPercentage) : circumference;
-
+  
   const modeSelector = (
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 p-2 rounded-3xl shadow-sm">
           <div className="flex bg-slate-100 dark:bg-black/40 p-1.5 rounded-2xl">
@@ -345,41 +344,25 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
             onClick={handlePlayClick}
             className="relative w-[300px] h-[300px] md:w-[450px] md:h-[450px] flex items-center justify-center cursor-pointer group select-none mx-auto"
           >
-              {/* Pulse Effect - REDUCED BRIGHTNESS AND OPACITY */}
-              <div 
-                  className={`
-                      absolute inset-0 rounded-full blur-[60px] opacity-5 transition-all duration-1000 ease-in-out
-                      ${isActive ? 'animate-breathing' : 'scale-100'} 
-                  `} 
-                  style={{ backgroundColor: 'var(--theme-accent)' }}
-              />
-              
-              <svg className="w-full h-full transform -rotate-90 relative z-10 drop-shadow-lg overflow-visible" viewBox="0 0 100 100">
-                  {/* Track */}
-                  <circle cx="50" cy="50" r={radius} className="stroke-slate-200 dark:stroke-white/5 fill-transparent" strokeWidth="3" vectorEffect="non-scaling-stroke" />
-                  {/* Progress - REMOVED INTENSE DROP SHADOW FOR CRISP LOOK */}
+              <svg className="w-full h-full transform -rotate-90 relative z-10 overflow-visible" viewBox="0 0 100 100">
+                  {/* Track - Simple Thin White Outline */}
                   <circle 
-                      cx="50" cy="50" r={radius} 
-                      className="fill-transparent transition-all duration-1000 ease-linear"
-                      strokeWidth="5"
-                      strokeLinecap="round"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={strokeDashoffset}
-                      style={{ 
-                          stroke: 'var(--theme-accent)', 
-                          filter: `drop-shadow(0 0 1px var(--theme-accent))` 
-                      }}
+                    cx="50" cy="50" r={radius} 
+                    className="stroke-slate-200 dark:stroke-white/20 fill-transparent" 
+                    strokeWidth="1.5" 
+                    vectorEffect="non-scaling-stroke" 
                   />
-                  {/* Knob */}
+                  
+                  {/* Knob - Moving Dot */}
                   {isActive && (
                       <circle 
-                          cx="50" cy="50" r="2" 
+                          cx="50" cy="50" r="3" 
                           className="fill-white"
                           style={{
                               transformOrigin: '50px 50px',
                               transform: `rotate(${progressPercentage * 360}deg) translate(${radius}px)`,
                               transition: 'transform 1s linear',
-                              filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.5))'
+                              filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.5))'
                           }}
                       />
                   )}
@@ -628,15 +611,14 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
                   <div className="grid grid-cols-1 w-full gap-3">
                       <button 
                           onClick={() => confirmSessionStart('questions')}
-                          className="group relative flex items-center gap-4 p-4 rounded-2xl border transition-all hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 active:scale-95"
-                          style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)' }}
+                          className="group relative flex items-center gap-4 p-4 rounded-2xl border border-white/10 bg-black/20 hover:bg-black/40 transition-all hover:scale-[1.02] active:scale-95"
                       >
                           <div className="p-3 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-xl">
                               <PenTool size={24} />
                           </div>
                           <div className="text-left">
-                              <span className="block text-sm font-bold" style={{ color: 'var(--theme-text-main)' }}>Solving Questions</span>
-                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-60" style={{ color: 'var(--theme-text-sub)' }}>Enables Logging & Stats</span>
+                              <span className="block text-sm font-bold text-white">Solving Questions</span>
+                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-60 text-slate-400">Enables Logging & Stats</span>
                           </div>
                           <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500">
                               <Play size={16} fill="currentColor" />
@@ -645,15 +627,14 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
 
                       <button 
                           onClick={() => confirmSessionStart('theory')}
-                          className="group relative flex items-center gap-4 p-4 rounded-2xl border transition-all hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 active:scale-95"
-                          style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)' }}
+                          className="group relative flex items-center gap-4 p-4 rounded-2xl border border-white/10 bg-black/20 hover:bg-black/40 transition-all hover:scale-[1.02] active:scale-95"
                       >
                           <div className="p-3 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl">
                               <BookOpen size={24} />
                           </div>
                           <div className="text-left">
-                              <span className="block text-sm font-bold" style={{ color: 'var(--theme-text-main)' }}>Reading Theory</span>
-                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-60" style={{ color: 'var(--theme-text-sub)' }}>Timer Only • No Distractions</span>
+                              <span className="block text-sm font-bold text-white">Reading Theory</span>
+                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-60 text-slate-400">Timer Only • No Distractions</span>
                           </div>
                           <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-500">
                               <Play size={16} fill="currentColor" />
