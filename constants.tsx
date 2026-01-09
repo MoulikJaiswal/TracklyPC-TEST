@@ -83,6 +83,11 @@ export const JEE_SYLLABUS = {
   ]
 };
 
+export const STREAM_SUBJECTS = {
+  JEE: ['Physics', 'Chemistry', 'Maths'],
+  NEET: ['Physics', 'Chemistry', 'Biology']
+};
+
 export const MISTAKE_TYPES = [
   { id: 'concept', label: 'Concept Gap', color: 'text-orange-400', icon: <Brain size={14} /> },
   { id: 'formula', label: 'Formula Recall', color: 'text-blue-400', icon: <Zap size={14} /> },

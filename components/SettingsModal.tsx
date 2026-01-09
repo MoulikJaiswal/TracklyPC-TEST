@@ -4,7 +4,6 @@ import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX
 import { Card } from './Card';
 import { ThemeId } from '../types';
 import { THEME_CONFIG } from '../constants';
-import { BuyMeCoffee } from './BuyMeCoffee';
 import { User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -635,11 +634,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </div>
                  </button>
-
-                 {/* Buy Me Coffee */}
-                 <div className="pt-2">
-                    <BuyMeCoffee />
-                 </div>
              </div>
           </div>
 

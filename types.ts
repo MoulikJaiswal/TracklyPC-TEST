@@ -111,3 +111,5 @@ export interface Note {
 export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'resources' | 'library' | 'privacy';
 
 export type ThemeId = 'midnight' | 'obsidian' | 'void' | 'forest' | 'morning' | 'earth' | 'default-dark' | 'default-light';
+
+export type StreamType = 'JEE' | 'NEET';

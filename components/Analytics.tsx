@@ -1,18 +1,21 @@
+
 import React, { useMemo, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Target, Trophy, Brain, TrendingUp, Zap, Atom, Calculator, Grid, Lock, Crown,
-  X, CheckCircle2, AlertCircle, Clock, PieChart, Activity, Calendar
+  X, CheckCircle2, AlertCircle, Clock, PieChart, Activity, Calendar, Dna
 } from 'lucide-react';
-import { Session, TestResult, MistakeCounts } from '../types';
+import { Session, TestResult, MistakeCounts, StreamType } from '../types';
 import { Card } from './Card';
-import { MISTAKE_TYPES, JEE_SYLLABUS } from '../constants';
+import { MISTAKE_TYPES, JEE_SYLLABUS, STREAM_SUBJECTS } from '../constants';
+import { AdUnit } from './AdUnit';
 
 interface AnalyticsProps {
   sessions: Session[];
   tests: TestResult[];
   isPro: boolean;
   onOpenUpgrade: () => void;
+  stream?: StreamType;
 }
 
 // --- Topic Detail Modal ---
@@ -50,8 +53,8 @@ const TopicDetailModal = ({
         .sort((a, b) => b[1] - a[1])
         .filter(([_, count]) => count > 0);
 
-    const subjectColor = subject === 'Physics' ? 'text-blue-500' : subject === 'Chemistry' ? 'text-orange-500' : 'text-rose-500';
-    const subjectBg = subject === 'Physics' ? 'bg-blue-500' : subject === 'Chemistry' ? 'bg-orange-500' : 'bg-rose-500';
+    const subjectColor = subject === 'Physics' ? 'text-blue-500' : subject === 'Chemistry' ? 'text-orange-500' : subject === 'Maths' ? 'text-rose-500' : 'text-emerald-500';
+    const subjectBg = subject === 'Physics' ? 'bg-blue-500' : subject === 'Chemistry' ? 'bg-orange-500' : subject === 'Maths' ? 'bg-rose-500' : 'bg-emerald-500';
 
     return createPortal(
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
@@ -68,6 +71,7 @@ const TopicDetailModal = ({
                                 {subject === 'Physics' && <Atom size={12} className="text-blue-400" />}
                                 {subject === 'Chemistry' && <Zap size={12} className="text-orange-400" />}
                                 {subject === 'Maths' && <Calculator size={12} className="text-rose-400" />}
+                                {subject === 'Biology' && <Dna size={12} className="text-emerald-400" />}
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-white">{subject}</span>
                             </div>
                             <button onClick={onClose} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors">
@@ -189,18 +193,20 @@ const TopicDetailModal = ({
     );
 };
 
-const SubjectProficiency = memo(({ sessions }: { sessions: Session[] }) => {
+const SubjectProficiency = memo(({ sessions, stream }: { sessions: Session[], stream: StreamType }) => {
   const subjects = useMemo(() => [
     { id: 'Physics', icon: Atom, color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-500 dark:bg-blue-400' },
     { id: 'Chemistry', icon: Zap, color: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-500 dark:bg-orange-400' },
-    { id: 'Maths', icon: Calculator, color: 'text-rose-500 dark:text-rose-400', bg: 'bg-rose-500 dark:bg-rose-400' }
-  ], []);
+    { id: 'Maths', icon: Calculator, color: 'text-rose-500 dark:text-rose-400', bg: 'bg-rose-500 dark:bg-rose-400' },
+    { id: 'Biology', icon: Dna, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500 dark:bg-emerald-400' }
+  ].filter(s => STREAM_SUBJECTS[stream].includes(s.id as any)), [stream]);
 
   const stats = useMemo(() => {
       const acc = {
           Physics: { attempted: 0, correct: 0 },
           Chemistry: { attempted: 0, correct: 0 },
-          Maths: { attempted: 0, correct: 0 }
+          Maths: { attempted: 0, correct: 0 },
+          Biology: { attempted: 0, correct: 0 }
       };
       
       sessions.forEach(s => {
@@ -248,7 +254,7 @@ const SubjectProficiency = memo(({ sessions }: { sessions: Session[] }) => {
   );
 });
 
-const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade }: { sessions: Session[], isPro: boolean, onOpenUpgrade: () => void }) => {
+const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream }: { sessions: Session[], isPro: boolean, onOpenUpgrade: () => void, stream: StreamType }) => {
   const [selectedTopic, setSelectedTopic] = useState<{subject: string, topic: string} | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -272,6 +278,8 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade }: { sessions: Se
       }
   };
 
+  const visibleSubjects = Object.entries(JEE_SYLLABUS).filter(([subject]) => STREAM_SUBJECTS[stream].includes(subject as any));
+
   return (
     <div className="mt-8 space-y-6 relative">
       <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 ml-1 flex items-center gap-2">
@@ -280,11 +288,11 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade }: { sessions: Se
       </h3>
       
       <div className={`grid grid-cols-1 gap-6 transition-all duration-300 ${!isPro ? 'preserve-filter blur-sm opacity-60 pointer-events-none select-none grayscale-[0.2]' : ''}`}>
-         {(Object.entries(JEE_SYLLABUS) as [string, string[]][]).map(([subject, topics]) => (
+         {visibleSubjects.map(([subject, topics]) => (
             <div key={subject} className="bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-slate-200 dark:border-white/5">
                 <div className="flex items-center gap-2 mb-4">
                     <span className={`w-2 h-2 rounded-full ${
-                        subject === 'Physics' ? 'bg-blue-500' : subject === 'Chemistry' ? 'bg-orange-500' : 'bg-rose-500'
+                        subject === 'Physics' ? 'bg-blue-500' : subject === 'Chemistry' ? 'bg-orange-500' : subject === 'Maths' ? 'bg-rose-500' : 'bg-emerald-500'
                     }`} />
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{subject}</h4>
                 </div>
@@ -369,7 +377,7 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade }: { sessions: Se
   )
 });
 
-export const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPro, onOpenUpgrade }) => {
+export const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPro, onOpenUpgrade, stream = 'JEE' }) => {
   const stats = useMemo(() => {
     const totalAttempted = sessions.reduce((acc, s) => acc + (Number(s.attempted) || 0), 0);
     const totalCorrect = sessions.reduce((acc, s) => acc + (Number(s.correct) || 0), 0);
@@ -438,7 +446,7 @@ export const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPr
                 {/* Subject Breakdown */}
                 <div className="space-y-4">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 ml-1">Subject Proficiency</h3>
-                    <SubjectProficiency sessions={sessions} />
+                    <SubjectProficiency sessions={sessions} stream={stream} />
                 </div>
 
                 {/* Error Distribution */}
@@ -486,7 +494,13 @@ export const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPr
             </div>
             
             {/* Syllabus Heatmap Section - Locked if not Pro */}
-            <SyllabusHeatmap sessions={sessions} isPro={isPro} onOpenUpgrade={onOpenUpgrade} />
+            <SyllabusHeatmap sessions={sessions} isPro={isPro} onOpenUpgrade={onOpenUpgrade} stream={stream} />
+
+            <AdUnit 
+                client="ca-pub-YOUR_PUBLISHER_ID_HERE" 
+                slot="1234567890" 
+                label="Sponsored"
+            />
       </div>
     </div>
   );

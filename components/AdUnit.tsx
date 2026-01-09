@@ -28,10 +28,13 @@ export const AdUnit: React.FC<AdUnitProps> = ({
     label
 }) => {
     const initializedRef = useRef(false);
+    // Detect placeholder ID to show visual mock
+    const isPlaceholder = client.includes('YOUR_PUBLISHER_ID_HERE');
 
     useEffect(() => {
-        // Prevent pushing to adsbygoogle multiple times for the same component mount if strictly mode doubles it,
-        // though Google's script usually handles this, React strict mode can be tricky.
+        if (isPlaceholder) return;
+
+        // Prevent pushing to adsbygoogle multiple times
         if (initializedRef.current) return;
         
         try {
@@ -43,7 +46,23 @@ export const AdUnit: React.FC<AdUnitProps> = ({
         } catch (e) {
             console.error("AdSense error:", e);
         }
-    }, []);
+    }, [client, isPlaceholder]);
+
+    if (isPlaceholder) {
+        return (
+            <div className={`ad-wrapper my-8 flex flex-col items-center justify-center w-full overflow-hidden ${className}`}>
+                {label && (
+                    <span className="text-[9px] text-slate-400 dark:text-slate-600 uppercase tracking-widest mb-2 font-bold opacity-70">
+                        {label}
+                    </span>
+                )}
+                <div className="w-full bg-slate-100 dark:bg-slate-800/40 border-2 border-dashed border-slate-200 dark:border-white/10 min-h-[120px] flex flex-col items-center justify-center rounded-2xl overflow-hidden p-4 group transition-colors hover:border-indigo-500/20">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-indigo-400 transition-colors">Ad Space</p>
+                    <p className="text-[9px] text-slate-400/50 font-mono">Format: {format}</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={`ad-wrapper my-6 flex flex-col items-center justify-center w-full overflow-hidden ${className}`}>

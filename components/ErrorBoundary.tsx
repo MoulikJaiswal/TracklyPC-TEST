@@ -1,8 +1,9 @@
-import React, { ErrorInfo, ReactNode } from "react";
+
+import React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface Props {
-  children?: ReactNode;
+  children?: React.ReactNode;
   viewKey?: string;
   onReset?: () => void;
 }
@@ -25,7 +26,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 
