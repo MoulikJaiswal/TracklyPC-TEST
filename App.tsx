@@ -23,7 +23,8 @@ import {
   Crown,
   Wifi,
   Clock,
-  Book
+  Book,
+  Menu
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder } from './types';
 import { QUOTES, THEME_CONFIG } from './constants';
@@ -54,8 +55,7 @@ const Library = lazy(() => import('./components/Library').then(module => ({ defa
 
 const MotionDiv = motion.div as any;
 
-// Firestore Sanitizer: Recursively removes keys with 'undefined' values from objects.
-// This is crucial because Firestore does not support 'undefined' and will throw an error.
+// Firestore Sanitizer
 const sanitizeForFirestore = (data: any): any => {
   if (Array.isArray(data)) {
     return data.map(item => sanitizeForFirestore(item));
@@ -93,7 +93,7 @@ const safeJSONParse = <T,>(key: string, fallback: T): T => {
   }
 };
 
-// Helper for local date string YYYY-MM-DD (Duplicate for App scope)
+// Helper for local date string YYYY-MM-DD
 const getLocalDate = () => {
   const d = new Date();
   const year = d.getFullYear();
@@ -115,10 +115,7 @@ const TracklyLogo = React.memo(({ collapsed = false, id }: { collapsed?: boolean
     <div id={id} className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} select-none transition-all duration-300 transform-gpu will-change-transform`}>
       <div className="relative w-8 h-8 flex-shrink-0 text-slate-900 dark:text-white">
           <svg viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className="w-full h-full filter drop-shadow-[0_0_8px_rgba(99,102,241,0.3)]">
-             {/* Top Bar: Wide Horizontal Capsule */}
              <path d="M10 22.5C10 15.5964 15.5964 10 22.5 10H77.5C84.4036 10 90 15.5964 90 22.5C90 29.4036 84.4036 35 77.5 35H22.5C15.5964 35 10 29.4036 10 22.5Z" />
-             
-             {/* Stem: Vertical Pillar with Rounded Bottom, slightly detached */}
              <path d="M37.5 42H62.5V77.5C62.5 84.4036 56.9036 90 50 90C43.0964 90 37.5 84.4036 37.5 77.5V42Z" />
           </svg>
       </div>
@@ -150,9 +147,6 @@ const AnimatedBackground = React.memo(({
 }) => {
   const config = THEME_CONFIG[themeId];
   
-  // --- LOW GRAPHICS MODE ---
-  // If graphics are low, we return a static solid background immediately.
-  // This saves GPU (no blurs, no transparency layers).
   if (!graphicsEnabled) {
       return (
         <div 
@@ -162,7 +156,6 @@ const AnimatedBackground = React.memo(({
                 ...(customBackground ? { backgroundImage: `url(${customBackground})`, backgroundSize: 'cover', backgroundPosition: customBackgroundAlign } : {})
             }}
         >
-            {/* Very cheap radial gradient for minimal depth if no custom bg */}
             {!customBackground && (
                 <div className="absolute inset-0 opacity-20" style={{ 
                     background: `radial-gradient(circle at 50% 0%, ${config.colors.accent}40, transparent 70%)` 
@@ -173,11 +166,7 @@ const AnimatedBackground = React.memo(({
       );
   }
 
-  // --- REDUCED MOTION MODE ---
-  // If animations are disabled, we simply don't mount the particle logic or parallax listeners.
-  // But we DO render the nice background layers (since graphics are enabled).
   const shouldAnimate = animationsEnabled && showParticles;
-
   const containerRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<number | undefined>(undefined);
 
@@ -279,7 +268,6 @@ const AnimatedBackground = React.memo(({
     >
       <div className="absolute inset-0 bg-noise opacity-[0.03] z-[5] pointer-events-none mix-blend-overlay transform-gpu"></div>
 
-      {/* CUSTOM BACKGROUND LAYER */}
       {customBackground && (
           <div 
             className="absolute inset-0 z-[0] bg-cover bg-no-repeat transition-opacity duration-700"
@@ -290,10 +278,8 @@ const AnimatedBackground = React.memo(({
             }}
           />
       )}
-      {/* Dimming layer for custom background to ensure legibility */}
       {customBackground && <div className="absolute inset-0 z-[0] bg-black/40 dark:bg-black/60" />}
 
-      {/* Theme specific background elements - only show if no custom BG or if they look good layered */}
       {!customBackground && themeId === 'midnight' && (
         <>
             <div 
@@ -579,7 +565,6 @@ const Sidebar = React.memo(({
         })}
       </nav>
 
-      {/* Pro Badge */}
       {(!isPro || (isPro && PAYWALL_CONFIG.ENABLED)) && (
         <div className={`px-4 mb-2 ${isCollapsed ? 'hidden' : 'block'}`}>
             {!isPro ? (
@@ -609,7 +594,6 @@ const Sidebar = React.memo(({
         </div>
       )}
 
-      {/* Auth Status Section */}
       <div className={`px-4 py-2 ${isCollapsed ? 'hidden' : 'block'}`}>
           {user ? (
             <div className="flex items-center gap-3 p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
@@ -644,7 +628,6 @@ const Sidebar = React.memo(({
       </div>
 
       <div className="p-4 border-t border-slate-200 dark:border-white/5 w-full space-y-2">
-        {/* Install Button (Visible if not installed) */}
         {!isInstalled && (
             <button 
               onClick={onInstall}
@@ -762,8 +745,9 @@ const App: React.FC = () => {
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
 
-  const [touchStart, setTouchStart] = useState<{ x: number, y: number } | null>(null);
-  const [touchEnd, setTouchEnd] = useState<{ x: number, y: number } | null>(null);
+  // Touch handling optimization using useRef
+  const touchStartRef = useRef<{ x: number, y: number } | null>(null);
+  const touchEndRef = useRef<{ x: number, y: number } | null>(null);
   const [direction, setDirection] = useState(0);
   const minSwipeDistance = 50;
   
@@ -798,6 +782,15 @@ const App: React.FC = () => {
 
   // Initialize Performance Monitor (Only active if graphics are ON and Lag Detection is ENABLED)
   const { isLagging, dismiss: dismissLag } = usePerformanceMonitor(graphicsEnabled && lagDetectionEnabled);
+
+  const changeView = useCallback((newView: ViewType) => {
+     if (view === newView) return;
+     const currentIdx = TABS.findIndex(t => t.id === view);
+     const newIdx = TABS.findIndex(t => t.id === newView);
+     setDirection(newIdx > currentIdx ? 1 : -1);
+     setView(newView);
+     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [view]);
 
   // Clock Ticker
   useEffect(() => {
@@ -1651,15 +1644,6 @@ const App: React.FC = () => {
       setSidebarCollapsed(prev => !prev);
   }, []);
 
-  const changeView = useCallback((newView: ViewType) => {
-     if (view === newView) return;
-     const currentIdx = TABS.findIndex(t => t.id === view);
-     const newIdx = TABS.findIndex(t => t.id === newView);
-     setDirection(newIdx > currentIdx ? 1 : -1);
-     setView(newView);
-     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [view]);
-
   const startTutorial = () => {
     setIsTutorialActive(true);
     setTutorialStep(0);
@@ -1681,18 +1665,18 @@ const App: React.FC = () => {
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null); 
-    setTouchStart({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+    touchEndRef.current = null; 
+    touchStartRef.current = { x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY };
   }
 
   const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+    touchEndRef.current = { x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY };
   }
 
   const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    const xDistance = touchStart.x - touchEnd.x;
-    const yDistance = touchStart.y - touchEnd.y;
+    if (!touchStartRef.current || !touchEndRef.current) return;
+    const xDistance = touchStartRef.current.x - touchEndRef.current.x;
+    const yDistance = touchStartRef.current.y - touchEndRef.current.y;
     if (Math.abs(yDistance) > Math.abs(xDistance)) return;
 
     const isLeftSwipe = xDistance > minSwipeDistance;
@@ -1703,8 +1687,8 @@ const App: React.FC = () => {
       if (isLeftSwipe && currentIndex < TABS.length - 1) changeView(TABS[currentIndex + 1].id as ViewType);
       if (isRightSwipe && currentIndex > 0) changeView(TABS[currentIndex - 1].id as ViewType);
     }
-    setTouchStart(null);
-    setTouchEnd(null);
+    touchStartRef.current = null;
+    touchEndRef.current = null;
   }
 
   const themeConfig = THEME_CONFIG[theme];

@@ -404,12 +404,11 @@ const SubjectDetailModal = memo(({
           </div>
         </div>
 
-        {/* Content */}
+        {/* Content Area */}
         <div className="p-6 overflow-y-auto flex-grow overscroll-contain bg-white dark:bg-[#0f172a]">
           {activeTab === 'log' ? (
-            <div className="space-y-8 pb-10">
+            <div className="space-y-8">
               {step === 1 ? (
-                <>
                   <div className="space-y-6">
                      <div className="space-y-2">
                         <label className={`text-[10px] uppercase font-bold ${theme.lightText} ml-1 tracking-widest`}>Topic / Chapter</label>
@@ -447,20 +446,6 @@ const SubjectDetailModal = memo(({
                         </div>
                      </div>
                   </div>
-                  
-                  <div className="pt-4">
-                      <button 
-                        disabled={!logData.topic || logData.attempted < 1} 
-                        onClick={() => {
-                          if (incorrectCount > 0) setStep(2);
-                          else handleSave();
-                        }}
-                        className={`w-full py-4 rounded-2xl text-white font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${theme.gradient}`}
-                      >
-                        {incorrectCount > 0 ? 'Next: Review Mistakes' : 'Save Session'}
-                      </button>
-                  </div>
-                </>
               ) : (
                 <>
                   <div className="p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-2xl flex justify-between items-center mb-4">
@@ -496,17 +481,6 @@ const SubjectDetailModal = memo(({
                           </div>
                         )
                     })}
-                  </div>
-
-                  <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100 dark:border-white/5">
-                    <button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 font-bold uppercase text-xs tracking-wider hover:bg-slate-200 dark:hover:bg-white/10 active:scale-95 transition-all">Back</button>
-                    <button 
-                      onClick={handleSave} 
-                      disabled={allocatedMistakes !== incorrectCount}
-                      className="flex-[2] py-3 rounded-xl bg-emerald-600 text-white font-bold uppercase text-xs tracking-wider hover:bg-emerald-500 disabled:opacity-50 shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
-                    >
-                      Save Progress
-                    </button>
                   </div>
                 </>
               )}
@@ -587,6 +561,35 @@ const SubjectDetailModal = memo(({
             </div>
           )}
         </div>
+
+        {/* Sticky Action Footer */}
+        {activeTab === 'log' && (
+            <div className="p-4 border-t border-slate-100 dark:border-white/5 bg-slate-50/80 dark:bg-black/20 backdrop-blur-md shrink-0 safe-area-bottom">
+               {step === 1 ? (
+                  <button 
+                    disabled={!logData.topic || logData.attempted < 1} 
+                    onClick={() => {
+                      if (incorrectCount > 0) setStep(2);
+                      else handleSave();
+                    }}
+                    className={`w-full py-4 rounded-2xl text-white font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${theme.gradient}`}
+                  >
+                    {incorrectCount > 0 ? 'Next: Review Mistakes' : 'Save Session'}
+                  </button>
+               ) : (
+                  <div className="flex gap-3">
+                    <button onClick={() => setStep(1)} className="flex-1 py-3 rounded-xl bg-white dark:bg-white/5 text-slate-600 dark:text-slate-400 font-bold uppercase text-xs tracking-wider hover:bg-slate-100 dark:hover:bg-white/10 active:scale-95 transition-all border border-slate-200 dark:border-white/10">Back</button>
+                    <button 
+                      onClick={handleSave} 
+                      disabled={allocatedMistakes !== incorrectCount}
+                      className="flex-[2] py-3 rounded-xl bg-emerald-600 text-white font-bold uppercase text-xs tracking-wider hover:bg-emerald-500 disabled:opacity-50 shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
+                    >
+                      Save Progress
+                    </button>
+                  </div>
+               )}
+            </div>
+        )}
       </div>
     </div>
   );
