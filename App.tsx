@@ -24,7 +24,8 @@ import {
   Wifi,
   Clock,
   Book,
-  Menu
+  Menu,
+  Hammer
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder } from './types';
 import { QUOTES, THEME_CONFIG } from './constants';
@@ -38,6 +39,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { getProStatus, PAYWALL_CONFIG } from './components/proController';
 import { GoogleIcon } from './components/GoogleIcon';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { Card } from './components/Card';
 
 // Firebase Imports
 import { auth, db, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
@@ -2044,14 +2046,15 @@ const App: React.FC = () => {
                         <Resources />
                     )}
                     {view === 'library' && (
-                        <Library 
-                            notes={notes}
-                            folders={folders}
-                            onSaveNote={handleSaveNote}
-                            onDeleteNote={handleDeleteNote}
-                            onSaveFolder={handleSaveFolder}
-                            onDeleteFolder={handleDeleteFolder}
-                        />
+                        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in fade-in zoom-in duration-300">
+                            <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 rounded-full mb-4">
+                                <Hammer size={32} className="text-indigo-500" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Under Maintenance</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
+                                We are rebuilding the Library to be faster and smarter. Check back soon for the upgrade!
+                            </p>
+                        </div>
                     )}
                     {view === 'privacy' && (
                         <PrivacyPolicy onBack={() => setView('daily')} />

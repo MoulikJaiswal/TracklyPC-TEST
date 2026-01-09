@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, memo, useRef } from 'react';
-import { Plus, Trash2, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Target, Trophy, BookOpen } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Target, Trophy, BookOpen, Hammer } from 'lucide-react';
 import { Target as TargetType, Note, Folder as FolderType } from '../types';
 import { Card } from './Card';
 import { Library } from './Library';
@@ -375,15 +375,14 @@ export const Planner: React.FC<PlannerProps> = memo(({
             </div>
         </>
       ) : (
-        <div className="animate-in fade-in duration-300">
-            <Library 
-                notes={notes}
-                folders={folders}
-                onSaveNote={onSaveNote}
-                onDeleteNote={onDeleteNote}
-                onSaveFolder={onSaveFolder}
-                onDeleteFolder={onDeleteFolder}
-            />
+        <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
+            <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 rounded-full mb-4">
+                <Hammer size={32} className="text-indigo-500" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Under Maintenance</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
+                We are rebuilding the Library to be faster and smarter. Check back soon for the upgrade!
+            </p>
         </div>
       )}
 
