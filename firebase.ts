@@ -2,6 +2,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
+import { getAnalytics, logEvent } from 'firebase/analytics';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -10,7 +11,8 @@ const firebaseConfig = {
   projectId: "tracklypc",
   storageBucket: "tracklypc.firebasestorage.app",
   messagingSenderId: "509028484372",
-  appId: "1:509028484372:web:999d1d261e487ee25cae01"
+  appId: "1:509028484372:web:999d1d261e487ee25cae01",
+  measurementId: "G-87JBTQW6WN"
 };
 
 // Initialize Firebase
@@ -20,6 +22,19 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Initialize Analytics (Safe for SSR/Non-browser environments if applicable)
+let analytics: any = null;
+if (typeof window !== 'undefined') {
+  analytics = getAnalytics(app);
+}
+
+// Helper to log events safely
+export const logAnalyticsEvent = (eventName: string, eventParams?: { [key: string]: any }) => {
+  if (analytics) {
+    logEvent(analytics, eventName, eventParams);
+  }
+};
 
 // Create and export a promise that resolves when persistence is enabled.
 // The app will wait for this promise before performing any DB operations.

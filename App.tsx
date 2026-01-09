@@ -40,7 +40,7 @@ import { GoogleIcon } from './components/GoogleIcon';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 
 // Firebase Imports
-import { auth, db, googleProvider, dbReadyPromise } from './firebase';
+import { auth, db, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch } from 'firebase/firestore';
 
@@ -797,6 +797,14 @@ const App: React.FC = () => {
       const timer = setInterval(() => setCurrentTime(new Date()), 1000);
       return () => clearInterval(timer);
   }, []);
+
+  // Analytics Screen View Tracking
+  useEffect(() => {
+    logAnalyticsEvent('screen_view', {
+      firebase_screen: view,
+      firebase_screen_class: 'App'
+    });
+  }, [view]);
 
   const activateLiteMode = useCallback(() => {
       setGraphicsEnabled(false);
