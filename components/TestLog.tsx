@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus, Search, ArrowDownWideNarrow, ArrowUpNarrowWide } from 'lucide-react';
+import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus, Search, ArrowDownWideNarrow, ArrowUpNarrowWide, Hammer } from 'lucide-react';
 import { TestResult, Target as TargetType, SubjectBreakdown, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES, JEE_SYLLABUS } from '../constants';
@@ -1233,56 +1233,17 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
             {/* File Upload Section */}
             <div className="space-y-2">
                <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Attachment</label>
-               {!previewFile ? (
-                 <div 
-                    onClick={() => !isProcessingAttachment && fileInputRef.current?.click()}
-                    className={`w-full border-2 border-dashed border-slate-700 bg-black/20 rounded-2xl p-6 flex flex-col items-center justify-center transition-all group ${isProcessingAttachment ? 'cursor-wait' : 'hover:border-indigo-500 cursor-pointer'}`}
-                 >
-                    <div className={`p-3 bg-white/5 rounded-full mb-2 group-hover:scale-110 transition-transform shadow-sm ${isProcessingAttachment ? 'animate-spin' : ''}`}>
-                        {isProcessingAttachment ? <Loader2 className="text-indigo-400" size={20} /> : <UploadCloud className="text-indigo-400" size={20} />}
+               <div className="w-full border-2 border-dashed border-slate-700 bg-black/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-not-allowed opacity-75">
+                    <div className="p-3 bg-indigo-500/10 rounded-full mb-3 border border-indigo-500/20">
+                        <Hammer className="text-indigo-400" size={20} />
                     </div>
-                    <p className="text-xs font-bold text-slate-400 group-hover:text-indigo-400 transition-colors">
-                        {isProcessingAttachment ? 'Processing...' : 'Click to upload Scorecard / PDF'}
+                    <p className="text-xs font-bold text-slate-300 uppercase tracking-wide mb-1">
+                        Uploads Paused
                     </p>
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        accept="image/*,application/pdf"
-                        onChange={handleFileChange}
-                        disabled={isProcessingAttachment}
-                    />
-                 </div>
-               ) : (
-                 <div className="flex items-center justify-between p-3 bg-black/20 border border-slate-700 rounded-xl gap-2">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                        {previewFile.thumbnail || (previewFile.type === 'image' && formData.attachment) ? (
-                            <img src={previewFile.thumbnail || formData.attachment || undefined} alt="Preview" className="w-10 h-10 rounded-md object-cover"/>
-                        ) : (
-                            <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400 shrink-0">
-                                {previewFile.type === 'pdf' ? <FileText size={18} /> : <ImageIcon size={18} />}
-                            </div>
-                        )}
-                        <span className="text-xs font-bold text-slate-200 truncate">{previewFile.name}</span>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                        {previewFile.type === 'pdf' && (
-                            <button 
-                                type="button" 
-                                onClick={() => thumbnailInputRef.current?.click()}
-                                className="p-2 hover:bg-indigo-500/10 rounded-lg text-indigo-400 transition-colors"
-                                title="Add custom preview"
-                                disabled={isProcessingThumbnail}
-                            >
-                                {isProcessingThumbnail ? <Loader2 size={16} className="animate-spin"/> : <ImagePlus size={16}/>}
-                            </button>
-                        )}
-                        <button type="button" onClick={removeAttachment} className="p-2 hover:bg-rose-500/10 rounded-lg text-rose-500 transition-colors">
-                            <X size={16} />
-                        </button>
-                    </div>
-                 </div>
-               )}
+                    <p className="text-[10px] text-slate-500 max-w-[200px] leading-relaxed">
+                        We are currently upgrading our storage infrastructure. Attachments will be back soon.
+                    </p>
+               </div>
             </div>
 
             <button type="submit" 
