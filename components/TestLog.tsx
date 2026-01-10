@@ -1072,7 +1072,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                     <button 
                         type="button" 
                         onClick={handleCalculateMarks}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded border border-indigo-500/30 text-theme-accent-on-light text-[9px] font-bold uppercase hover:bg-indigo-500/10 transition-colors ml-auto"
+                        className="flex items-center gap-1 px-2 py-0.5 rounded border border-indigo-500/30 text-indigo-400 text-[9px] font-bold uppercase hover:bg-indigo-500/10 transition-colors ml-auto"
                     >
                         <Zap size={10} />
                         Auto-Calc
