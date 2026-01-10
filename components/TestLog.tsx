@@ -6,6 +6,7 @@ import { TestResult, Target as TargetType, SubjectBreakdown, MistakeCounts } fro
 import { Card } from './Card';
 import { MISTAKE_TYPES, JEE_SYLLABUS } from '../constants';
 import { AdUnit } from './AdUnit';
+import { ConfirmationModal } from './ConfirmationModal';
 
 // Helper for local date string YYYY-MM-DD
 const getLocalDate = () => {
@@ -420,6 +421,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [isProcessingAttachment, setIsProcessingAttachment] = useState(false);
   const [isProcessingThumbnail, setIsProcessingThumbnail] = useState(false);
+  const [deletingTestId, setDeletingTestId] = useState<string | null>(null);
   
   // Search & Sort State
   const [searchQuery, setSearchQuery] = useState('');
@@ -781,6 +783,13 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
     });
     setGlobalQCount(75);
   };
+
+  const handleConfirmDelete = useCallback(() => {
+      if (deletingTestId) {
+          onDelete(deletingTestId);
+          setDeletingTestId(null);
+      }
+  }, [deletingTestId, onDelete]);
 
   const getTestSubtitle = (test: TestResult) => {
     if (test.testType === 'PYP') {
@@ -1370,7 +1379,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                         </button>
                     )}
                     <button 
-                        onClick={(e) => { e.stopPropagation(); onDelete(t.id); }} 
+                        onClick={(e) => { e.stopPropagation(); setDeletingTestId(t.id); }} 
                         className="p-1.5 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 transition-colors"
                     >
                         <Trash2 size={14} />
@@ -1499,6 +1508,41 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                                                   <span className="block text-[8px] uppercase font-bold text-slate-400 tracking-wider">Skip</span>
                                               </div>
                                           </div>
+
+                                          {/* Expanded Mistake View */}
+                                          {isSelected && (
+                                              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 animate-in slide-in-from-top-2 duration-300 relative z-10 cursor-default" onClick={(e) => e.stopPropagation()}>
+                                                  <div className="flex justify-between items-center mb-3">
+                                                      <h6 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Mistake Analysis</h6>
+                                                      <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded">
+                                                          {Object.values(d.mistakes || {}).reduce((a:number, b:number) => a + (Number(b)||0), 0)} Tagged
+                                                      </span>
+                                                  </div>
+                                                  
+                                                  <div className="space-y-2">
+                                                      {MISTAKE_TYPES.map(type => {
+                                                          const count = d.mistakes?.[type.id as keyof MistakeCounts] || 0;
+                                                          if (count <= 0) return null;
+                                                          
+                                                          return (
+                                                              <div key={type.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+                                                                  <div className="flex items-center gap-2">
+                                                                      <span className={`${type.color} scale-75`}>{type.icon}</span>
+                                                                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">{type.label}</span>
+                                                                  </div>
+                                                                  <span className="text-xs font-mono font-bold text-slate-900 dark:text-white bg-white dark:bg-black/20 px-1.5 rounded">{count}</span>
+                                                              </div>
+                                                          )
+                                                      })}
+                                                      
+                                                      {Object.values(d.mistakes || {}).reduce((a:number, b:number) => a + (Number(b)||0), 0) === 0 && (
+                                                          <div className="text-center py-2 opacity-50">
+                                                              <p className="text-[10px] text-slate-500 italic">No specific mistakes recorded</p>
+                                                          </div>
+                                                      )}
+                                                  </div>
+                                              </div>
+                                          )}
                                       </div>
                                   )
                               })}
@@ -1538,6 +1582,15 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
           </div>,
           document.body
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+          isOpen={!!deletingTestId}
+          onClose={() => setDeletingTestId(null)}
+          onConfirm={handleConfirmDelete}
+          title="Delete Test Log?"
+          message="Are you sure you want to delete this test record? This action cannot be undone."
+      />
 
       {/* Ad Unit at the bottom of the log */}
       <AdUnit 
