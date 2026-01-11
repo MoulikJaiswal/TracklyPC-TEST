@@ -5,6 +5,7 @@ import { Session, Target, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
 import { AdUnit } from './AdUnit';
+import { logAnalyticsEvent } from '../firebase';
 
 // Helper for local date string YYYY-MM-DD
 const getLocalDate = (d = new Date()) => {
@@ -305,6 +306,7 @@ const SubjectDetailModal = memo(({
 
   const handleSave = () => {
     onSaveSession({ subject, ...logData });
+    logAnalyticsEvent('manual_session_logged', { subject, topic: logData.topic, questions: logData.attempted });
     // Reset and show history/success
     setLogData({ topic: '', attempted: 0, correct: 0, mistakes: {} });
     setStep(1);
@@ -631,6 +633,8 @@ export const Dashboard = memo(({
       // 1. Capture Position
       scrollPosRef.current = window.scrollY;
       
+      logAnalyticsEvent('dashboard_subject_open', { subject });
+
       const isMobile = window.innerWidth < 768;
       
       if (isMobile) {

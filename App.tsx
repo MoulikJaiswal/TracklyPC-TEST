@@ -1529,6 +1529,11 @@ const App: React.FC = () => {
         setTimeout(() => setShowTestReminder(false), 8000);
     }
 
+    // Analytics: Log task completion
+    if (completed && target && !target.completed) {
+      logAnalyticsEvent('task_completed', { type: target.type || 'task' });
+    }
+
     if (user) {
         if (target) await setDoc(doc(db, 'users', user.uid, 'targets', id), sanitizeForFirestore({ ...target, completed }));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {

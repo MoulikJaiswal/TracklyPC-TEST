@@ -30,6 +30,7 @@ import {
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
 import { Target, QuestionLog, Session } from '../types';
 import { AdUnit } from './AdUnit';
+import { logAnalyticsEvent } from '../firebase';
 
 interface FocusTimerProps {
   targets?: Target[];
@@ -159,10 +160,21 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
   const [showIntentModal, setShowIntentModal] = useState(false);
   const [sessionIntent, setSessionIntent] = useState<'questions' | 'theory'>('questions');
 
+  // Track Timer Activity
+  useEffect(() => {
+      if (isActive) {
+          logAnalyticsEvent('timer_start', { mode, intent: sessionIntent });
+      } else if (!isActive && timeLeft > 0 && timeLeft < durations[mode] * 60) {
+          // Log pause only if session was in progress
+          logAnalyticsEvent('timer_pause', { mode });
+      }
+  }, [isActive]);
+
   // Automatically show report card when time runs out in Focus Mode (only if logs exist)
   useEffect(() => {
       if (mode === 'focus' && timeLeft === 0 && sessionLogs.length > 0 && !isActive) {
           setShowReport(true);
+          logAnalyticsEvent('timer_finish_auto', { mode });
       }
   }, [timeLeft, mode, sessionLogs.length, isActive]);
 
@@ -171,6 +183,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
           const confirmed = window.confirm("You are currently in a Focus Session. Are you sure you want to take a break?");
           if (!confirmed) return;
       }
+      logAnalyticsEvent('timer_mode_switch', { from: mode, to: newMode });
       onSwitchMode(newMode);
   };
 
@@ -198,6 +211,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
   const handlePlusOne = (e?: React.MouseEvent) => {
       e?.stopPropagation();
       if (!isPro && sessionCount >= 3) {
+          logAnalyticsEvent('paywall_hit', { feature: 'timer_plus_one' });
           onOpenUpgrade();
           return;
       }
@@ -217,6 +231,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
       };
       onAddLog(newLog, String(selectedSubject));
       setShowTagger(false);
+      logAnalyticsEvent('timer_log_question', { result, subject: selectedSubject });
   };
 
   const handleCloseTagger = () => {
@@ -235,6 +250,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
   const handleSaveAndClose = () => {
       onCompleteSession();
       setShowReport(false);
+      logAnalyticsEvent('timer_session_complete', { 
+          mode, 
+          questionsLogged: sessionLogs.length,
+          duration: durations[mode] // approximate duration planned
+      });
   };
 
   const formatTime = (seconds: number) => {
@@ -321,7 +341,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
           {/* Zen Mode Toggle (Desktop Overlay) */}
           {!zenMode && (
               <button 
-                onClick={() => setZenMode(true)}
+                onClick={() => { setZenMode(true); logAnalyticsEvent('zen_mode_enter'); }}
                 className="absolute top-0 right-0 p-3 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors z-20 md:block hidden"
                 title="Enter Zen Mode"
               >
@@ -332,7 +352,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo(({
           {/* Close Zen Mode Button */}
           {zenMode && (
               <button 
-                onClick={() => setZenMode(false)}
+                onClick={() => { setZenMode(false); logAnalyticsEvent('zen_mode_exit'); }}
                 className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white/50 hover:text-white transition-all z-50 backdrop-blur-md"
               >
                   <Minimize2 size={24} />
