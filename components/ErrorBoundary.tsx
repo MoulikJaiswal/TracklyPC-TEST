@@ -13,11 +13,16 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Use class property for state initialization for cleaner syntax and to avoid constructor boilerplate.
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+  // Fix: The user's build setup might not be handling class properties correctly.
+  // Reverting to constructor-based state initialization.
+  // This resolves errors where `this.props` and `this.setState` were not found.
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -33,7 +38,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
   }
 
-  // Fix: Use arrow function to automatically bind `this`, removing the need for manual binding in the constructor.
   handleReset = () => {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {

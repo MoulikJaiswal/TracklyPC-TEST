@@ -82,6 +82,29 @@ const ParticipantCard = memo(({
     canKick: boolean,
     onKick: () => void
 }) => {
+    const [isLikelyOffline, setIsLikelyOffline] = useState(false);
+
+    useEffect(() => {
+        const checkStatus = () => {
+            const sinceLastActivity = Date.now() - participant.lastActivity;
+            // Heartbeat is every 30s. If we miss 3, they are likely offline.
+            const OFFLINE_THRESHOLD = 90 * 1000; 
+            
+            // isAway is an explicit status set by the user's client when AFK.
+            // If they are just AFK, we shouldn't mark them as offline.
+            if (!participant.isAway && sinceLastActivity > OFFLINE_THRESHOLD) {
+                setIsLikelyOffline(true);
+            } else {
+                setIsLikelyOffline(false);
+            }
+        };
+
+        checkStatus();
+        const interval = setInterval(checkStatus, 15000); // Check every 15 seconds
+
+        return () => clearInterval(interval);
+    }, [participant.lastActivity, participant.isAway]);
+
     const getSubjectIcon = (subj: string) => {
         switch(subj) {
             case 'Physics': return <Atom size={14} className="text-blue-400" />;
@@ -96,7 +119,7 @@ const ParticipantCard = memo(({
         <div className={`
             relative overflow-hidden rounded-2xl p-4 border transition-all duration-300 group
             ${isMe ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-white/5 border-white/5'}
-            ${participant.isAway ? 'opacity-60 grayscale-[0.5]' : ''}
+            ${(participant.isAway || isLikelyOffline) ? 'opacity-60 grayscale-[0.5]' : ''}
         `}>
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-2">
@@ -107,7 +130,11 @@ const ParticipantCard = memo(({
                             participant.displayName.charAt(0).toUpperCase()
                         )}
                         {/* Status Dot */}
-                        <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${participant.isAway ? 'bg-amber-500' : participant.status === 'focus' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                        <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${
+                            isLikelyOffline ? 'bg-slate-500' :
+                            participant.isAway ? 'bg-amber-500' : 
+                            participant.status === 'focus' ? 'bg-emerald-500' : 'bg-slate-500'
+                        }`} />
                     </div>
                     <div className="overflow-hidden">
                         <div className="flex items-center gap-1">
@@ -115,7 +142,7 @@ const ParticipantCard = memo(({
                             {isHost && <Crown size={12} className="text-amber-500 fill-amber-500" />}
                         </div>
                         <p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
-                            {participant.isAway ? 'Away' : participant.status === 'focus' ? participant.subject : 'On Break'}
+                            {isLikelyOffline ? 'Offline' : participant.isAway ? 'Away' : participant.status === 'focus' ? participant.subject : 'On Break'}
                         </p>
                     </div>
                 </div>
@@ -163,8 +190,8 @@ const ParticipantCard = memo(({
             ) : (
                 <div className="h-8 flex items-center justify-center opacity-50">
                     <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1">
-                        {participant.isAway ? <Eye size={12} /> : <Coffee size={12} />} 
-                        {participant.isAway ? 'Away from Keyboard' : 'Idle'}
+                        {isLikelyOffline ? <Power size={12} /> : participant.isAway ? <Eye size={12} /> : <Coffee size={12} />} 
+                        {isLikelyOffline ? 'Offline' : participant.isAway ? 'Away from Keyboard' : 'Idle'}
                     </span>
                 </div>
             )}
@@ -427,6 +454,18 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           setCustomAvatar(user.photoURL);
       }
   }, [userName, user]);
+
+  // HEARTBEAT to keep presence updated
+  useEffect(() => {
+    if (!user || !activeRoom) return;
+
+    const heartbeatInterval = setInterval(() => {
+      // This is a lightweight write that just updates the timestamp.
+      groupSessionService.updatePresence(activeRoom.id, user.uid, {});
+    }, 30 * 1000); // Every 30 seconds
+
+    return () => clearInterval(heartbeatInterval);
+  }, [activeRoom?.id, user?.uid]);
 
   // IDLE DETECTION (AFK)
   useEffect(() => {
