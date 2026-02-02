@@ -10,7 +10,7 @@ import {
   Dna, 
   Coffee, 
   Play, 
-  Pause,
+  Pause, 
   LogOut,
   Timer,
   Plus,
@@ -707,6 +707,11 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           
           handleJoin(newRoom);
 
+          // 3. Show share modal immediately for private rooms so user can copy the link
+          if (newRoomData.isPrivate) {
+              setTimeout(() => setShowShareModal(true), 500); // Slight delay for smoother transition
+          }
+
       } catch (err: any) {
           console.error("Failed to create room:", err);
           let msg = "Failed to create room.";
@@ -826,7 +831,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                               <div className="relative z-10">
                                   <div className="flex justify-between items-start mb-4">
                                       <div className={`p-3 rounded-2xl bg-${room.color}-500/10 text-${room.color}-500`}>
-                                          <Users size={24} />
+                                          {room.isPrivate ? <Lock size={24} /> : <Users size={24} />}
                                       </div>
                                       <div className="flex items-center gap-2">
                                           {room.createdBy === user?.uid && (
