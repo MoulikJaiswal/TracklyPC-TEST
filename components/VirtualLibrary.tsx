@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, memo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -46,6 +45,8 @@ import { groupSessionService } from '../services/groupSessionService';
 import { Card } from './Card';
 import { User } from 'firebase/auth';
 import { AnimatePresence, motion } from 'framer-motion';
+import { db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const MotionDiv = motion.div as any;
 
@@ -57,6 +58,15 @@ interface VirtualLibraryProps {
   targets: Target[];
   onCompleteTask: (id: string, completed: boolean) => void;
 }
+
+const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return h > 0 
+      ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+      : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
 
 // --- SUB-COMPONENT: Participant Card ---
 const ParticipantCard = memo(({ 
@@ -74,52 +84,7 @@ const ParticipantCard = memo(({
     onKick: () => void,
     onReaction: (emoji: string) => void
 }) => {
-    const [progress, setProgress] = useState(0);
-    const [timeLeftStr, setTimeLeftStr] = useState('');
     const [showReaction, setShowReaction] = useState<{emoji: string, from: string} | null>(null);
-
-    // Timer Logic
-    useEffect(() => {
-        if (participant.status !== 'focus' || !participant.focusEndTime || !participant.focusDuration) {
-            setProgress(0);
-            setTimeLeftStr('');
-            return;
-        }
-
-        const totalMs = participant.focusDuration * 60 * 1000;
-        const startTime = participant.focusEndTime - totalMs;
-
-        const tick = () => {
-            const now = Date.now();
-            
-            if (now >= participant.focusEndTime!) {
-                setProgress(100);
-                setTimeLeftStr('Done');
-                return;
-            }
-
-            const elapsed = now - startTime;
-            const pct = Math.min(100, Math.max(0, (elapsed / totalMs) * 100));
-            setProgress(pct);
-
-            const remainingSec = Math.ceil((participant.focusEndTime! - now) / 1000);
-            
-            if (remainingSec >= 3600) {
-                const h = Math.floor(remainingSec / 3600);
-                const m = Math.floor((remainingSec % 3600) / 60);
-                const s = remainingSec % 60;
-                setTimeLeftStr(`${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
-            } else {
-                const m = Math.floor(remainingSec / 60);
-                const s = remainingSec % 60;
-                setTimeLeftStr(`${m}:${s.toString().padStart(2, '0')}`);
-            }
-        };
-
-        tick(); 
-        const interval = setInterval(tick, 1000);
-        return () => clearInterval(interval);
-    }, [participant.status, participant.focusEndTime, participant.focusDuration]);
 
     // Reaction Listener
     useEffect(() => {
@@ -230,9 +195,11 @@ const ParticipantCard = memo(({
                 <div className="space-y-2">
                     <div className="flex justify-between items-end">
                         <span className="text-[10px] text-indigo-500 dark:text-indigo-300 font-bold uppercase tracking-wider">
-                            {participant.intention ? 'Working on Task' : 'Focusing'}
+                            {participant.intention ? 'Working on' : 'Focusing'}
                         </span>
-                        <span className="text-[10px] font-mono text-slate-600 dark:text-white">{timeLeftStr}</span>
+                        <span className="text-[10px] font-mono text-emerald-400 animate-pulse">
+                            IN-SESSION
+                        </span>
                     </div>
                     {participant.intention && (
                         <p className="text-xs text-slate-700 dark:text-slate-300 truncate" title={participant.intention}>
@@ -241,8 +208,8 @@ const ParticipantCard = memo(({
                     )}
                     <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700/50 rounded-full overflow-hidden">
                         <div 
-                            className="h-full bg-indigo-500 transition-all duration-1000 ease-linear" 
-                            style={{ width: `${progress}%` }} 
+                            className="h-full bg-emerald-500"
+                            style={{ width: `100%` }} 
                         />
                     </div>
                 </div>
@@ -405,9 +372,31 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [isAway, setIsAway] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  
+  // --- OPTIMIZED LOCAL TIMER ---
+  const myFocusStartTimeRef = useRef<number | null>(null);
+  const [myLiveTime, setMyLiveTime] = useState(0); // in seconds
 
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
+
+  // Local Timer for current user
+  useEffect(() => {
+    if (!isMyTimerRunning) {
+        setMyLiveTime(0);
+        return;
+    }
+
+    const interval = setInterval(() => {
+        if (myFocusStartTimeRef.current) {
+            const elapsedSeconds = Math.floor((Date.now() - myFocusStartTimeRef.current) / 1000);
+            setMyLiveTime(elapsedSeconds);
+        }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isMyTimerRunning]);
+
 
   const updateHours = (h: number) => {
       const m = myDuration % 60;
@@ -494,10 +483,34 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
 
   // 1. Subscribe to Room List (Lobby)
   useEffect(() => {
-      const unsubscribe = groupSessionService.subscribeToRooms((fetchedRooms) => {
-          setRooms(fetchedRooms);
-      });
-      return () => unsubscribe();
+    const unsubscribe = groupSessionService.subscribeToRooms((fetchedRooms) => {
+        // Find the system room from the database, if it exists
+        const jeeRoomFromDb = fetchedRooms.find(r => r.id === 'system-jee-lounge');
+        // Filter out any other system rooms to avoid duplicates if logic changes later
+        const userRooms = fetchedRooms.filter(r => !r.isSystem && r.id !== 'system-jee-lounge');
+
+        const defaultJeeRoom: StudyRoom = {
+            id: 'system-jee-lounge',
+            name: 'JEE Main Room',
+            topic: 'General JEE/NEET',
+            description: 'A public lounge for all JEE and NEET aspirants to study together.',
+            color: 'indigo',
+            activeCount: 0, 
+            isSystem: true,
+            isPrivate: false,
+            createdAt: 0, 
+            status: 'active'
+        };
+
+        if (jeeRoomFromDb) {
+            // If it exists in DB, use that version (with correct activeCount) and put it first
+            setRooms([jeeRoomFromDb, ...userRooms]);
+        } else {
+            // If it doesn't exist in DB, prepend our virtual version
+            setRooms([defaultJeeRoom, ...userRooms]);
+        }
+    });
+    return () => unsubscribe();
   }, []);
 
   // 2. Subscribe to Participants (Room Active)
@@ -532,11 +545,38 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   }, [activeRoom?.id, user?.uid]);
 
   // Handle Joining a Room
-  const handleJoin = (room: StudyRoom) => {
+  const handleJoin = async (room: StudyRoom) => {
       if (!user) {
           onLogin();
           return;
       }
+
+      if (room.isSystem) {
+        // System rooms are created on-demand when first joined.
+        try {
+            const roomRef = doc(db, 'rooms', room.id);
+            const roomSnap = await getDoc(roomRef);
+            if (!roomSnap.exists()) {
+                await setDoc(roomRef, {
+                    name: room.name,
+                    topic: room.topic,
+                    description: room.description,
+                    color: room.color,
+                    createdBy: 'system',
+                    createdAt: Date.now(),
+                    isSystem: true,
+                    isPrivate: false,
+                    activeCount: 0, // Will be incremented by updatePresence
+                    status: 'active',
+                });
+            }
+        } catch (error) {
+            console.error("Failed to ensure system room exists:", error);
+            alert("Could not join the default room. Please try again.");
+            return;
+        }
+    }
+
       setActiveRoom(room);
       groupSessionService.updatePresence(room.id, user.uid, {
           uid: user.uid,
@@ -627,62 +667,62 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   };
 
   const toggleMyTimer = () => {
-      if (!user || !activeRoom) return;
-
-      const newStatus = isMyTimerRunning ? 'break' : 'focus';
-      const now = Date.now();
-      
-      const updates: any = {
-          status: newStatus,
-          subject: mySubject,
-          lastActivity: now,
-          intention: newStatus === 'focus' ? (myIntention || 'Focusing') : ''
-      };
-
-      // Stop Logic with Task Completion Check & Time Accumulation
-      if (isMyTimerRunning) {
-          // 1. Task Check
-          if (linkedTaskId) {
-              const task = targets.find(t => t.id === linkedTaskId);
-              if (task && !task.completed) {
-                  const done = window.confirm(`Did you complete the task: "${task.text}"?`);
-                  if (done) {
-                      onCompleteTask(linkedTaskId, true);
-                      setLinkedTaskId(null);
-                      setMyIntention('');
-                  }
-              }
+    if (!user || !activeRoom) return;
+  
+    const newStatus = isMyTimerRunning ? 'idle' : 'focus';
+    const now = Date.now();
+  
+    const updates: Partial<StudyParticipant> = {
+      status: newStatus,
+      subject: mySubject,
+      lastActivity: now,
+      intention: newStatus === 'focus' ? (myIntention || 'Focusing') : ''
+    };
+  
+    // --- STOPPING ---
+    if (isMyTimerRunning) {
+      // 1. Task Check
+      if (linkedTaskId) {
+        const task = targets.find(t => t.id === linkedTaskId);
+        if (task && !task.completed) {
+          const done = window.confirm(`Did you complete the task: "${task.text}"?`);
+          if (done) {
+            onCompleteTask(linkedTaskId, true);
+            setLinkedTaskId(null);
+            setMyIntention('');
           }
-
-          // 2. Accumulate Time
+        }
+      }
+  
+      // 2. Accumulate Time (if start time exists)
+      let sessionMins = 0;
+      if (myFocusStartTimeRef.current) {
+        const elapsedMs = now - myFocusStartTimeRef.current;
+        if (elapsedMs > 60000) { // Only count if > 1 min
+          sessionMins = Math.floor(elapsedMs / 60000);
+          
           const me = participants.find(p => p.uid === user.uid);
-          let sessionMins = 0;
-          if (me && me.focusEndTime && me.focusDuration) {
-              const currentAccumulated = me.accumulatedFocusTime || 0;
-              const startTime = me.focusEndTime - (me.focusDuration * 60 * 1000);
-              const elapsedMs = now - startTime;
-              const durationMs = me.focusDuration * 60 * 1000;
-              const actualSpentMs = Math.min(elapsedMs, durationMs);
-              
-              if (actualSpentMs > 60000) { // Only count if > 1 min
-                  sessionMins = Math.floor(actualSpentMs / 60000);
-                  updates.accumulatedFocusTime = currentAccumulated + sessionMins;
-              }
-          }
-
-          // 3. Trigger Reflection
-          setLastSessionDuration(sessionMins || 0);
-          setShowReflection(true);
+          const currentAccumulated = me?.accumulatedFocusTime || 0;
+          updates.accumulatedFocusTime = currentAccumulated + sessionMins;
+        }
       }
-
-      setIsMyTimerRunning(!isMyTimerRunning);
-
-      if (newStatus === 'focus') {
-          updates.focusDuration = myDuration;
-          updates.focusEndTime = now + (myDuration * 60 * 1000); 
+  
+      // 3. Trigger Reflection
+      setLastSessionDuration(sessionMins);
+      if (sessionMins > 0) {
+        setShowReflection(true);
       }
-
-      groupSessionService.updatePresence(activeRoom.id, user.uid, updates);
+  
+      // 4. Reset local timer state
+      myFocusStartTimeRef.current = null;
+  
+    // --- STARTING ---
+    } else {
+      myFocusStartTimeRef.current = now;
+    }
+  
+    setIsMyTimerRunning(!isMyTimerRunning);
+    groupSessionService.updatePresence(activeRoom.id, user.uid, updates);
   };
 
   const handleCreateRoom = async (e: React.FormEvent) => {
@@ -861,7 +901,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                   <div className="relative z-10">
                                       <div className="flex justify-between items-start mb-4">
                                           <div className={`p-3 rounded-2xl bg-${room.color}-500/10 text-${room.color}-500`}>
-                                              {room.isPrivate ? <Lock size={24} /> : <Users size={24} />}
+                                              {room.isPrivate ? <Lock size={24} /> : room.isSystem ? <Star size={24}/> : <Users size={24} />}
                                           </div>
                                           <div className="flex items-center gap-2">
                                               {isHost && (
@@ -1028,7 +1068,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               <div className="flex justify-between items-center mb-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 rounded-2xl border border-slate-200 dark:border-white/5 shrink-0">
                   <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-xl bg-${activeRoom.color}-500/10 text-${activeRoom.color}-500`}>
-                          {activeRoom.isPrivate ? <Lock size={20} /> : <Users size={20} />}
+                          {activeRoom.isPrivate ? <Lock size={20} /> : activeRoom.isSystem ? <Star size={20}/> : <Users size={20} />}
                       </div>
                       <div>
                           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1067,7 +1107,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                           )}
                       </button>
 
-                      {isAmHost && (
+                      {isAmHost && !activeRoom.isSystem && (
                           <button 
                               onClick={handleShutdown}
                               className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors"
@@ -1222,9 +1262,12 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
 
                       <div className="flex-1 relative">
                           {isMyTimerRunning ? (
-                              <div className="flex flex-col justify-center h-full px-2">
-                                  <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider mb-0.5">Focusing On</span>
-                                  <span className="text-sm font-bold text-white truncate">{myIntention || mySubject}</span>
+                              <div className="flex justify-between items-center h-full px-2">
+                                  <div>
+                                    <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider mb-0.5">Focusing On</span>
+                                    <span className="text-sm font-bold text-white truncate block">{myIntention || mySubject}</span>
+                                  </div>
+                                  <span className="text-lg font-mono font-bold text-white">{formatTime(myLiveTime)}</span>
                               </div>
                           ) : (
                               <input 

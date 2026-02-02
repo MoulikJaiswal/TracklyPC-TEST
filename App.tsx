@@ -25,7 +25,8 @@ import {
   Book,
   Menu,
   Hammer,
-  Rocket
+  Rocket,
+  Brain
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder } from './types';
 import { QUOTES, THEME_CONFIG } from './constants';
@@ -422,7 +423,7 @@ const TABS = [
   { id: 'daily', label: 'Home', icon: LayoutDashboard },
   { id: 'planner', label: 'Plan', icon: CalendarIcon },
   { id: 'focus', label: 'Focus', icon: Timer },
-  { id: 'group-focus', label: 'Focus Lounge', icon: Wifi }, // NEW TAB
+  { id: 'group-focus', label: 'Focus Lounge', icon: Brain }, // CHANGED from Wifi to Brain
   { id: 'tests', label: 'Tests', icon: PenTool },
   { id: 'analytics', label: 'Stats', icon: BarChart3 },
 ];
@@ -1847,6 +1848,7 @@ const App: React.FC = () => {
                             setGoals={setGoals}
                             onSaveSession={handleSaveSession}
                             userName={userName}
+                            onOpenPrivacy={() => setView('privacy')}
                         />
                     )}
                     {view === 'planner' && (
