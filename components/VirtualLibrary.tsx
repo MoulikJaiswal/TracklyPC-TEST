@@ -273,8 +273,13 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const handleShutdown = useCallback(async () => {
       if (!activeRoom || !isAmHost) return;
       if (confirm("Shut down the room? All participants will be disconnected.")) {
-          await groupSessionService.deleteRoom(activeRoom.id);
-          setActiveRoom(null); // Return to lobby
+          try {
+              await groupSessionService.deleteRoom(activeRoom.id);
+              setActiveRoom(null); // Return to lobby
+          } catch (e) {
+              console.error("Shutdown failed:", e);
+              alert("Failed to close room. Please try again.");
+          }
       }
   }, [activeRoom, isAmHost]);
 

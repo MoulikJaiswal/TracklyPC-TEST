@@ -131,9 +131,18 @@ export const groupSessionService = {
   // 6. Delete Room (Host only)
   deleteRoom: async (roomId: string) => {
       try {
+          // 1. Delete all participants first (cleanup subcollection)
+          const participantsRef = collection(db, 'rooms', roomId, 'participants');
+          const snapshot = await getDocs(participantsRef);
+          
+          const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+          await Promise.all(deletePromises);
+
+          // 2. Delete the room document
           await deleteDoc(doc(db, 'rooms', roomId));
       } catch (e) {
           console.error("Error deleting room:", e);
+          throw e; // Re-throw so UI can handle it
       }
   },
 
