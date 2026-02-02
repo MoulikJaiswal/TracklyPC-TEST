@@ -407,8 +407,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           groupSessionService.getRoom(roomIdFromUrl).then(room => {
               if (room) {
                   handleJoin(room);
-                  // Clear URL to prevent rejoin on refresh if desired, or keep it.
-                  // For SPA without router, modifying history state is standard.
+                  // Clear URL to prevent rejoin on refresh
                   window.history.replaceState({}, '', window.location.pathname);
               } else {
                   alert("Room not found or expired.");
@@ -422,7 +421,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   useEffect(() => {
       if (userName) setDisplayName(userName);
       
-      // Load custom avatar from local storage if available, else use user photo
       const storedAvatar = localStorage.getItem('trackly_guest_avatar');
       if (storedAvatar) {
           setCustomAvatar(storedAvatar);
@@ -436,7 +434,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
     if (!user || !activeRoom) return;
 
     const heartbeatInterval = setInterval(() => {
-      // This is a lightweight write that just updates the timestamp.
       groupSessionService.updatePresence(activeRoom.id, user.uid, {});
     }, 30 * 1000); // Every 30 seconds
 
@@ -448,7 +445,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
     if (!user || !activeRoom) return;
 
     const handleBeforeUnload = () => {
-        // This is a "best-effort" fire-and-forget call. The ghost cleanup is the fallback.
         groupSessionService.leaveRoom(activeRoom.id, user.uid);
     };
 
@@ -463,13 +459,12 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   useEffect(() => {
       if (!user || !activeRoom) return;
 
-      let idleTimer: any; // Using any to avoid namespace issues in browser
+      let idleTimer: any;
       const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
       const resetIdle = () => {
           if (isAway) {
               setIsAway(false);
-              // Update status back to whatever it was? Or just update 'isAway' flag
               groupSessionService.updatePresence(activeRoom.id, user.uid, { isAway: false });
           }
           clearTimeout(idleTimer);
@@ -479,13 +474,12 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           }, IDLE_TIMEOUT);
       };
 
-      // Events to track
       window.addEventListener('mousemove', resetIdle);
       window.addEventListener('keydown', resetIdle);
       window.addEventListener('scroll', resetIdle);
       window.addEventListener('click', resetIdle);
 
-      resetIdle(); // Init
+      resetIdle(); 
 
       return () => {
           clearTimeout(idleTimer);
@@ -499,9 +493,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   // 1. Subscribe to Room List (Lobby)
   useEffect(() => {
     const unsubscribe = groupSessionService.subscribeToRooms((fetchedRooms) => {
-        // Find the system room from the database, if it exists
         const jeeRoomFromDb = fetchedRooms.find(r => r.id === 'system-jee-lounge');
-        // Filter out any other system rooms to avoid duplicates if logic changes later
         const userRooms = fetchedRooms.filter(r => !r.isSystem && r.id !== 'system-jee-lounge');
 
         const defaultJeeRoom: StudyRoom = {
@@ -518,10 +510,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
         };
 
         if (jeeRoomFromDb) {
-            // If it exists in DB, use that version (with correct activeCount) and put it first
             setRooms([jeeRoomFromDb, ...userRooms]);
         } else {
-            // If it doesn't exist in DB, prepend our virtual version
             setRooms([defaultJeeRoom, ...userRooms]);
         }
     });
@@ -541,7 +531,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   useEffect(() => {
       if (!activeRoom) return;
       const unsubscribe = groupSessionService.subscribeToRoomStatus(activeRoom.id, (updatedRoom) => {
-          // If updatedRoom is null, it means it's deleted.
           if (!updatedRoom) {
               setActiveRoom((current) => {
                   if (current && current.id === activeRoom.id) {
@@ -566,8 +555,13 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           return;
       }
 
+      // ENFORCE ONE ROOM AT A TIME: 
+      // If already in a room, leave it before joining the new one.
+      if (activeRoom && activeRoom.id !== room.id) {
+          await groupSessionService.leaveRoom(activeRoom.id, user.uid);
+      }
+
       if (room.isSystem) {
-        // System rooms are created on-demand when first joined.
         try {
             const roomRef = doc(db, 'rooms', room.id);
             const roomSnap = await getDoc(roomRef);
@@ -581,7 +575,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                     createdAt: Date.now(),
                     isSystem: true,
                     isPrivate: false,
-                    activeCount: 0, // Will be incremented by updatePresence
+                    activeCount: 0,
                     status: 'active',
                 });
             }
@@ -613,7 +607,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }
 
       setIsJoiningByCode(true);
-      // Logic to handle full URLs if pasted
       let roomId = joinCode.trim();
       if (roomId.includes('?room=')) {
           roomId = roomId.split('?room=')[1];
@@ -670,7 +663,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           try {
               await groupSessionService.deleteRoom(roomToDelete);
           } catch (e) {
-              console.error("Shutdown failed (room might still exist):", e);
+              console.error("Shutdown failed:", e);
           }
       }
   }, [activeRoom, isAmHost]);
@@ -688,9 +681,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       intention: newStatus === 'focus' ? (myIntention || 'Focusing') : ''
     };
   
-    // --- STOPPING ---
     if (isMyTimerRunning) {
-      // 1. Task Check
       if (linkedTaskId) {
         const task = targets.find(t => t.id === linkedTaskId);
         if (task && !task.completed) {
@@ -703,11 +694,10 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
         }
       }
   
-      // 2. Accumulate Time (if start time exists)
       let sessionMins = 0;
       if (myFocusStartTimeRef.current) {
         const elapsedMs = now - myFocusStartTimeRef.current;
-        if (elapsedMs > 60000) { // Only count if > 1 min
+        if (elapsedMs > 60000) { 
           sessionMins = Math.floor(elapsedMs / 60000);
           
           const me = participants.find(p => p.uid === user.uid);
@@ -716,16 +706,13 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
         }
       }
   
-      // 3. Trigger Reflection
       setLastSessionDuration(sessionMins);
       if (sessionMins > 0) {
         setShowReflection(true);
       }
   
-      // 4. Reset local timer state
       myFocusStartTimeRef.current = null;
   
-    // --- STARTING ---
     } else {
       myFocusStartTimeRef.current = now;
     }
@@ -746,7 +733,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       setIsCreating(true);
       setCreateError(null);
       try {
-          // 1. Create the room and get the ID
           const newRoomId = await groupSessionService.createRoom({
               name: newRoomData.name,
               topic: newRoomData.topic,
@@ -756,8 +742,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               isPrivate: newRoomData.isPrivate
           });
 
-          // 2. Immediately Join the room
-          // We construct a temporary room object to join immediately without waiting for subscription
           const newRoom: StudyRoom = {
               id: newRoomId,
               name: newRoomData.name,
@@ -776,9 +760,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           
           handleJoin(newRoom);
 
-          // 3. Show share modal immediately for private rooms so user can copy the link
           if (newRoomData.isPrivate) {
-              setTimeout(() => setShowShareModal(true), 500); // Slight delay for smoother transition
+              setTimeout(() => setShowShareModal(true), 500); 
           }
 
       } catch (err: any) {
@@ -802,8 +785,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   };
 
   const handleReflectionConfirm = (rating: number) => {
-      // In a real app, we might save this rating to a user's session history
-      // For now, just close the modal
       setShowReflection(false);
   };
 

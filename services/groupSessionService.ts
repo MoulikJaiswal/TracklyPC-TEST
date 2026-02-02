@@ -1,4 +1,3 @@
-
 import { db } from '../firebase';
 import { 
   collection, 
@@ -86,13 +85,6 @@ export const groupSessionService = {
             const docSnap = await getDoc(participantRef);
             if (!docSnap.exists()) {
                 shouldIncrement = true;
-            } else {
-                // If doc exists but was stale (ghost), we might still want to increment?
-                // The ghost cleaner removes docs, so if it exists, it's either active or waiting to be cleaned.
-                // If we treat it as active, we don't increment.
-                // However, updated "lastActivity" will revive it. 
-                // If it was a ghost that hadn't been cleaned yet, it was counted in the room's activeCount (or should have been).
-                // So not incrementing is generally safe to prevent bloating.
             }
         }
 
@@ -137,10 +129,10 @@ export const groupSessionService = {
         const parts = snapshot.docs.map(d => d.data() as StudyParticipant);
         
         // Client-Side Ghost Check
-        // If we find ghosts (inactive > 20m), we delete them to fix the count
-        // We only do this if we are receiving data (someone is online looking at the room)
+        // If we find ghosts (inactive > 90s), we delete them to fix the count
+        // Participants send heartbeats every 30s. If we miss 3, they are gone.
         const now = Date.now();
-        const ghostThreshold = now - (20 * 60 * 1000); // 20 minutes timeout
+        const ghostThreshold = now - (90 * 1000); 
         
         const activeParts: StudyParticipant[] = [];
         const ghostIds: string[] = [];
@@ -156,29 +148,20 @@ export const groupSessionService = {
         // Async cleanup (don't block UI)
         if (ghostIds.length > 0) {
             const batchPromises = ghostIds.map(uid => groupSessionService.leaveRoom(roomId, uid));
-            Promise.allSettled(batchPromises).then(() => console.log(`Cleaned ${ghostIds.length} ghosts`));
+            Promise.allSettled(batchPromises);
         }
         
         // Self-Healing Count Sync
-        // To fix drift between 'activeCount' on room doc and actual participants.
-        // We update the room doc with the true count to ensure consistency.
-        
-        // Strategy:
-        // 1. If small room (< 5 users), high probability of sync (helps testing/small groups).
-        // 2. If large room, lower probability to avoid write contention.
         const shouldSync = activeParts.length < 5 ? Math.random() < 0.5 : Math.random() < 0.05;
 
         if (shouldSync) {
              const roomRef = doc(db, 'rooms', roomId);
-             // Just set it to the actual length of active parts
-             // This overrides any drift caused by missed decrements
              updateDoc(roomRef, { activeCount: activeParts.length }).catch(() => {}); 
         }
 
         callback(activeParts);
     }, (error) => {
-        // console.error("Error subscribing to room participants:", error);
-        // Suppress error log if permission denied (likely caused by room deletion)
+        // Suppress error log if permission denied
     });
   },
 
@@ -186,15 +169,12 @@ export const groupSessionService = {
   deleteRoom: async (roomId: string) => {
       const roomRef = doc(db, 'rooms', roomId);
 
-      // 1. Soft Delete: Mark as closing immediately.
-      // This hides it from the lobby while we clean up.
       try {
           await updateDoc(roomRef, { status: 'closing' });
       } catch (e) {
-          console.warn("Could not mark room as closing (might already be deleted or perm issue):", e);
+          console.warn("Could not mark room as closing:", e);
       }
 
-      // 2. Try to delete participants (Best Effort)
       try {
           const participantsRef = collection(db, 'rooms', roomId, 'participants');
           const snapshot = await getDocs(participantsRef);
@@ -202,10 +182,9 @@ export const groupSessionService = {
           const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
           await Promise.allSettled(deletePromises);
       } catch (e) {
-          console.warn("Partial failure clearing participants (ignoring):", e);
+          console.warn("Partial failure clearing participants:", e);
       }
 
-      // 3. Hard Delete the room document
       try {
           await deleteDoc(roomRef);
       } catch (e) {
@@ -219,14 +198,13 @@ export const groupSessionService = {
       return onSnapshot(doc(db, 'rooms', roomId), (docSnap) => {
           if (docSnap.exists()) {
               const data = { id: docSnap.id, ...docSnap.data() } as StudyRoom;
-              // Treat 'closing' status as deleted for the active participants
               if (data.status === 'closing') {
                   onUpdate(null);
               } else {
                   onUpdate(data);
               }
           } else {
-              onUpdate(null); // Room deleted
+              onUpdate(null); 
           }
       });
   },

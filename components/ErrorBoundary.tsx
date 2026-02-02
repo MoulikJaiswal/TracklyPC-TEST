@@ -1,8 +1,8 @@
-import React, { Component, ErrorInfo, ReactNode } from "react";
+import React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {
-  children?: ReactNode;
+  children?: React.ReactNode;
   viewKey?: string;
   onReset?: () => void;
 }
@@ -12,17 +12,15 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: The user's build setup might not be handling class properties correctly.
-  // Reverting to constructor-based state initialization and manual method binding.
-  // This resolves errors where `this.props` and `this.setState` were not found.
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Fix: Explicitly initialize state in the constructor and bind methods to resolve property lookup errors
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
       hasError: false,
       error: null,
     };
-    // Bind methods to 'this' to ensure they have the correct context
+    // Bind methods to 'this' to ensure they have the correct context and are recognized as members
     this.handleReset = this.handleReset.bind(this);
     this.handleReload = this.handleReload.bind(this);
   }
@@ -31,17 +29,19 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
+    // Accessing this.props through React.Component inheritance
     if (this.props.viewKey !== prevProps.viewKey) {
       this.setState({ hasError: false, error: null });
     }
   }
 
   handleReset() {
+    // Accessing this.setState and this.props for state reset logic
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
@@ -53,6 +53,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   render() {
+    // Fix: Accessing state and props which are inherited from React.Component
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-in fade-in zoom-in duration-300">
