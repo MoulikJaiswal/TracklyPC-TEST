@@ -16,7 +16,8 @@ import {
   Plus,
   Search,
   X,
-  Palette
+  Palette,
+  AlertTriangle
 } from 'lucide-react';
 import { StudyParticipant, StudyRoom } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
@@ -136,6 +137,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRoomData, setNewRoomData] = useState({ name: '', topic: '', description: '', color: 'indigo' });
   const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // My Control State
   const [mySubject, setMySubject] = useState<'Physics'|'Chemistry'|'Maths'|'Biology'|'Other'>('Physics');
@@ -218,6 +220,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }
 
       setIsCreating(true);
+      setCreateError(null);
       try {
           await groupSessionService.createRoom({
               name: newRoomData.name,
@@ -228,8 +231,15 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           });
           setShowCreateModal(false);
           setNewRoomData({ name: '', topic: '', description: '', color: 'indigo' });
-      } catch (err) {
-          alert("Failed to create room.");
+      } catch (err: any) {
+          console.error("Failed to create room:", err);
+          let msg = "Failed to create room.";
+          if (err.code === 'permission-denied') {
+              msg = "Permission denied. Please checking your internet or database rules.";
+          } else if (err.message) {
+              msg = err.message;
+          }
+          setCreateError(msg);
       } finally {
           setIsCreating(false);
       }
@@ -317,6 +327,13 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                   <X size={18} className="text-slate-500" />
                               </button>
                           </div>
+                          
+                          {createError && (
+                              <div className="p-3 mb-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-2 text-xs text-rose-500">
+                                  <AlertTriangle size={14} />
+                                  <span>{createError}</span>
+                              </div>
+                          )}
                           
                           <form onSubmit={handleCreateRoom} className="space-y-4">
                               <div>

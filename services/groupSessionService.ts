@@ -26,6 +26,8 @@ export const groupSessionService = {
     return onSnapshot(q, (snapshot) => {
         const rooms = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudyRoom));
         callback(rooms);
+    }, (error) => {
+        console.error("Error subscribing to rooms:", error);
     });
   },
 
@@ -121,6 +123,8 @@ export const groupSessionService = {
         }
         
         callback(activeParts);
+    }, (error) => {
+        console.error("Error subscribing to room participants:", error);
     });
   }
 };
