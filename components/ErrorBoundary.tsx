@@ -13,17 +13,15 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Replaced state property initializer with a constructor for wider compatibility.
+  // FIX: Initialize state in the constructor for wider compatibility.
   constructor(props: ErrorBoundaryProps) {
     super(props);
     // FIX: Correctly initialize state on `this`.
-    // FIX: Added 'this.' to correctly assign to the component's state.
     this.state = {
       hasError: false,
       error: null,
     };
     // FIX: Manually bind event handlers to ensure 'this' context.
-    // FIX: Bind methods to `this`.
     this.handleReset = this.handleReset.bind(this);
     this.handleReload = this.handleReload.bind(this);
   }
@@ -37,31 +35,29 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
-    // FIX: Use `this.props` and `this.setState`.
-    // FIX: Added 'this.' to access props and setState.
+    // FIX: Use `this.props` to access component props.
     if (this.props.viewKey !== prevProps.viewKey) {
+      // FIX: Use `this.setState` to update component state.
       this.setState({ hasError: false, error: null });
     }
   }
 
-  // FIX: Converted from arrow function to a standard class method.
   handleReset() {
-    // FIX: Use `this.setState` and `this.props`.
-    // FIX: Added 'this.' to access setState and props.
+    // FIX: Use `this.setState` to update component state.
     this.setState({ hasError: false, error: null });
+    // FIX: Use `this.props` to access component props.
     if (this.props.onReset) {
+      // FIX: Use `this.props` to access component props.
       this.props.onReset();
     }
   }
 
-  // FIX: Converted from arrow function to a standard class method.
   handleReload() {
     window.location.reload();
   }
 
   render() {
-    // FIX: Use `this.state`.
-    // FIX: Added 'this.' to access state.
+    // FIX: Use `this.state` to access component state.
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-in fade-in zoom-in duration-300">
@@ -90,14 +86,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </button>
           </div>
 
-          {/* FIX: Use `this.state`. */}
-          {/* FIX: Added 'this.' to access state. */}
+          {/* FIX: Use `this.state` to access component state. */}
           {this.state.error && (
              <div className="mt-8 w-full max-w-sm">
                  <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">Error Details</p>
                  <pre className="p-4 bg-slate-100 dark:bg-black/30 rounded-xl text-[10px] text-slate-500 font-mono text-left overflow-auto max-h-32 border border-slate-200 dark:border-white/5 whitespace-pre-wrap">
-                     {/* FIX: Use `this.state`. */}
-                     {/* FIX: Added 'this.' to access state. */}
+                     {/* FIX: Use `this.state` to access component state. */}
                      {this.state.error.toString()}
                  </pre>
              </div>
@@ -108,8 +102,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
     return (
       <>
-        {/* FIX: Use `this.props`. */}
-        {/* FIX: Added 'this.' to access props. */}
+        {/* FIX: Use `this.props` to access component props. */}
         {this.props.children}
       </>
     );

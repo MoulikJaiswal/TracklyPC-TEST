@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, memo, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Users, 
@@ -305,21 +305,29 @@ const ReflectionModal = ({
 };
 
 // --- SUB-COMPONENT: Reaction Toast ---
-const ReactionToast = ({ fromName, emoji }: { fromName: string, emoji: string }) => (
-    <MotionDiv
-        layout
-        initial={{ opacity: 0, y: 50, scale: 0.9 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 20, scale: 0.95 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className="fixed bottom-24 md:bottom-10 left-1/2 -translate-x-1/2 z-[200] p-4 rounded-2xl shadow-2xl border flex items-center gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-slate-200 dark:border-white/10"
-    >
-        <div className="text-3xl filter drop-shadow-lg">{emoji}</div>
-        <p className="text-sm font-medium text-slate-900 dark:text-white">
-            <span className="font-bold text-indigo-500 dark:text-indigo-400">{fromName}</span> sent you kudos!
-        </p>
-    </MotionDiv>
-);
+const ReactionToast = ({ fromName, emoji }: { fromName: string, emoji: string }) => {
+    const message = useMemo(() => {
+        if (emoji === '🔥') return 'sent you fire!';
+        if (emoji === '👏') return 'sent you kudos!';
+        return 'sent a reaction!';
+    }, [emoji]);
+
+    return (
+        <MotionDiv
+            layout
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="fixed bottom-24 md:bottom-10 left-1/2 -translate-x-1/2 z-[200] p-4 rounded-2xl shadow-2xl border flex items-center gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-slate-200 dark:border-white/10"
+        >
+            <div className="text-3xl filter drop-shadow-lg">{emoji}</div>
+            <p className="text-sm font-medium text-slate-900 dark:text-white">
+                <span className="font-bold text-indigo-500 dark:text-indigo-400">{fromName}</span> {message}
+            </p>
+        </MotionDiv>
+    );
+};
 
 export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, onLogin, isPro, targets, onCompleteTask }) => {
   const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null);
@@ -363,7 +371,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [reactionToast, setReactionToast] = useState<{ fromName: string; emoji: string } | null>(null);
   const [isReactionOnCooldown, setIsReactionOnCooldown] = useState(false);
   const reactionCooldownTimer = useRef<any>(null);
-  const lastReactionTimestamp = useRef(Date.now());
+  const lastReactionTimestamp = useRef(0);
   const reactionToastTimeoutRef = useRef<any>(null);
   
   // --- OPTIMIZED LOCAL TIMER ---
@@ -384,6 +392,13 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
         }
     };
   }, []);
+
+  // Reset reaction timestamp when joining a room to prevent stale notifications.
+  useEffect(() => {
+    if (activeRoom) {
+      lastReactionTimestamp.current = Date.now();
+    }
+  }, [activeRoom]);
 
   // Effect to listen for incoming reactions
   useEffect(() => {
