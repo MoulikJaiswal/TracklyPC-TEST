@@ -34,7 +34,10 @@ import {
   Clock,
   Eye,
   Star,
-  PartyPopper
+  PartyPopper,
+  Lock,
+  Link as LinkIcon,
+  Share2
 } from 'lucide-react';
 import { StudyParticipant, StudyRoom, Target, Session } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
@@ -365,9 +368,14 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
 
   // Create Room Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newRoomData, setNewRoomData] = useState({ name: '', topic: '', description: '', color: 'indigo' });
+  const [newRoomData, setNewRoomData] = useState({ name: '', topic: '', description: '', color: 'indigo', isPrivate: false });
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Join Code Modal
+  const [showJoinCodeModal, setShowJoinCodeModal] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [isJoiningByCode, setIsJoiningByCode] = useState(false);
 
   // My Control State
   const [mySubject, setMySubject] = useState<'Physics'|'Chemistry'|'Maths'|'Biology'|'Other'>('Physics');
@@ -385,9 +393,31 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [showReflection, setShowReflection] = useState(false);
   const [lastSessionDuration, setLastSessionDuration] = useState(0);
   const [isAway, setIsAway] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
+
+  // Auto-Join from URL on mount
+  useEffect(() => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const roomIdFromUrl = searchParams.get('room');
+      
+      if (roomIdFromUrl && !activeRoom) {
+          setIsJoiningByCode(true);
+          groupSessionService.getRoom(roomIdFromUrl).then(room => {
+              if (room) {
+                  handleJoin(room);
+                  // Clear URL to prevent rejoin on refresh if desired, or keep it.
+                  // For SPA without router, modifying history state is standard.
+                  window.history.replaceState({}, '', window.location.pathname);
+              } else {
+                  alert("Room not found or expired.");
+              }
+              setIsJoiningByCode(false);
+          });
+      }
+  }, []);
 
   // Update display name when user logs in/out
   useEffect(() => {
@@ -496,6 +526,43 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }, true);
   };
 
+  const handleJoinByCode = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!joinCode.trim()) return;
+      if (!user) {
+          onLogin();
+          return;
+      }
+
+      setIsJoiningByCode(true);
+      // Logic to handle full URLs if pasted
+      let roomId = joinCode.trim();
+      if (roomId.includes('?room=')) {
+          roomId = roomId.split('?room=')[1];
+      }
+
+      const room = await groupSessionService.getRoom(roomId);
+      setIsJoiningByCode(false);
+
+      if (room) {
+          handleJoin(room);
+          setShowJoinCodeModal(false);
+          setJoinCode('');
+      } else {
+          alert("Room not found. Check the code and try again.");
+      }
+  };
+
+  const handleShareRoom = () => {
+      if (!activeRoom) return;
+      // Construct a URL that the app can handle on load
+      const url = `${window.location.origin}${window.location.pathname}?room=${activeRoom.id}`;
+      navigator.clipboard.writeText(url).then(() => {
+          setShareCopied(true);
+          setTimeout(() => setShareCopied(false), 2000);
+      });
+  };
+
   // Handle Leaving
   const handleLeave = () => {
       if (activeRoom && user) {
@@ -532,16 +599,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   }, [activeRoom, isAmHost]);
 
   // Handle Reactions
-  const handleSendReaction = async (emoji: string) => {
-      if (!activeRoom || !user) return;
-      // Get all active focus users
-      const targets = participants.filter(p => p.status === 'focus' && p.uid !== user.uid);
-      // Send to all (Simulating broadcast by updating each user doc - suboptimal for huge rooms but fine for <50)
-      // Actually, let's just send to the specific user if we clicked a specific user card.
-      // But the UI button is generic "Send to all" concept in some designs, 
-      // here we will pass this function to ParticipantCard so it sends to specific user.
-  };
-
   const handleReactionToUser = async (targetUid: string, emoji: string) => {
       if (!activeRoom || !user) return;
       await groupSessionService.sendReaction(activeRoom.id, targetUid, emoji, displayName || 'Friend');
@@ -606,13 +663,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       groupSessionService.updatePresence(activeRoom.id, user.uid, updates);
   };
 
-  const handleReflectionConfirm = (rating: number) => {
-      setShowReflection(false);
-      // Here you would typically save this session to your main 'sessions' collection for analytics
-      // For now, we just close it, but in a full app we'd call onSaveSession
-      console.log(`Session rated: ${rating}/10`);
-  };
-
   const handleCreateRoom = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newRoomData.name || !newRoomData.topic) return;
@@ -630,10 +680,11 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               topic: newRoomData.topic,
               description: newRoomData.description,
               color: newRoomData.color,
-              createdBy: user.uid
+              createdBy: user.uid,
+              isPrivate: newRoomData.isPrivate
           });
           setShowCreateModal(false);
-          setNewRoomData({ name: '', topic: '', description: '', color: 'indigo' });
+          setNewRoomData({ name: '', topic: '', description: '', color: 'indigo', isPrivate: false });
       } catch (err: any) {
           console.error("Failed to create room:", err);
           let msg = "Failed to create room.";
@@ -652,6 +703,12 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       setLinkedTaskId(task.id);
       if (!myIntention) setMyIntention(task.text);
       setShowMiniPlanner(false);
+  };
+
+  const handleReflectionConfirm = (rating: number) => {
+      // In a real app, we might save this rating to a user's session history
+      // For now, just close the modal
+      setShowReflection(false);
   };
 
   // --- RENDER: LOBBY ---
@@ -711,12 +768,20 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                           <Pencil size={12} className="text-slate-400 opacity-50" />
                       </div>
                   </div>
-                  <button 
-                      onClick={() => user ? setShowCreateModal(true) : onLogin()}
-                      className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase text-xs tracking-wider shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
-                  >
-                      <Plus size={16} /> Create Lounge
-                  </button>
+                  <div className="flex gap-2">
+                      <button 
+                          onClick={() => setShowJoinCodeModal(true)}
+                          className="flex items-center gap-2 px-5 py-3 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-xl font-bold uppercase text-xs tracking-wider transition-all active:scale-95"
+                      >
+                          <LinkIcon size={16} /> Have Code?
+                      </button>
+                      <button 
+                          onClick={() => user ? setShowCreateModal(true) : onLogin()}
+                          className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase text-xs tracking-wider shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                      >
+                          <Plus size={16} /> Create Lounge
+                      </button>
+                  </div>
               </div>
 
               {/* Room Grid */}
@@ -775,6 +840,37 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                   </div>
               )}
 
+              {/* Join Code Modal */}
+              {showJoinCodeModal && createPortal(
+                  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+                      <div className="bg-white dark:bg-[#0f172a] w-full max-w-sm rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200">
+                          <div className="flex justify-between items-center mb-6">
+                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Join by Link</h3>
+                              <button onClick={() => setShowJoinCodeModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors">
+                                  <X size={18} className="text-slate-500" />
+                              </button>
+                          </div>
+                          <form onSubmit={handleJoinByCode} className="space-y-4">
+                              <p className="text-xs text-slate-500 dark:text-slate-400">Enter a Room ID or paste an invite link below to join a private lounge.</p>
+                              <input 
+                                  type="text" required placeholder="Paste Room ID or Link"
+                                  className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors"
+                                  value={joinCode}
+                                  onChange={e => setJoinCode(e.target.value)}
+                              />
+                              <button 
+                                  type="submit" 
+                                  disabled={isJoiningByCode || !joinCode}
+                                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50"
+                              >
+                                  {isJoiningByCode ? 'Locating Room...' : 'Join Room'}
+                              </button>
+                          </form>
+                      </div>
+                  </div>,
+                  document.body
+              )}
+
               {/* Create Room Modal */}
               {showCreateModal && createPortal(
                   <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
@@ -821,6 +917,16 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                       onChange={e => setNewRoomData({...newRoomData, description: e.target.value})}
                                   />
                               </div>
+                              <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-white/10 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors" onClick={() => setNewRoomData(p => ({...p, isPrivate: !p.isPrivate}))}>
+                                  <div className={`w-5 h-5 rounded border flex items-center justify-center ${newRoomData.isPrivate ? 'bg-indigo-500 border-indigo-500' : 'border-slate-400'}`}>
+                                      {newRoomData.isPrivate && <CheckCircle2 size={12} className="text-white" />}
+                                  </div>
+                                  <div>
+                                      <span className="text-xs font-bold text-slate-900 dark:text-white block">Private Room (Invite Only)</span>
+                                      <span className="text-[10px] text-slate-500 block">Hidden from lobby. Share link to join.</span>
+                                  </div>
+                                  <Lock size={16} className="ml-auto text-slate-400" />
+                              </div>
                               <div>
                                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2 block flex items-center gap-2"><Palette size={12}/> Color Theme</label>
                                   <div className="flex gap-2">
@@ -863,7 +969,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               <div className="flex justify-between items-center mb-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 rounded-2xl border border-slate-200 dark:border-white/5 shrink-0">
                   <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-xl bg-${activeRoom.color}-500/10 text-${activeRoom.color}-500`}>
-                          <Users size={20} />
+                          {activeRoom.isPrivate ? <Lock size={20} /> : <Users size={20} />}
                       </div>
                       <div>
                           <h3 className="text-sm font-bold text-slate-900 dark:text-white">{activeRoom.name}</h3>
@@ -878,6 +984,15 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                       </div>
                   </div>
                   <div className="flex items-center gap-2">
+                      {/* Share Button */}
+                      <button 
+                          onClick={handleShareRoom}
+                          className="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-xl transition-all relative overflow-hidden"
+                          title="Copy Invite Link"
+                      >
+                          {shareCopied ? <CheckCircle2 size={20} className="animate-in zoom-in" /> : <Share2 size={20} />}
+                      </button>
+
                       {/* Mobile Leaderboard Toggle */}
                       <button 
                           onClick={() => setShowMobileLeaderboard(true)}

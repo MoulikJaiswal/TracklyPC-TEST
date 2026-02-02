@@ -12,6 +12,7 @@ import {
   orderBy,
   increment,
   getDocs,
+  getDoc,
   where,
   writeBatch
 } from 'firebase/firestore';
@@ -19,19 +20,35 @@ import { StudyParticipant, StudyRoom } from '../types';
 
 export const groupSessionService = {
   
-  // 1. Subscribe to ALL Rooms (Lobby)
+  // 1. Subscribe to PUBLIC Rooms (Lobby)
   subscribeToRooms: (callback: (rooms: StudyRoom[]) => void) => {
-    // Order by creation time or activity? Let's do creation for now to keep list stable
     const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'));
     
     return onSnapshot(q, (snapshot) => {
         const rooms = snapshot.docs
             .map(d => ({ id: d.id, ...d.data() } as StudyRoom))
-            .filter(r => r.status !== 'closing'); // Filter out rooms marked for deletion
+            .filter(r => r.status !== 'closing' && !r.isPrivate); // Filter out closing AND private rooms
         callback(rooms);
     }, (error) => {
         console.error("Error subscribing to rooms:", error);
     });
+  },
+
+  // 1.5 Get Specific Room (for joining via ID/Link)
+  getRoom: async (roomId: string): Promise<StudyRoom | null> => {
+      try {
+          const docRef = doc(db, 'rooms', roomId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+              const data = docSnap.data() as StudyRoom;
+              if (data.status === 'closing') return null;
+              return { id: docSnap.id, ...data };
+          }
+          return null;
+      } catch (e) {
+          console.error("Error fetching room:", e);
+          return null;
+      }
   },
 
   // 2. Create a Room
