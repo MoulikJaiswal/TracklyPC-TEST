@@ -108,8 +108,56 @@ export interface Note {
   thumbnail?: string | null;
 }
 
-export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'resources' | 'library' | 'privacy';
+export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'resources' | 'library' | 'privacy' | 'group-focus';
 
 export type ThemeId = 'midnight' | 'obsidian' | 'void' | 'forest' | 'morning' | 'earth' | 'default-dark' | 'default-light';
 
 export type StreamType = 'JEE' | 'NEET';
+
+// --- VIRTUAL LIBRARY TYPES ---
+
+export interface StudyParticipant {
+  uid: string;
+  displayName: string;
+  // We use this timestamp to filter out "ghosts" (people who closed the tab hours ago)
+  lastActivity: number; 
+  
+  // Real-time State (Event Based)
+  status: 'focus' | 'break' | 'idle';
+  subject: 'Physics' | 'Chemistry' | 'Maths' | 'Biology' | 'Other';
+  
+  // If focusing
+  focusEndTime?: number; // Timestamp when their timer rings
+  focusDuration?: number; // Total minutes (for progress bar calc)
+}
+
+export interface StudyRoom {
+  id: string;
+  name: string;
+  topic: string;
+  description: string;
+  color: string;
+  activeCount: number;
+  createdBy?: string; // User ID who created it
+  createdAt?: number;
+  isSystem?: boolean; // If true, cannot be deleted by users
+}
+
+// --- FOCUS ROOM TYPES FOR TIMER HOOK ---
+
+export interface FocusRoomState {
+  status: 'waiting' | 'focus' | 'break' | 'completed';
+  startTime?: number;
+  endTime?: number;
+  pausedAt?: number;
+}
+
+export interface FocusRoomConfig {
+  focusDuration: number;
+}
+
+export interface FocusRoom {
+  id: string;
+  state: FocusRoomState;
+  config: FocusRoomConfig;
+}

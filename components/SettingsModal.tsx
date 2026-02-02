@@ -56,7 +56,7 @@ interface SettingsModalProps {
   onForceSync: () => void;
   syncStatus: 'idle' | 'syncing' | 'success' | 'error';
   syncError: string | null;
-  onOpenPrivacy: () => void; // New Prop
+  onOpenPrivacy: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 

@@ -44,7 +44,7 @@ import { Card } from './components/Card';
 // Firebase Imports
 import { auth, db, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch, getDoc } from 'firebase/firestore';
 
 // Lazy Load Components
 const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
@@ -54,6 +54,7 @@ const TestLog = lazy(() => import('./components/TestLog').then(module => ({ defa
 const Analytics = lazy(() => import('./components/Analytics').then(module => ({ default: module.Analytics })));
 const Resources = lazy(() => import('./components/Resources').then(module => ({ default: module.Resources })));
 const Library = lazy(() => import('./components/Library').then(module => ({ default: module.Library })));
+const VirtualLibrary = lazy(() => import('./components/VirtualLibrary').then(module => ({ default: module.VirtualLibrary })));
 
 const MotionDiv = motion.div as any;
 
@@ -96,8 +97,7 @@ const safeJSONParse = <T,>(key: string, fallback: T): T => {
 };
 
 // Helper for local date string YYYY-MM-DD
-const getLocalDate = () => {
-  const d = new Date();
+const getLocalDate = (d = new Date()) => {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -422,6 +422,7 @@ const TABS = [
   { id: 'daily', label: 'Home', icon: LayoutDashboard },
   { id: 'planner', label: 'Plan', icon: CalendarIcon },
   { id: 'focus', label: 'Focus', icon: Timer },
+  { id: 'group-focus', label: 'Study Room', icon: Wifi }, // NEW TAB
   { id: 'tests', label: 'Tests', icon: PenTool },
   { id: 'analytics', label: 'Stats', icon: BarChart3 },
 ];
@@ -2028,6 +2029,14 @@ const App: React.FC = () => {
                                 onOpenUpgrade={() => setShowProModal(true)}
                             />
                         </div>
+                    )}
+                    {view === 'group-focus' && (
+                        <VirtualLibrary 
+                            user={user}
+                            userName={user?.displayName || 'Guest'}
+                            onLogin={handleLogin}
+                            isPro={hasProAccess}
+                        />
                     )}
                     {view === 'tests' && (
                         <TestLog 
