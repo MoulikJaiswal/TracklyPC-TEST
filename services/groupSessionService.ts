@@ -25,7 +25,9 @@ export const groupSessionService = {
     const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'));
     
     return onSnapshot(q, (snapshot) => {
-        const rooms = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StudyRoom));
+        const rooms = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() } as StudyRoom))
+            .filter(r => r.status !== 'closing'); // Filter out rooms marked for deletion
         callback(rooms);
     }, (error) => {
         console.error("Error subscribing to rooms:", error);
@@ -38,7 +40,8 @@ export const groupSessionService = {
         await addDoc(collection(db, 'rooms'), {
             ...roomData,
             activeCount: 0,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            status: 'active' // Default status
         });
     } catch (e) {
         console.error("Error creating room:", e);
@@ -66,9 +69,11 @@ export const groupSessionService = {
 
         // If joining for the first time in this session, increment count
         if (isJoining) {
+            // Check if room is closing before joining? 
+            // Ideally yes, but Firestore rules or client check usually handles this.
             await updateDoc(roomRef, {
                 activeCount: increment(1)
-            });
+            }).catch(e => console.warn("Failed to increment count (room might be closing)", e));
         }
     } catch (e) {
         console.error("Error updating presence:", e);
@@ -87,7 +92,7 @@ export const groupSessionService = {
         // Decrement count
         await updateDoc(roomRef, {
             activeCount: increment(-1)
-        });
+        }).catch(() => {}); // Ignore error if room already deleted
     } catch (e) {
         console.error("Error leaving room:", e);
     }
@@ -125,33 +130,41 @@ export const groupSessionService = {
         
         callback(activeParts);
     }, (error) => {
-        console.error("Error subscribing to room participants:", error);
+        // console.error("Error subscribing to room participants:", error);
+        // Suppress error log if permission denied (likely caused by room deletion)
     });
   },
 
   // 6. Delete Room (Host only)
   deleteRoom: async (roomId: string) => {
-      // 1. Try to delete participants (Best Effort)
+      const roomRef = doc(db, 'rooms', roomId);
+
+      // 1. Soft Delete: Mark as closing immediately.
+      // This hides it from the lobby while we clean up.
+      try {
+          await updateDoc(roomRef, { status: 'closing' });
+      } catch (e) {
+          console.warn("Could not mark room as closing (might already be deleted or perm issue):", e);
+          // If we can't mark it closing, we might not be able to delete it, but let's try the hard delete anyway.
+      }
+
+      // 2. Try to delete participants (Best Effort)
       try {
           const participantsRef = collection(db, 'rooms', roomId, 'participants');
           const snapshot = await getDocs(participantsRef);
           
-          // We use Promise.allSettled to allow some deletions to fail (e.g., if we don't have permission to delete others)
-          // without stopping the process.
           const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
           await Promise.allSettled(deletePromises);
       } catch (e) {
-          // Ignore participant deletion errors (e.g. permission denied)
           console.warn("Partial failure clearing participants (ignoring):", e);
       }
 
-      // 2. Delete the room document (Critical)
-      // This is the step that actually "closes" the room for everyone listening.
+      // 3. Hard Delete the room document
       try {
-          await deleteDoc(doc(db, 'rooms', roomId));
+          await deleteDoc(roomRef);
       } catch (e) {
           console.error("CRITICAL: Error deleting room doc:", e);
-          throw e; // Reraise this one as it's the one that matters
+          throw e;
       }
   },
 
@@ -159,7 +172,13 @@ export const groupSessionService = {
   subscribeToRoomStatus: (roomId: string, onUpdate: (data: StudyRoom | null) => void) => {
       return onSnapshot(doc(db, 'rooms', roomId), (docSnap) => {
           if (docSnap.exists()) {
-              onUpdate({ id: docSnap.id, ...docSnap.data() } as StudyRoom);
+              const data = { id: docSnap.id, ...docSnap.data() } as StudyRoom;
+              // Treat 'closing' status as deleted for the active participants
+              if (data.status === 'closing') {
+                  onUpdate(null);
+              } else {
+                  onUpdate(data);
+              }
           } else {
               onUpdate(null); // Room deleted
           }
