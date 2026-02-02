@@ -13,18 +13,11 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Initialize state in the constructor for wider compatibility.
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    // Fix: Correctly initialize state on `this`.
-    this.state = {
-      hasError: false,
-      error: null,
-    };
-    // Fix: Manually bind event handlers to ensure 'this' context.
-    this.handleReset = this.handleReset.bind(this);
-    this.handleReload = this.handleReload.bind(this);
-  }
+  // Fix: Use class property for state initialization for cleaner syntax and to avoid constructor boilerplate.
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -35,29 +28,24 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
-    // Fix: Use `this.props` to access component props.
     if (this.props.viewKey !== prevProps.viewKey) {
-      // Fix: Use `this.setState` to update component state.
       this.setState({ hasError: false, error: null });
     }
   }
 
-  handleReset() {
-    // Fix: Use `this.setState` to update component state.
+  // Fix: Use arrow function to automatically bind `this`, removing the need for manual binding in the constructor.
+  handleReset = () => {
     this.setState({ hasError: false, error: null });
-    // Fix: Use `this.props` to access component props.
     if (this.props.onReset) {
-      // Fix: Use `this.props` to access component props.
       this.props.onReset();
     }
   }
 
-  handleReload() {
+  handleReload = () => {
     window.location.reload();
   }
 
   render() {
-    // Fix: Use `this.state` to access component state.
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-in fade-in zoom-in duration-300">
@@ -86,12 +74,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </button>
           </div>
 
-          {/* Fix: Use `this.state` to access component state. */}
           {this.state.error && (
              <div className="mt-8 w-full max-w-sm">
                  <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">Error Details</p>
                  <pre className="p-4 bg-slate-100 dark:bg-black/30 rounded-xl text-[10px] text-slate-500 font-mono text-left overflow-auto max-h-32 border border-slate-200 dark:border-white/5 whitespace-pre-wrap">
-                     {/* Fix: Use `this.state` to access component state. */}
                      {this.state.error.toString()}
                  </pre>
              </div>
@@ -100,11 +86,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       );
     }
 
-    return (
-      <>
-        {/* Fix: Use `this.props` to access component props. */}
-        {this.props.children}
-      </>
-    );
+    return this.props.children;
   }
 }

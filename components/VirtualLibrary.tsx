@@ -174,7 +174,6 @@ const ParticipantCard = memo(({
 
 // --- SUB-COMPONENT: Leaderboard ---
 const formatLeaderboardTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes}m`;
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return `${h}h ${m}m`;
@@ -934,7 +933,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                   className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors"
                                   value={joinCode}
                                   onChange={e => setJoinCode(e.target.value)}
-                              />
+                                  autoFocus
+                                />
                               <button 
                                   type="submit" 
                                   disabled={isJoiningByCode || !joinCode}
