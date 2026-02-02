@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, memo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -28,7 +27,11 @@ import {
   Maximize2,
   Minimize2,
   Music2,
-  Square
+  Square,
+  Trophy,
+  Medal,
+  Flame,
+  Clock
 } from 'lucide-react';
 import { StudyParticipant, StudyRoom, Target } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
@@ -179,6 +182,53 @@ const ParticipantCard = memo(({
     );
 });
 
+// --- SUB-COMPONENT: Leaderboard ---
+const Leaderboard = memo(({ participants }: { participants: StudyParticipant[] }) => {
+    const sorted = [...participants].sort((a, b) => (b.accumulatedFocusTime || 0) - (a.accumulatedFocusTime || 0));
+
+    return (
+        <div className="h-full flex flex-col">
+            <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center gap-2 bg-white/50 dark:bg-black/20">
+                <Trophy size={16} className="text-amber-500" />
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white">Session Leaders</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 custom-scrollbar space-y-1">
+                {sorted.map((p, index) => {
+                    const minutes = Math.floor(p.accumulatedFocusTime || 0);
+                    return (
+                        <div key={p.uid} className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
+                            <div className={`
+                                w-6 h-6 flex items-center justify-center rounded-full text-[10px] font-bold shrink-0
+                                ${index === 0 ? 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400' : 
+                                  index === 1 ? 'bg-slate-200 text-slate-600 dark:bg-slate-500/20 dark:text-slate-400' :
+                                  index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400' :
+                                  'text-slate-400'
+                                }
+                            `}>
+                                {index + 1}
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                                <p className={`text-xs font-bold truncate ${p.uid === 'me' ? 'text-indigo-500' : 'text-slate-700 dark:text-slate-200'}`}>
+                                    {p.displayName}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <Clock size={12} className="text-slate-400" />
+                                <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{minutes}m</span>
+                            </div>
+                        </div>
+                    );
+                })}
+                {sorted.length === 0 && (
+                    <div className="p-4 text-center opacity-50">
+                        <p className="text-[10px] uppercase text-slate-500 font-bold">No activity yet</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+});
+
 export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, onLogin, isPro, targets, onCompleteTask }) => {
   const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null);
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
@@ -205,6 +255,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
   const [showMiniPlanner, setShowMiniPlanner] = useState(false);
   const [zenMode, setZenMode] = useState(false);
+  const [showMobileLeaderboard, setShowMobileLeaderboard] = useState(false);
 
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
@@ -317,9 +368,18 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       if (!user || !activeRoom) return;
 
       const newStatus = isMyTimerRunning ? 'break' : 'focus';
+      const now = Date.now();
       
-      // Stop Logic with Task Completion Check
+      const updates: any = {
+          status: newStatus,
+          subject: mySubject,
+          lastActivity: now,
+          intention: newStatus === 'focus' ? (myIntention || 'Focusing') : ''
+      };
+
+      // Stop Logic with Task Completion Check & Time Accumulation
       if (isMyTimerRunning) {
+          // 1. Task Check
           if (linkedTaskId) {
               const task = targets.find(t => t.id === linkedTaskId);
               if (task && !task.completed) {
@@ -331,17 +391,26 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                   }
               }
           }
+
+          // 2. Accumulate Time
+          // Find my current state to get start time
+          const me = participants.find(p => p.uid === user.uid);
+          if (me && me.focusEndTime && me.focusDuration) {
+              const currentAccumulated = me.accumulatedFocusTime || 0;
+              // Start time was EndTime - DurationMs
+              const startTime = me.focusEndTime - (me.focusDuration * 60 * 1000);
+              const elapsedMs = now - startTime;
+              // Cap at duration (don't count overtime if they forgot to stop)
+              const durationMs = me.focusDuration * 60 * 1000;
+              const actualSpentMs = Math.min(elapsedMs, durationMs);
+              
+              if (actualSpentMs > 60000) { // Only count if > 1 min
+                  updates.accumulatedFocusTime = currentAccumulated + (actualSpentMs / 60000);
+              }
+          }
       }
 
       setIsMyTimerRunning(!isMyTimerRunning);
-
-      const now = Date.now();
-      const updates: any = {
-          status: newStatus,
-          subject: mySubject,
-          lastActivity: now,
-          intention: newStatus === 'focus' ? (myIntention || 'Focusing') : ''
-      };
 
       if (newStatus === 'focus') {
           updates.focusDuration = myDuration;
@@ -598,7 +667,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           
           {/* Room Header (Hidden in Zen Mode) */}
           {!zenMode && (
-              <div className="flex justify-between items-center mb-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 rounded-2xl border border-slate-200 dark:border-white/5">
+              <div className="flex justify-between items-center mb-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 rounded-2xl border border-slate-200 dark:border-white/5 shrink-0">
                   <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-xl bg-${activeRoom.color}-500/10 text-${activeRoom.color}-500`}>
                           <Users size={20} />
@@ -616,6 +685,17 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                       </div>
                   </div>
                   <div className="flex items-center gap-2">
+                      {/* Mobile Leaderboard Toggle */}
+                      <button 
+                          onClick={() => setShowMobileLeaderboard(true)}
+                          className="lg:hidden p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-xl transition-colors relative"
+                      >
+                          <Trophy size={20} />
+                          {participants.some(p => (p.accumulatedFocusTime || 0) > 0) && (
+                              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border border-white dark:border-slate-900" />
+                          )}
+                      </button>
+
                       {isAmHost && (
                           <button 
                               onClick={handleShutdown}
@@ -636,25 +716,36 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               </div>
           )}
 
-          {/* Participants Grid */}
-          <div className="flex-1 overflow-y-auto min-h-0 mb-6 custom-scrollbar pb-32">
-              {participants.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center opacity-40">
-                      <Users size={32} className="text-slate-400 mb-2" />
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Room is empty</p>
-                  </div>
-              ) : (
-                  <div className={`grid gap-3 transition-all ${zenMode ? 'grid-cols-2 md:grid-cols-4 opacity-50 hover:opacity-100' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'}`}>
-                      {participants.map(p => (
-                          <ParticipantCard 
-                              key={p.uid} 
-                              participant={p} 
-                              isMe={user?.uid === p.uid}
-                              isHost={activeRoom.createdBy === p.uid}
-                              canKick={isAmHost && p.uid !== user?.uid}
-                              onKick={() => handleKick(p.uid)}
-                          />
-                      ))}
+          {/* Main Content Area: Grid + Leaderboard */}
+          <div className="flex flex-1 overflow-hidden gap-6 mb-6">
+              
+              {/* Participants Grid */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar pb-32">
+                  {participants.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center opacity-40">
+                          <Users size={32} className="text-slate-400 mb-2" />
+                          <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Room is empty</p>
+                      </div>
+                  ) : (
+                      <div className={`grid gap-3 transition-all ${zenMode ? 'grid-cols-2 md:grid-cols-4 opacity-50 hover:opacity-100' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'}`}>
+                          {participants.map(p => (
+                              <ParticipantCard 
+                                  key={p.uid} 
+                                  participant={p} 
+                                  isMe={user?.uid === p.uid}
+                                  isHost={activeRoom.createdBy === p.uid}
+                                  canKick={isAmHost && p.uid !== user?.uid}
+                                  onKick={() => handleKick(p.uid)}
+                              />
+                          ))}
+                      </div>
+                  )}
+              </div>
+
+              {/* Desktop Leaderboard Sidebar */}
+              {!zenMode && (
+                  <div className="hidden lg:block w-72 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 rounded-3xl overflow-hidden shadow-sm shrink-0">
+                      <Leaderboard participants={participants} />
                   </div>
               )}
           </div>
@@ -662,7 +753,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           {/* Bottom Control Bar */}
           <div className={`
               ${zenMode ? 'fixed bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl' : 'absolute bottom-4 left-4 right-4'} 
-              bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden transition-all duration-500
+              bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden transition-all duration-500 z-50
           `}>
               {/* Progress Line (Active State Only) */}
               {isMyTimerRunning && (
@@ -777,6 +868,23 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                   </div>
               </div>
           </div>
+
+          {/* Mobile Leaderboard Sheet */}
+          {showMobileLeaderboard && createPortal(
+              <div className="fixed inset-0 z-[200] flex items-end justify-center p-4">
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMobileLeaderboard(false)} />
+                  <div className="relative bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300 max-h-[60vh] flex flex-col">
+                      <div className="flex justify-between items-center mb-4 shrink-0">
+                          <h3 className="text-lg font-bold text-white">Leaderboard</h3>
+                          <button onClick={() => setShowMobileLeaderboard(false)} className="p-2 bg-white/5 rounded-full text-slate-400"><X size={16}/></button>
+                      </div>
+                      <div className="flex-1 overflow-hidden min-h-0">
+                          <Leaderboard participants={participants} />
+                      </div>
+                  </div>
+              </div>,
+              document.body
+          )}
 
           {/* Mini Planner Sheet */}
           {showMiniPlanner && createPortal(
