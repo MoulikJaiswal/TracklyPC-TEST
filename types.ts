@@ -17,6 +17,7 @@ export interface Session {
   mistakes: MistakeCounts;
   timestamp: number;
   duration?: number; // Total seconds spent in this session
+  focusRating?: number; // 1-10 rating of focus quality
 }
 
 export interface QuestionLog {
@@ -132,6 +133,14 @@ export interface StudyParticipant {
   focusDuration?: number; // Total minutes (for progress bar calc)
   intention?: string; // The specific task/goal they are working on
   accumulatedFocusTime?: number; // Total minutes focused in this session
+  
+  // New Engagement Fields
+  isAway?: boolean; // True if AFK > 5 mins
+  lastReaction?: {
+    emoji: string;
+    fromName: string;
+    timestamp: number;
+  } | null;
 }
 
 export interface StudyRoom {

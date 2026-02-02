@@ -145,7 +145,6 @@ export const groupSessionService = {
           await updateDoc(roomRef, { status: 'closing' });
       } catch (e) {
           console.warn("Could not mark room as closing (might already be deleted or perm issue):", e);
-          // If we can't mark it closing, we might not be able to delete it, but let's try the hard delete anyway.
       }
 
       // 2. Try to delete participants (Best Effort)
@@ -183,5 +182,21 @@ export const groupSessionService = {
               onUpdate(null); // Room deleted
           }
       });
+  },
+
+  // 8. Send Reaction (Emoji)
+  sendReaction: async (roomId: string, targetUserId: string, emoji: string, fromName: string) => {
+      const participantRef = doc(db, `rooms/${roomId}/participants`, targetUserId);
+      try {
+          await updateDoc(participantRef, {
+              lastReaction: {
+                  emoji,
+                  fromName,
+                  timestamp: Date.now()
+              }
+          });
+      } catch (e) {
+          console.error("Failed to send reaction", e);
+      }
   }
 };

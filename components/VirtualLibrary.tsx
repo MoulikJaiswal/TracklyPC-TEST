@@ -31,12 +31,18 @@ import {
   Trophy,
   Medal,
   Flame,
-  Clock
+  Clock,
+  Eye,
+  Star,
+  PartyPopper
 } from 'lucide-react';
-import { StudyParticipant, StudyRoom, Target } from '../types';
+import { StudyParticipant, StudyRoom, Target, Session } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
 import { Card } from './Card';
 import { User } from 'firebase/auth';
+import { AnimatePresence, motion } from 'framer-motion';
+
+const MotionDiv = motion.div as any;
 
 interface VirtualLibraryProps {
   user: User | null;
@@ -47,23 +53,27 @@ interface VirtualLibraryProps {
   onCompleteTask: (id: string, completed: boolean) => void;
 }
 
-// --- SUB-COMPONENT: Participant Card (Calculates its own progress) ---
+// --- SUB-COMPONENT: Participant Card ---
 const ParticipantCard = memo(({ 
     participant, 
     isMe, 
     isHost,
     canKick,
-    onKick 
+    onKick,
+    onReaction
 }: { 
     participant: StudyParticipant, 
     isMe: boolean, 
     isHost: boolean,
     canKick: boolean,
-    onKick: () => void
+    onKick: () => void,
+    onReaction: (emoji: string) => void
 }) => {
     const [progress, setProgress] = useState(0);
     const [timeLeftStr, setTimeLeftStr] = useState('');
+    const [showReaction, setShowReaction] = useState<{emoji: string, from: string} | null>(null);
 
+    // Timer Logic
     useEffect(() => {
         if (participant.status !== 'focus' || !participant.focusEndTime || !participant.focusDuration) {
             setProgress(0);
@@ -93,10 +103,22 @@ const ParticipantCard = memo(({
             setTimeLeftStr(`${m}:${s.toString().padStart(2, '0')}`);
         };
 
-        tick(); // Initial
+        tick(); 
         const interval = setInterval(tick, 1000);
         return () => clearInterval(interval);
     }, [participant.status, participant.focusEndTime, participant.focusDuration]);
+
+    // Reaction Listener
+    useEffect(() => {
+        if (participant.lastReaction && participant.lastReaction.timestamp > Date.now() - 5000) {
+            setShowReaction({
+                emoji: participant.lastReaction.emoji,
+                from: participant.lastReaction.fromName
+            });
+            const t = setTimeout(() => setShowReaction(null), 3000);
+            return () => clearTimeout(t);
+        }
+    }, [participant.lastReaction]);
 
     const getSubjectIcon = (subj: string) => {
         switch(subj) {
@@ -112,7 +134,27 @@ const ParticipantCard = memo(({
         <div className={`
             relative overflow-hidden rounded-2xl p-4 border transition-all duration-300 group
             ${isMe ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-white/5 border-white/5'}
+            ${participant.isAway ? 'opacity-60 grayscale-[0.5]' : ''}
         `}>
+            {/* Reaction Overlay */}
+            <AnimatePresence>
+                {showReaction && (
+                    <MotionDiv 
+                        initial={{ opacity: 0, scale: 0.5, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: -20 }}
+                        exit={{ opacity: 0, scale: 1.5, y: -40 }}
+                        className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none"
+                    >
+                        <span className="text-4xl filter drop-shadow-lg">{showReaction.emoji}</span>
+                        {isMe && (
+                            <span className="text-[9px] font-bold text-white bg-black/50 px-2 py-1 rounded-full mt-2 backdrop-blur-sm">
+                                from {showReaction.from}
+                            </span>
+                        )}
+                    </MotionDiv>
+                )}
+            </AnimatePresence>
+
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 border border-white/10 overflow-hidden relative">
@@ -121,6 +163,8 @@ const ParticipantCard = memo(({
                         ) : (
                             participant.displayName.charAt(0).toUpperCase()
                         )}
+                        {/* Status Dot */}
+                        <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${participant.isAway ? 'bg-amber-500' : participant.status === 'focus' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
                     </div>
                     <div className="overflow-hidden">
                         <div className="flex items-center gap-1">
@@ -128,12 +172,30 @@ const ParticipantCard = memo(({
                             {isHost && <Crown size={12} className="text-amber-500 fill-amber-500" />}
                         </div>
                         <p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
-                            {participant.status === 'focus' ? participant.subject : 'On Break'}
+                            {participant.isAway ? 'Away' : participant.status === 'focus' ? participant.subject : 'On Break'}
                         </p>
                     </div>
                 </div>
                 
                 <div className="flex gap-1">
+                    {!isMe && !participant.isAway && participant.status === 'focus' && (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                                onClick={() => onReaction('🔥')} 
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-orange-500/20 text-orange-500 hover:bg-orange-500 hover:text-white transition-colors"
+                                title="Send Fire"
+                            >
+                                <Flame size={12} fill="currentColor" />
+                            </button>
+                            <button 
+                                onClick={() => onReaction('👏')} 
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-colors"
+                                title="Send Kudos"
+                            >
+                                <PartyPopper size={12} />
+                            </button>
+                        </div>
+                    )}
                     {participant.status === 'focus' && (
                         <div className="p-1.5 rounded-lg bg-black/20 border border-white/5">
                             {getSubjectIcon(participant.subject)}
@@ -174,7 +236,8 @@ const ParticipantCard = memo(({
             ) : (
                 <div className="h-8 flex items-center justify-center opacity-50">
                     <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1">
-                        <Coffee size={12} /> Idle
+                        {participant.isAway ? <Eye size={12} /> : <Coffee size={12} />} 
+                        {participant.isAway ? 'Away from Keyboard' : 'Idle'}
                     </span>
                 </div>
             )}
@@ -229,6 +292,67 @@ const Leaderboard = memo(({ participants }: { participants: StudyParticipant[] }
     );
 });
 
+// --- SUB-COMPONENT: Reflection Modal ---
+const ReflectionModal = ({ 
+    isOpen, 
+    onClose, 
+    onConfirm, 
+    duration 
+}: { 
+    isOpen: boolean, 
+    onClose: () => void, 
+    onConfirm: (rating: number) => void, 
+    duration: number 
+}) => {
+    const [rating, setRating] = useState(5);
+
+    if (!isOpen) return null;
+
+    return createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2rem] p-6 shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200">
+                <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-500">
+                        <CheckCircle2 size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-1">Session Complete!</h3>
+                    <p className="text-sm text-slate-400">{duration} minutes of focus logged.</p>
+                </div>
+
+                <div className="mb-8">
+                    <label className="block text-center text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">
+                        How focused were you?
+                    </label>
+                    <div className="flex justify-between items-center px-2 mb-2">
+                        <span className="text-xs font-bold text-slate-600">Distracted</span>
+                        <span className="text-2xl font-bold text-indigo-500">{rating}</span>
+                        <span className="text-xs font-bold text-slate-600">Deep Flow</span>
+                    </div>
+                    <input 
+                        type="range" min="1" max="10" step="1" 
+                        value={rating} 
+                        onChange={(e) => setRating(parseInt(e.target.value))}
+                        className="w-full h-2 bg-slate-800 rounded-full appearance-none cursor-pointer accent-indigo-500"
+                    />
+                </div>
+
+                <div className="flex gap-3">
+                    <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 font-bold uppercase text-xs tracking-wider transition-colors">
+                        Skip
+                    </button>
+                    <button 
+                        onClick={() => onConfirm(rating)}
+                        className="flex-[2] py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-xs tracking-wider shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                    >
+                        Log Session
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
 export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, onLogin, isPro, targets, onCompleteTask }) => {
   const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null);
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
@@ -257,6 +381,11 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [zenMode, setZenMode] = useState(false);
   const [showMobileLeaderboard, setShowMobileLeaderboard] = useState(false);
 
+  // --- NEW FEATURES STATES ---
+  const [showReflection, setShowReflection] = useState(false);
+  const [lastSessionDuration, setLastSessionDuration] = useState(0);
+  const [isAway, setIsAway] = useState(false);
+
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
 
@@ -272,6 +401,43 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           setCustomAvatar(user.photoURL);
       }
   }, [userName, user]);
+
+  // IDLE DETECTION (AFK)
+  useEffect(() => {
+      if (!user || !activeRoom) return;
+
+      let idleTimer: any; // Using any to avoid namespace issues in browser
+      const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+      const resetIdle = () => {
+          if (isAway) {
+              setIsAway(false);
+              // Update status back to whatever it was? Or just update 'isAway' flag
+              groupSessionService.updatePresence(activeRoom.id, user.uid, { isAway: false });
+          }
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+              setIsAway(true);
+              groupSessionService.updatePresence(activeRoom.id, user.uid, { isAway: true });
+          }, IDLE_TIMEOUT);
+      };
+
+      // Events to track
+      window.addEventListener('mousemove', resetIdle);
+      window.addEventListener('keydown', resetIdle);
+      window.addEventListener('scroll', resetIdle);
+      window.addEventListener('click', resetIdle);
+
+      resetIdle(); // Init
+
+      return () => {
+          clearTimeout(idleTimer);
+          window.removeEventListener('mousemove', resetIdle);
+          window.removeEventListener('keydown', resetIdle);
+          window.removeEventListener('scroll', resetIdle);
+          window.removeEventListener('click', resetIdle);
+      };
+  }, [activeRoom?.id, user?.uid, isAway]);
 
   // 1. Subscribe to Room List (Lobby)
   useEffect(() => {
@@ -325,7 +491,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           photoURL: customAvatar || undefined,
           status: 'idle',
           subject: mySubject,
-          lastActivity: Date.now()
+          lastActivity: Date.now(),
+          isAway: false
       }, true);
   };
 
@@ -364,6 +531,22 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }
   }, [activeRoom, isAmHost]);
 
+  // Handle Reactions
+  const handleSendReaction = async (emoji: string) => {
+      if (!activeRoom || !user) return;
+      // Get all active focus users
+      const targets = participants.filter(p => p.status === 'focus' && p.uid !== user.uid);
+      // Send to all (Simulating broadcast by updating each user doc - suboptimal for huge rooms but fine for <50)
+      // Actually, let's just send to the specific user if we clicked a specific user card.
+      // But the UI button is generic "Send to all" concept in some designs, 
+      // here we will pass this function to ParticipantCard so it sends to specific user.
+  };
+
+  const handleReactionToUser = async (targetUid: string, emoji: string) => {
+      if (!activeRoom || !user) return;
+      await groupSessionService.sendReaction(activeRoom.id, targetUid, emoji, displayName || 'Friend');
+  };
+
   const toggleMyTimer = () => {
       if (!user || !activeRoom) return;
 
@@ -393,21 +576,24 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           }
 
           // 2. Accumulate Time
-          // Find my current state to get start time
           const me = participants.find(p => p.uid === user.uid);
+          let sessionMins = 0;
           if (me && me.focusEndTime && me.focusDuration) {
               const currentAccumulated = me.accumulatedFocusTime || 0;
-              // Start time was EndTime - DurationMs
               const startTime = me.focusEndTime - (me.focusDuration * 60 * 1000);
               const elapsedMs = now - startTime;
-              // Cap at duration (don't count overtime if they forgot to stop)
               const durationMs = me.focusDuration * 60 * 1000;
               const actualSpentMs = Math.min(elapsedMs, durationMs);
               
               if (actualSpentMs > 60000) { // Only count if > 1 min
-                  updates.accumulatedFocusTime = currentAccumulated + (actualSpentMs / 60000);
+                  sessionMins = Math.floor(actualSpentMs / 60000);
+                  updates.accumulatedFocusTime = currentAccumulated + sessionMins;
               }
           }
+
+          // 3. Trigger Reflection
+          setLastSessionDuration(sessionMins || 0);
+          setShowReflection(true);
       }
 
       setIsMyTimerRunning(!isMyTimerRunning);
@@ -418,6 +604,13 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }
 
       groupSessionService.updatePresence(activeRoom.id, user.uid, updates);
+  };
+
+  const handleReflectionConfirm = (rating: number) => {
+      setShowReflection(false);
+      // Here you would typically save this session to your main 'sessions' collection for analytics
+      // For now, we just close it, but in a full app we'd call onSaveSession
+      console.log(`Session rated: ${rating}/10`);
   };
 
   const handleCreateRoom = async (e: React.FormEvent) => {
@@ -736,6 +929,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                   isHost={activeRoom.createdBy === p.uid}
                                   canKick={isAmHost && p.uid !== user?.uid}
                                   onKick={() => handleKick(p.uid)}
+                                  onReaction={(emoji) => handleReactionToUser(p.uid, emoji)}
                               />
                           ))}
                       </div>
@@ -916,6 +1110,14 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               </div>,
               document.body
           )}
+
+          {/* Reflection Modal */}
+          <ReflectionModal 
+              isOpen={showReflection}
+              onClose={() => setShowReflection(false)}
+              onConfirm={handleReflectionConfirm}
+              duration={lastSessionDuration}
+          />
       </div>
   );
 };
