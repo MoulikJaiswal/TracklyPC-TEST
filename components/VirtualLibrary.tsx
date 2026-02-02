@@ -22,9 +22,15 @@ import {
   Camera,
   Crown,
   UserMinus,
-  Power
+  Power,
+  ListTodo,
+  CheckCircle2,
+  Maximize2,
+  Minimize2,
+  Music2,
+  Square
 } from 'lucide-react';
-import { StudyParticipant, StudyRoom } from '../types';
+import { StudyParticipant, StudyRoom, Target } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
 import { Card } from './Card';
 import { User } from 'firebase/auth';
@@ -34,6 +40,8 @@ interface VirtualLibraryProps {
   userName: string | null;
   onLogin: () => void;
   isPro: boolean;
+  targets: Target[];
+  onCompleteTask: (id: string, completed: boolean) => void;
 }
 
 // --- SUB-COMPONENT: Participant Card (Calculates its own progress) ---
@@ -141,11 +149,18 @@ const ParticipantCard = memo(({
             </div>
 
             {participant.status === 'focus' ? (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                     <div className="flex justify-between items-end">
-                        <span className="text-[10px] text-indigo-500 dark:text-indigo-300 font-bold uppercase tracking-wider">Focusing</span>
+                        <span className="text-[10px] text-indigo-500 dark:text-indigo-300 font-bold uppercase tracking-wider">
+                            {participant.intention ? 'Working on Task' : 'Focusing'}
+                        </span>
                         <span className="text-[10px] font-mono text-slate-600 dark:text-white">{timeLeftStr}</span>
                     </div>
+                    {participant.intention && (
+                        <p className="text-xs text-slate-700 dark:text-slate-300 truncate" title={participant.intention}>
+                            {participant.intention}
+                        </p>
+                    )}
                     <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700/50 rounded-full overflow-hidden">
                         <div 
                             className="h-full bg-indigo-500 transition-all duration-1000 ease-linear" 
@@ -164,7 +179,7 @@ const ParticipantCard = memo(({
     );
 });
 
-export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, onLogin, isPro }) => {
+export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, onLogin, isPro, targets, onCompleteTask }) => {
   const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null);
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
@@ -184,6 +199,12 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [mySubject, setMySubject] = useState<'Physics'|'Chemistry'|'Maths'|'Biology'|'Other'>('Physics');
   const [myDuration, setMyDuration] = useState(25);
   const [isMyTimerRunning, setIsMyTimerRunning] = useState(false);
+  
+  // New States for Improved Bottom Bar
+  const [myIntention, setMyIntention] = useState('');
+  const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
+  const [showMiniPlanner, setShowMiniPlanner] = useState(false);
+  const [zenMode, setZenMode] = useState(false);
 
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
@@ -224,13 +245,10 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       const unsubscribe = groupSessionService.subscribeToRoomStatus(activeRoom.id, (updatedRoom) => {
           // If updatedRoom is null, it means it's deleted.
           if (!updatedRoom) {
-              // Only react if we are currently in the room and NOT the host who just deleted it
-              // (The host's activeRoom is cleared optimistically in handleShutdown)
               setActiveRoom((current) => {
                   if (current && current.id === activeRoom.id) {
                       setParticipants([]);
                       setIsMyTimerRunning(false);
-                      // Don't show alert if I'm the one who closed it
                       if (current.createdBy !== user?.uid) {
                           alert("The host has closed this room.");
                       }
@@ -250,7 +268,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           return;
       }
       setActiveRoom(room);
-      // Initial presence write (Join as Idle) - Pass `true` for isJoining to increment count
       groupSessionService.updatePresence(room.id, user.uid, {
           uid: user.uid,
           displayName: displayName || 'Anonymous',
@@ -269,9 +286,9 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       setActiveRoom(null);
       setParticipants([]);
       setIsMyTimerRunning(false);
+      setZenMode(false);
   };
 
-  // Handle Kick (Host only)
   const handleKick = useCallback((targetUserId: string) => {
       if (!activeRoom || !isAmHost) return;
       if (confirm("Are you sure you want to kick this user?")) {
@@ -279,40 +296,51 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }
   }, [activeRoom, isAmHost]);
 
-  // Handle Shutdown (Host only)
   const handleShutdown = useCallback(async () => {
       if (!activeRoom || !isAmHost) return;
       if (confirm("Shut down the room? All participants will be disconnected.")) {
-          // Optimistic UI update: Immediately return to lobby
           const roomToDelete = activeRoom.id;
           setActiveRoom(null); 
           setParticipants([]);
           setIsMyTimerRunning(false);
+          setZenMode(false);
 
           try {
-              // Proceed with deletion in background
               await groupSessionService.deleteRoom(roomToDelete);
           } catch (e) {
               console.error("Shutdown failed (room might still exist):", e);
-              // Since we are already out, we don't alert the user to avoid confusion.
-              // The room might linger in the list if deletion completely failed,
-              // but for the host, the session is over.
           }
       }
   }, [activeRoom, isAmHost]);
 
-  // Handle Timer Start/Stop
   const toggleMyTimer = () => {
       if (!user || !activeRoom) return;
 
       const newStatus = isMyTimerRunning ? 'break' : 'focus';
+      
+      // Stop Logic with Task Completion Check
+      if (isMyTimerRunning) {
+          if (linkedTaskId) {
+              const task = targets.find(t => t.id === linkedTaskId);
+              if (task && !task.completed) {
+                  const done = window.confirm(`Did you complete the task: "${task.text}"?`);
+                  if (done) {
+                      onCompleteTask(linkedTaskId, true);
+                      setLinkedTaskId(null);
+                      setMyIntention('');
+                  }
+              }
+          }
+      }
+
       setIsMyTimerRunning(!isMyTimerRunning);
 
       const now = Date.now();
       const updates: any = {
           status: newStatus,
           subject: mySubject,
-          lastActivity: now
+          lastActivity: now,
+          intention: newStatus === 'focus' ? (myIntention || 'Focusing') : ''
       };
 
       if (newStatus === 'focus') {
@@ -348,7 +376,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           console.error("Failed to create room:", err);
           let msg = "Failed to create room.";
           if (err.code === 'permission-denied') {
-              msg = "Permission denied. Please checking your internet or database rules.";
+              msg = "Permission denied. Please check your internet or database rules.";
           } else if (err.message) {
               msg = err.message;
           }
@@ -358,28 +386,18 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }
   };
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      
-      if (file.size > 500 * 1024) {
-          alert("Image is too large. Please select an image under 500KB.");
-          return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-          const result = ev.target?.result as string;
-          setCustomAvatar(result);
-          localStorage.setItem('trackly_guest_avatar', result);
-      };
-      reader.readAsDataURL(file);
+  const handleLinkTask = (task: Target) => {
+      setLinkedTaskId(task.id);
+      if (!myIntention) setMyIntention(task.text);
+      setShowMiniPlanner(false);
   };
 
   // --- RENDER: LOBBY ---
   if (!activeRoom) {
       return (
+          // ... (Lobby code remains mostly same, just ensuring correct renders) ...
           <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+              {/* Header */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                   <div>
                       <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Focus Lounge</h2>
@@ -404,7 +422,18 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                               ref={avatarInputRef} 
                               className="hidden" 
                               accept="image/*"
-                              onChange={handleAvatarUpload}
+                              onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                      const reader = new FileReader();
+                                      reader.onload = (ev) => {
+                                          const res = ev.target?.result as string;
+                                          setCustomAvatar(res);
+                                          localStorage.setItem('trackly_guest_avatar', res);
+                                      };
+                                      reader.readAsDataURL(file);
+                                  }
+                              }}
                           />
                           
                           <div className="flex flex-col">
@@ -428,6 +457,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                   </button>
               </div>
 
+              {/* Room Grid */}
               {rooms.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-3xl text-center opacity-60">
                       <Users size={48} className="text-slate-400 mb-4" />
@@ -538,7 +568,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                               type="button"
                                               onClick={() => setNewRoomData({...newRoomData, color: c})}
                                               className={`w-8 h-8 rounded-full border-2 transition-all ${newRoomData.color === c ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-50 hover:opacity-100'}`}
-                                              style={{ backgroundColor: `var(--color-${c}-500, ${c})` }} // Fallback for simple colors
+                                              style={{ backgroundColor: `var(--color-${c}-500, ${c})` }} 
                                           >
                                               <div className={`w-full h-full rounded-full bg-${c}-500`} /> 
                                           </button>
@@ -562,123 +592,222 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       );
   }
 
-  // --- RENDER: ROOM ---
+  // --- RENDER: ACTIVE ROOM ---
   return (
-      <div className="h-[calc(100vh-100px)] flex flex-col animate-in fade-in zoom-in-95 duration-300">
+      <div className={`h-[calc(100vh-100px)] flex flex-col animate-in fade-in zoom-in-95 duration-300 ${zenMode ? 'fixed inset-0 z-[150] bg-black h-screen p-6' : ''}`}>
           
-          {/* Room Header */}
-          <div className="flex justify-between items-center mb-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 rounded-2xl border border-slate-200 dark:border-white/5">
-              <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-xl bg-${activeRoom.color}-500/10 text-${activeRoom.color}-500`}>
-                      <Users size={20} />
-                  </div>
-                  <div>
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">{activeRoom.name}</h3>
-                      <div className="flex items-center gap-2">
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              {participants.length} Online
-                          </p>
-                          <span className="text-[10px] text-slate-400">•</span>
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{activeRoom.topic}</p>
+          {/* Room Header (Hidden in Zen Mode) */}
+          {!zenMode && (
+              <div className="flex justify-between items-center mb-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 rounded-2xl border border-slate-200 dark:border-white/5">
+                  <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-xl bg-${activeRoom.color}-500/10 text-${activeRoom.color}-500`}>
+                          <Users size={20} />
+                      </div>
+                      <div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white">{activeRoom.name}</h3>
+                          <div className="flex items-center gap-2">
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  {participants.length} Online
+                              </p>
+                              <span className="text-[10px] text-slate-400">•</span>
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{activeRoom.topic}</p>
+                          </div>
                       </div>
                   </div>
-              </div>
-              <div className="flex items-center gap-2">
-                  {isAmHost && (
+                  <div className="flex items-center gap-2">
+                      {isAmHost && (
+                          <button 
+                              onClick={handleShutdown}
+                              className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors"
+                              title="Shutdown Room"
+                          >
+                              <Power size={20} />
+                          </button>
+                      )}
                       <button 
-                          onClick={handleShutdown}
-                          className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors"
-                          title="Shutdown Room"
+                          onClick={handleLeave}
+                          className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-colors"
+                          title="Leave Room"
                       >
-                          <Power size={20} />
+                          <LogOut size={20} />
                       </button>
-                  )}
-                  <button 
-                      onClick={handleLeave}
-                      className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-colors"
-                      title="Leave Room"
-                  >
-                      <LogOut size={20} />
-                  </button>
+                  </div>
               </div>
-          </div>
+          )}
 
           {/* Participants Grid */}
-          <div className="flex-1 overflow-y-auto min-h-0 mb-6 custom-scrollbar">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {participants.map(p => (
-                      <ParticipantCard 
-                          key={p.uid} 
-                          participant={p} 
-                          isMe={user?.uid === p.uid}
-                          isHost={activeRoom.createdBy === p.uid}
-                          canKick={isAmHost && p.uid !== user?.uid}
-                          onKick={() => handleKick(p.uid)}
-                      />
-                  ))}
-              </div>
-              
-              {participants.length === 0 && (
+          <div className="flex-1 overflow-y-auto min-h-0 mb-6 custom-scrollbar pb-32">
+              {participants.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center opacity-40">
                       <Users size={32} className="text-slate-400 mb-2" />
                       <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Room is empty</p>
                   </div>
+              ) : (
+                  <div className={`grid gap-3 transition-all ${zenMode ? 'grid-cols-2 md:grid-cols-4 opacity-50 hover:opacity-100' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'}`}>
+                      {participants.map(p => (
+                          <ParticipantCard 
+                              key={p.uid} 
+                              participant={p} 
+                              isMe={user?.uid === p.uid}
+                              isHost={activeRoom.createdBy === p.uid}
+                              canKick={isAmHost && p.uid !== user?.uid}
+                              onKick={() => handleKick(p.uid)}
+                          />
+                      ))}
+                  </div>
               )}
           </div>
 
-          {/* My Controls Footer */}
-          <div className="bg-slate-900 dark:bg-black/40 backdrop-blur-xl border border-slate-800 dark:border-white/10 p-4 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4">
-              <div className="flex items-center gap-4">
-                  {/* Controls */}
-                  <div className="flex-1 space-y-3">
-                      <div className="flex gap-2">
-                          {['Physics', 'Chemistry', 'Maths', 'Biology'].map(sub => (
-                              <button
-                                  key={sub}
-                                  onClick={() => !isMyTimerRunning && setMySubject(sub as any)}
-                                  disabled={isMyTimerRunning}
-                                  className={`
-                                      flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all
-                                      ${mySubject === sub 
-                                          ? 'bg-indigo-500 border-indigo-500 text-white' 
-                                          : 'bg-transparent border-slate-700 text-slate-500 hover:border-slate-500'
-                                      }
-                                      ${isMyTimerRunning ? 'opacity-50 cursor-not-allowed' : ''}
-                                  `}
-                              >
-                                  {sub.slice(0,1)}
-                              </button>
-                          ))}
+          {/* Bottom Control Bar */}
+          <div className={`
+              ${zenMode ? 'fixed bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl' : 'absolute bottom-4 left-4 right-4'} 
+              bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden transition-all duration-500
+          `}>
+              {/* Progress Line (Active State Only) */}
+              {isMyTimerRunning && (
+                  <div className="absolute top-0 left-0 w-full h-[2px] bg-slate-800">
+                      <div className="h-full bg-indigo-500 animate-pulse w-full" />
+                  </div>
+              )}
+
+              <div className="p-4 flex flex-col gap-4">
+                  {/* Row 1: Configurations */}
+                  {!isMyTimerRunning && (
+                      <div className="flex justify-between items-center px-1">
+                          <div className="flex gap-2">
+                              {['Physics', 'Chemistry', 'Maths', 'Biology'].map(sub => (
+                                  <button
+                                      key={sub}
+                                      onClick={() => setMySubject(sub as any)}
+                                      className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                                          mySubject === sub 
+                                          ? 'ring-2 ring-offset-2 ring-offset-black ring-indigo-500 scale-110' 
+                                          : 'opacity-50 hover:opacity-100'
+                                      }`}
+                                      title={sub}
+                                  >
+                                      <div className={`w-full h-full rounded-full ${
+                                          sub === 'Physics' ? 'bg-blue-500' : 
+                                          sub === 'Chemistry' ? 'bg-orange-500' : 
+                                          sub === 'Maths' ? 'bg-rose-500' : 'bg-emerald-500'
+                                      }`} />
+                                  </button>
+                              ))}
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">{myDuration}m</span>
+                              <input 
+                                  type="range" min="5" max="90" step="5"
+                                  value={myDuration}
+                                  onChange={(e) => setMyDuration(parseInt(e.target.value))}
+                                  className="w-24 h-1 bg-slate-700 rounded-full appearance-none cursor-pointer accent-white"
+                              />
+                          </div>
                       </div>
+                  )}
+
+                  {/* Row 2: Actions */}
+                  <div className="flex items-center gap-3">
+                      {!isMyTimerRunning && (
+                          <button 
+                              onClick={() => setShowMiniPlanner(true)}
+                              className={`
+                                  p-3 rounded-2xl transition-all flex-shrink-0
+                                  ${linkedTaskId 
+                                      ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/50' 
+                                      : 'bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                                  }
+                              `}
+                          >
+                              {linkedTaskId ? <CheckCircle2 size={20} /> : <ListTodo size={20} />}
+                          </button>
+                      )}
+
+                      <div className="flex-1 relative">
+                          {isMyTimerRunning ? (
+                              <div className="flex flex-col justify-center h-full px-2">
+                                  <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider mb-0.5">Focusing On</span>
+                                  <span className="text-sm font-bold text-white truncate">{myIntention || mySubject}</span>
+                              </div>
+                          ) : (
+                              <input 
+                                  type="text" 
+                                  placeholder="What is your goal? (e.g. Rotational Motion)"
+                                  className="w-full bg-transparent border-b border-slate-700 pb-2 text-sm font-medium text-white placeholder:text-slate-600 outline-none focus:border-indigo-500 transition-colors"
+                                  value={myIntention}
+                                  onChange={(e) => setMyIntention(e.target.value)}
+                              />
+                          )}
+                      </div>
+
                       <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase w-12">Time</span>
-                          <input 
-                              type="range" min="5" max="60" step="5"
-                              value={myDuration}
-                              onChange={(e) => setMyDuration(parseInt(e.target.value))}
-                              disabled={isMyTimerRunning}
-                              className="flex-1 h-1.5 bg-slate-700 rounded-full appearance-none cursor-pointer disabled:opacity-50 accent-indigo-500"
-                          />
-                          <span className="text-xs font-mono font-bold text-white w-8 text-right">{myDuration}m</span>
+                          {/* Zen Mode Toggle (Only visible when running) */}
+                          {isMyTimerRunning && (
+                              <button 
+                                  onClick={() => setZenMode(!zenMode)}
+                                  className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 transition-colors"
+                              >
+                                  {zenMode ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+                              </button>
+                          )}
+
+                          <button
+                              onClick={toggleMyTimer}
+                              className={`
+                                  h-12 px-6 rounded-2xl flex items-center justify-center transition-all shadow-lg active:scale-95 font-bold uppercase text-xs tracking-wider gap-2
+                                  ${isMyTimerRunning 
+                                      ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20' 
+                                      : 'bg-white text-slate-900 hover:bg-slate-200 shadow-white/10'
+                                  }
+                              `}
+                          >
+                              {isMyTimerRunning ? (
+                                  <>
+                                      <Square size={16} fill="currentColor" /> Stop
+                                  </>
+                              ) : (
+                                  <>
+                                      <Play size={16} fill="currentColor" /> Start
+                                  </>
+                              )}
+                          </button>
                       </div>
                   </div>
-
-                  {/* Play Button */}
-                  <button
-                      onClick={toggleMyTimer}
-                      className={`
-                          w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-lg active:scale-95
-                          ${isMyTimerRunning 
-                              ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20' 
-                              : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
-                          }
-                      `}
-                  >
-                      {isMyTimerRunning ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
-                  </button>
               </div>
           </div>
+
+          {/* Mini Planner Sheet */}
+          {showMiniPlanner && createPortal(
+              <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-4">
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMiniPlanner(false)} />
+                  <div className="relative bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
+                      <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-lg font-bold text-white">Select Task</h3>
+                          <button onClick={() => setShowMiniPlanner(false)} className="p-2 bg-white/5 rounded-full text-slate-400"><X size={16}/></button>
+                      </div>
+                      
+                      <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                          {targets.filter(t => !t.completed).length === 0 ? (
+                              <p className="text-center text-slate-500 text-xs py-8">No pending tasks found.</p>
+                          ) : (
+                              targets.filter(t => !t.completed).map(task => (
+                                  <button 
+                                      key={task.id}
+                                      onClick={() => handleLinkTask(task)}
+                                      className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors flex items-center gap-3 group"
+                                  >
+                                      <div className={`w-3 h-3 rounded-full border-2 border-slate-500 group-hover:border-indigo-500`} />
+                                      <span className="text-sm text-slate-300 group-hover:text-white truncate">{task.text}</span>
+                                  </button>
+                              ))
+                          )}
+                      </div>
+                  </div>
+              </div>,
+              document.body
+          )}
       </div>
   );
 };

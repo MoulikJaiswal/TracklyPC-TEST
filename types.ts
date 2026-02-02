@@ -130,6 +130,7 @@ export interface StudyParticipant {
   // If focusing
   focusEndTime?: number; // Timestamp when their timer rings
   focusDuration?: number; // Total minutes (for progress bar calc)
+  intention?: string; // The specific task/goal they are working on
 }
 
 export interface StudyRoom {
