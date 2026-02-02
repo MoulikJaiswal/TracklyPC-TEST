@@ -823,8 +823,14 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                       {rooms.map(room => (
                           <Card 
                               key={room.id}
-                              className="group hover:border-indigo-500/30 cursor-pointer transition-all active:scale-[0.98] p-6 relative overflow-hidden flex flex-col justify-between min-h-[180px]"
-                              onClick={() => handleJoin(room)}
+                              className={`group hover:border-indigo-500/30 cursor-pointer transition-all active:scale-[0.98] p-6 relative overflow-hidden flex flex-col justify-between min-h-[180px] ${room.isPrivate ? 'opacity-80' : ''}`}
+                              onClick={() => {
+                                  if (room.isPrivate) {
+                                      setShowJoinCodeModal(true);
+                                  } else {
+                                      handleJoin(room);
+                                  }
+                              }}
                           >
                               <div className={`absolute top-0 right-0 p-16 rounded-bl-full opacity-5 bg-${room.color}-500 transition-transform group-hover:scale-150`} />
                               
@@ -845,8 +851,9 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                           </span>
                                       </div>
                                   </div>
-                                  <h3 className="font-bold text-xl text-slate-900 dark:text-white mb-1">
+                                  <h3 className="font-bold text-xl text-slate-900 dark:text-white mb-1 flex items-center gap-2">
                                       {room.name}
+                                      {room.isPrivate && <span className="text-[9px] bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">Private</span>}
                                   </h3>
                                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
                                       {room.topic}
@@ -857,9 +864,9 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                               </div>
                               
                               <div className="relative z-10 mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex justify-between items-center">
-                                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-500 group-hover:translate-x-1 transition-transform">
-                                      <span>Enter Room</span>
-                                      <ArrowLeft size={14} className="rotate-180" />
+                                  <div className={`flex items-center gap-2 text-xs font-bold transition-transform ${room.isPrivate ? 'text-slate-400' : 'text-indigo-500 group-hover:translate-x-1'}`}>
+                                      <span>{room.isPrivate ? 'Requires Code' : 'Enter Room'}</span>
+                                      {room.isPrivate ? <Lock size={14} /> : <ArrowLeft size={14} className="rotate-180" />}
                                   </div>
                               </div>
                           </Card>

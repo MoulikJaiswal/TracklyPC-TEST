@@ -27,7 +27,7 @@ export const groupSessionService = {
     return onSnapshot(q, (snapshot) => {
         const rooms = snapshot.docs
             .map(d => ({ id: d.id, ...d.data() } as StudyRoom))
-            .filter(r => r.status !== 'closing' && !r.isPrivate); // Filter out closing AND private rooms
+            .filter(r => r.status !== 'closing'); // Show all active rooms, including private ones
         callback(rooms);
     }, (error) => {
         console.error("Error subscribing to rooms:", error);
