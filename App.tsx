@@ -25,7 +25,8 @@ import {
   Clock,
   Book,
   Menu,
-  Hammer
+  Hammer,
+  Rocket
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder } from './types';
 import { QUOTES, THEME_CONFIG } from './constants';
@@ -422,7 +423,7 @@ const TABS = [
   { id: 'daily', label: 'Home', icon: LayoutDashboard },
   { id: 'planner', label: 'Plan', icon: CalendarIcon },
   { id: 'focus', label: 'Focus', icon: Timer },
-  { id: 'group-focus', label: 'Study Room', icon: Wifi }, // NEW TAB
+  { id: 'group-focus', label: 'Focus Lounge', icon: Wifi }, // NEW TAB
   { id: 'tests', label: 'Tests', icon: PenTool },
   { id: 'analytics', label: 'Stats', icon: BarChart3 },
 ];

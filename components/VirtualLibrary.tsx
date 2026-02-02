@@ -17,7 +17,8 @@ import {
   Search,
   X,
   Palette,
-  AlertTriangle
+  AlertTriangle,
+  Pencil
 } from 'lucide-react';
 import { StudyParticipant, StudyRoom } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
@@ -88,7 +89,7 @@ const ParticipantCard = memo(({ participant, isMe }: { participant: StudyPartici
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 border border-white/10">
-                        {participant.displayName.charAt(0)}
+                        {participant.displayName.charAt(0).toUpperCase()}
                     </div>
                     <div className="overflow-hidden">
                         <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[80px]">{participant.displayName}</p>
@@ -133,6 +134,9 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   
+  // Custom Name State
+  const [displayName, setDisplayName] = useState(userName || 'Guest');
+
   // Create Room Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRoomData, setNewRoomData] = useState({ name: '', topic: '', description: '', color: 'indigo' });
@@ -143,6 +147,11 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [mySubject, setMySubject] = useState<'Physics'|'Chemistry'|'Maths'|'Biology'|'Other'>('Physics');
   const [myDuration, setMyDuration] = useState(25);
   const [isMyTimerRunning, setIsMyTimerRunning] = useState(false);
+
+  // Update display name when user logs in/out
+  useEffect(() => {
+      if (userName) setDisplayName(userName);
+  }, [userName]);
 
   // 1. Subscribe to Room List (Lobby)
   useEffect(() => {
@@ -171,7 +180,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       // Initial presence write (Join as Idle) - Pass `true` for isJoining to increment count
       groupSessionService.updatePresence(room.id, user.uid, {
           uid: user.uid,
-          displayName: userName || 'Anonymous',
+          displayName: displayName || 'Anonymous',
           status: 'idle',
           subject: mySubject,
           lastActivity: Date.now()
@@ -251,21 +260,38 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           <div className="space-y-8 animate-in fade-in duration-500 pb-20">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                   <div>
-                      <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Study Rooms</h2>
+                      <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Focus Lounge</h2>
                       <p className="text-xs text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mt-1 font-bold">Join others for accountability</p>
+                      
+                      <div className="flex items-center gap-3 mt-4 bg-white/50 dark:bg-slate-800/50 p-2 pr-4 rounded-xl border border-slate-200 dark:border-white/5 w-fit backdrop-blur-sm shadow-sm">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                              {displayName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col">
+                              <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Joining as</span>
+                              <input 
+                                  type="text"
+                                  value={displayName}
+                                  onChange={(e) => setDisplayName(e.target.value)}
+                                  className="bg-transparent outline-none font-bold text-sm text-slate-900 dark:text-white w-32 focus:w-48 transition-all placeholder:text-slate-500"
+                                  placeholder="Enter Name"
+                              />
+                          </div>
+                          <Pencil size={12} className="text-slate-400 opacity-50" />
+                      </div>
                   </div>
                   <button 
                       onClick={() => user ? setShowCreateModal(true) : onLogin()}
                       className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase text-xs tracking-wider shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
                   >
-                      <Plus size={16} /> Create Room
+                      <Plus size={16} /> Create Lounge
                   </button>
               </div>
 
               {rooms.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-3xl text-center opacity-60">
                       <Users size={48} className="text-slate-400 mb-4" />
-                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">No active rooms</p>
+                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">No active lounges</p>
                       <p className="text-xs text-slate-400 mt-1">Be the first to start a study session!</p>
                   </div>
               ) : (
@@ -322,7 +348,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                   <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
                       <div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200">
                           <div className="flex justify-between items-center mb-6">
-                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Create Study Room</h3>
+                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Create Focus Lounge</h3>
                               <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors">
                                   <X size={18} className="text-slate-500" />
                               </button>
@@ -385,7 +411,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                   disabled={isCreating}
                                   className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 mt-4 disabled:opacity-50"
                               >
-                                  {isCreating ? 'Creating...' : 'Launch Room'}
+                                  {isCreating ? 'Creating...' : 'Launch Lounge'}
                               </button>
                           </form>
                       </div>
