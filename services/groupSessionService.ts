@@ -12,7 +12,8 @@ import {
   orderBy,
   increment,
   getDocs,
-  where
+  where,
+  writeBatch
 } from 'firebase/firestore';
 import { StudyParticipant, StudyRoom } from '../types';
 
@@ -131,25 +132,26 @@ export const groupSessionService = {
   // 6. Delete Room (Host only)
   deleteRoom: async (roomId: string) => {
       // 1. Try to delete participants (Best Effort)
-      // We use Promise.allSettled so if one fails (e.g., permission denied for another user's doc),
-      // it doesn't stop the whole process.
       try {
           const participantsRef = collection(db, 'rooms', roomId, 'participants');
           const snapshot = await getDocs(participantsRef);
           
+          // We use Promise.allSettled to allow some deletions to fail (e.g., if we don't have permission to delete others)
+          // without stopping the process.
           const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
           await Promise.allSettled(deletePromises);
       } catch (e) {
-          console.warn("Could not clear all participants (likely permission issues), proceeding to delete room:", e);
+          // Ignore participant deletion errors (e.g. permission denied)
+          console.warn("Partial failure clearing participants (ignoring):", e);
       }
 
       // 2. Delete the room document (Critical)
-      // This removes the room from the list regardless of orphaned participants
+      // This is the step that actually "closes" the room for everyone listening.
       try {
           await deleteDoc(doc(db, 'rooms', roomId));
       } catch (e) {
-          console.error("Error deleting room doc:", e);
-          throw e; // This is the actual error we care about for the UI
+          console.error("CRITICAL: Error deleting room doc:", e);
+          throw e; // Reraise this one as it's the one that matters
       }
   },
 

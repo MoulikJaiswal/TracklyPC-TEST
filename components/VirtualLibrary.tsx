@@ -222,16 +222,26 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   useEffect(() => {
       if (!activeRoom) return;
       const unsubscribe = groupSessionService.subscribeToRoomStatus(activeRoom.id, (updatedRoom) => {
+          // If updatedRoom is null, it means it's deleted.
           if (!updatedRoom) {
-              // Room was deleted
-              setActiveRoom(null);
-              setParticipants([]);
-              setIsMyTimerRunning(false);
-              alert("The host has closed this room.");
+              // Only react if we are currently in the room and NOT the host who just deleted it
+              // (The host's activeRoom is cleared optimistically in handleShutdown)
+              setActiveRoom((current) => {
+                  if (current && current.id === activeRoom.id) {
+                      setParticipants([]);
+                      setIsMyTimerRunning(false);
+                      // Don't show alert if I'm the one who closed it
+                      if (current.createdBy !== user?.uid) {
+                          alert("The host has closed this room.");
+                      }
+                      return null;
+                  }
+                  return null;
+              });
           }
       });
       return () => unsubscribe();
-  }, [activeRoom?.id]);
+  }, [activeRoom?.id, user?.uid]);
 
   // Handle Joining a Room
   const handleJoin = (room: StudyRoom) => {
@@ -273,12 +283,20 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const handleShutdown = useCallback(async () => {
       if (!activeRoom || !isAmHost) return;
       if (confirm("Shut down the room? All participants will be disconnected.")) {
+          // Optimistic UI update: Immediately return to lobby
+          const roomToDelete = activeRoom.id;
+          setActiveRoom(null); 
+          setParticipants([]);
+          setIsMyTimerRunning(false);
+
           try {
-              await groupSessionService.deleteRoom(activeRoom.id);
-              setActiveRoom(null); // Return to lobby
+              // Proceed with deletion in background
+              await groupSessionService.deleteRoom(roomToDelete);
           } catch (e) {
-              console.error("Shutdown failed:", e);
-              alert("Failed to close room. Please try again.");
+              console.error("Shutdown failed (room might still exist):", e);
+              // Since we are already out, we don't alert the user to avoid confusion.
+              // The room might linger in the list if deletion completely failed,
+              // but for the host, the session is over.
           }
       }
   }, [activeRoom, isAmHost]);
