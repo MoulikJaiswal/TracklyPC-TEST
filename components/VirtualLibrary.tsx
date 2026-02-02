@@ -75,29 +75,17 @@ const ParticipantCard = memo(({
     isHost,
     canKick,
     onKick,
-    onReaction
+    onReaction,
+    isReactionOnCooldown
 }: { 
     participant: StudyParticipant, 
     isMe: boolean, 
     isHost: boolean,
     canKick: boolean,
     onKick: () => void,
-    onReaction: (emoji: string) => void
+    onReaction: (emoji: string) => void,
+    isReactionOnCooldown: boolean
 }) => {
-    const [showReaction, setShowReaction] = useState<{emoji: string, from: string} | null>(null);
-
-    // Reaction Listener
-    useEffect(() => {
-        if (participant.lastReaction && participant.lastReaction.timestamp > Date.now() - 5000) {
-            setShowReaction({
-                emoji: participant.lastReaction.emoji,
-                from: participant.lastReaction.fromName
-            });
-            const t = setTimeout(() => setShowReaction(null), 3000);
-            return () => clearTimeout(t);
-        }
-    }, [participant.lastReaction]);
-
     const getSubjectIcon = (subj: string) => {
         switch(subj) {
             case 'Physics': return <Atom size={14} className="text-blue-400" />;
@@ -114,25 +102,6 @@ const ParticipantCard = memo(({
             ${isMe ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-white/5 border-white/5'}
             ${participant.isAway ? 'opacity-60 grayscale-[0.5]' : ''}
         `}>
-            {/* Reaction Overlay */}
-            <AnimatePresence>
-                {showReaction && (
-                    <MotionDiv 
-                        initial={{ opacity: 0, scale: 0.5, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: -20 }}
-                        exit={{ opacity: 0, scale: 1.5, y: -40 }}
-                        className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none"
-                    >
-                        <span className="text-4xl filter drop-shadow-lg">{showReaction.emoji}</span>
-                        {isMe && (
-                            <span className="text-[9px] font-bold text-white bg-black/50 px-2 py-1 rounded-full mt-2 backdrop-blur-sm">
-                                from {showReaction.from}
-                            </span>
-                        )}
-                    </MotionDiv>
-                )}
-            </AnimatePresence>
-
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 border border-white/10 overflow-hidden relative">
@@ -160,15 +129,17 @@ const ParticipantCard = memo(({
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button 
                                 onClick={() => onReaction('🔥')} 
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-orange-500/20 text-orange-500 hover:bg-orange-500 hover:text-white transition-colors"
-                                title="Send Fire"
+                                disabled={isReactionOnCooldown}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-orange-500/20 text-orange-500 hover:bg-orange-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-500/20"
+                                title={isReactionOnCooldown ? "On cooldown (1m)" : "Send Fire"}
                             >
                                 <Flame size={12} fill="currentColor" />
                             </button>
                             <button 
                                 onClick={() => onReaction('👏')} 
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-colors"
-                                title="Send Kudos"
+                                disabled={isReactionOnCooldown}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/20"
+                                title={isReactionOnCooldown ? "On cooldown (1m)" : "Send Kudos"}
                             >
                                 <PartyPopper size={12} />
                             </button>
@@ -333,6 +304,23 @@ const ReflectionModal = ({
     );
 };
 
+// --- SUB-COMPONENT: Reaction Toast ---
+const ReactionToast = ({ fromName, emoji }: { fromName: string, emoji: string }) => (
+    <MotionDiv
+        layout
+        initial={{ opacity: 0, y: 50, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 20, scale: 0.95 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        className="fixed bottom-24 md:bottom-10 left-1/2 -translate-x-1/2 z-[200] p-4 rounded-2xl shadow-2xl border flex items-center gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-slate-200 dark:border-white/10"
+    >
+        <div className="text-3xl filter drop-shadow-lg">{emoji}</div>
+        <p className="text-sm font-medium text-slate-900 dark:text-white">
+            <span className="font-bold text-indigo-500 dark:text-indigo-400">{fromName}</span> sent you kudos!
+        </p>
+    </MotionDiv>
+);
+
 export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, onLogin, isPro, targets, onCompleteTask }) => {
   const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null);
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
@@ -372,6 +360,10 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [isAway, setIsAway] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [reactionToast, setReactionToast] = useState<{ fromName: string; emoji: string } | null>(null);
+  const [isReactionOnCooldown, setIsReactionOnCooldown] = useState(false);
+  const reactionCooldownTimer = useRef<any>(null);
+  const lastReactionTimestamp = useRef(0);
   
   // --- OPTIMIZED LOCAL TIMER ---
   const myFocusStartTimeRef = useRef<number | null>(null);
@@ -379,6 +371,35 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
 
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
+
+  // Cleanup cooldown timer on unmount
+  useEffect(() => {
+    return () => {
+        if (reactionCooldownTimer.current) {
+            clearTimeout(reactionCooldownTimer.current);
+        }
+    };
+  }, []);
+
+  // Effect to listen for incoming reactions
+  useEffect(() => {
+    if (!user) return;
+    const me = participants.find(p => p.uid === user.uid);
+    
+    if (me?.lastReaction && me.lastReaction.timestamp > lastReactionTimestamp.current) {
+        lastReactionTimestamp.current = me.lastReaction.timestamp;
+        
+        setReactionToast({
+            fromName: me.lastReaction.fromName,
+            emoji: me.lastReaction.emoji
+        });
+
+        // Auto-hide after 4 seconds
+        setTimeout(() => {
+            setReactionToast(null);
+        }, 4000);
+    }
+  }, [participants, user]);
 
   // Local Timer for current user
   useEffect(() => {
@@ -662,8 +683,17 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
 
   // Handle Reactions
   const handleReactionToUser = async (targetUid: string, emoji: string) => {
-      if (!activeRoom || !user) return;
-      await groupSessionService.sendReaction(activeRoom.id, targetUid, emoji, displayName || 'Friend');
+    if (!activeRoom || !user || isReactionOnCooldown) return;
+
+    setIsReactionOnCooldown(true);
+    if (reactionCooldownTimer.current) {
+        clearTimeout(reactionCooldownTimer.current);
+    }
+    reactionCooldownTimer.current = setTimeout(() => {
+        setIsReactionOnCooldown(false);
+    }, 60000); // 1 minute cooldown
+
+    await groupSessionService.sendReaction(activeRoom.id, targetUid, emoji, displayName || 'Friend');
   };
 
   const toggleMyTimer = () => {
@@ -801,7 +831,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   // --- RENDER: LOBBY ---
   if (!activeRoom) {
       return (
-          // ... (Lobby code remains mostly same, just ensuring correct renders) ...
           <div className="space-y-8 animate-in fade-in duration-500 pb-20">
               {/* Header */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -1061,6 +1090,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
 
   // --- RENDER: ACTIVE ROOM ---
   return (
+    <>
       <div className={`h-[calc(100vh-100px)] flex flex-col animate-in fade-in zoom-in-95 duration-300 ${zenMode ? 'fixed inset-0 z-[150] bg-black h-screen p-6' : ''}`}>
           
           {/* Room Header (Hidden in Zen Mode) */}
@@ -1148,6 +1178,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                   canKick={isAmHost && p.uid !== user?.uid}
                                   onKick={() => handleKick(p.uid)}
                                   onReaction={(emoji) => handleReactionToUser(p.uid, emoji)}
+                                  isReactionOnCooldown={isReactionOnCooldown}
                               />
                           ))}
                       </div>
@@ -1409,5 +1440,12 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               duration={lastSessionDuration}
           />
       </div>
+      {createPortal(
+        <AnimatePresence>
+            {reactionToast && <ReactionToast {...reactionToast} />}
+        </AnimatePresence>,
+        document.body
+      )}
+    </>
   );
 };
