@@ -103,9 +103,17 @@ const ParticipantCard = memo(({
             setProgress(pct);
 
             const remainingSec = Math.ceil((participant.focusEndTime! - now) / 1000);
-            const m = Math.floor(remainingSec / 60);
-            const s = remainingSec % 60;
-            setTimeLeftStr(`${m}:${s.toString().padStart(2, '0')}`);
+            
+            if (remainingSec >= 3600) {
+                const h = Math.floor(remainingSec / 3600);
+                const m = Math.floor((remainingSec % 3600) / 60);
+                const s = remainingSec % 60;
+                setTimeLeftStr(`${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+            } else {
+                const m = Math.floor(remainingSec / 60);
+                const s = remainingSec % 60;
+                setTimeLeftStr(`${m}:${s.toString().padStart(2, '0')}`);
+            }
         };
 
         tick(); 
@@ -400,6 +408,18 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
 
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
+
+  const updateHours = (h: number) => {
+      const m = myDuration % 60;
+      const newDuration = (h * 60) + m;
+      setMyDuration(Math.max(1, newDuration)); // Min 1 min
+  };
+
+  const updateMinutes = (m: number) => {
+      const h = Math.floor(myDuration / 60);
+      const newDuration = (h * 60) + m;
+      setMyDuration(Math.max(1, newDuration));
+  };
 
   // Auto-Join from URL on mount
   useEffect(() => {
@@ -1139,14 +1159,36 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                               ))}
                           </div>
                           
-                          <div className="flex items-center gap-3">
-                              <span className="text-[10px] font-bold text-slate-500 uppercase">{myDuration}m</span>
-                              <input 
-                                  type="range" min="5" max="90" step="5"
-                                  value={myDuration}
-                                  onChange={(e) => setMyDuration(parseInt(e.target.value))}
-                                  className="w-24 h-1 bg-slate-700 rounded-full appearance-none cursor-pointer accent-white"
-                              />
+                          <div className="flex items-center gap-3 bg-slate-100 dark:bg-white/5 rounded-xl p-1.5 px-3 border border-slate-200 dark:border-white/10 shadow-sm">
+                              <Clock size={14} className="text-slate-400" />
+                              <div className="flex items-baseline gap-1">
+                                  <input 
+                                      type="number" 
+                                      min="0" 
+                                      max="23"
+                                      value={Math.floor(myDuration / 60)}
+                                      onChange={(e) => {
+                                          const h = Math.max(0, parseInt(e.target.value) || 0);
+                                          const m = myDuration % 60;
+                                          setMyDuration(Math.max(1, (h * 60) + m));
+                                      }}
+                                      className="w-6 bg-transparent text-center font-mono font-bold text-slate-900 dark:text-white outline-none p-0 border-b border-transparent focus:border-indigo-500 transition-colors"
+                                  />
+                                  <span className="text-[10px] text-slate-400 font-bold mr-1">h</span>
+                                  <input 
+                                      type="number" 
+                                      min="0" 
+                                      max="59"
+                                      value={myDuration % 60}
+                                      onChange={(e) => {
+                                          const m = Math.max(0, Math.min(59, parseInt(e.target.value) || 0));
+                                          const h = Math.floor(myDuration / 60);
+                                          setMyDuration(Math.max(1, (h * 60) + m));
+                                      }}
+                                      className="w-6 bg-transparent text-center font-mono font-bold text-slate-900 dark:text-white outline-none p-0 border-b border-transparent focus:border-indigo-500 transition-colors"
+                                  />
+                                  <span className="text-[10px] text-slate-400 font-bold">m</span>
+                              </div>
                           </div>
                       </div>
                   )}
