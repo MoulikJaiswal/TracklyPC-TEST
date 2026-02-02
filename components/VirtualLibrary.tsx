@@ -363,7 +363,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [reactionToast, setReactionToast] = useState<{ fromName: string; emoji: string } | null>(null);
   const [isReactionOnCooldown, setIsReactionOnCooldown] = useState(false);
   const reactionCooldownTimer = useRef<any>(null);
-  const lastReactionTimestamp = useRef(0);
+  const lastReactionTimestamp = useRef(Date.now());
+  const reactionToastTimeoutRef = useRef<any>(null);
   
   // --- OPTIMIZED LOCAL TIMER ---
   const myFocusStartTimeRef = useRef<number | null>(null);
@@ -372,11 +373,14 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
 
-  // Cleanup cooldown timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
         if (reactionCooldownTimer.current) {
             clearTimeout(reactionCooldownTimer.current);
+        }
+        if (reactionToastTimeoutRef.current) {
+            clearTimeout(reactionToastTimeoutRef.current);
         }
     };
   }, []);
@@ -385,17 +389,24 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   useEffect(() => {
     if (!user) return;
     const me = participants.find(p => p.uid === user.uid);
+    const reaction = me?.lastReaction;
     
-    if (me?.lastReaction && me.lastReaction.timestamp > lastReactionTimestamp.current) {
-        lastReactionTimestamp.current = me.lastReaction.timestamp;
+    // Check for a new reaction that we haven't processed yet.
+    if (reaction && reaction.timestamp > lastReactionTimestamp.current) {
+        lastReactionTimestamp.current = reaction.timestamp;
         
         setReactionToast({
-            fromName: me.lastReaction.fromName,
-            emoji: me.lastReaction.emoji
+            fromName: reaction.fromName,
+            emoji: reaction.emoji
         });
 
-        // Auto-hide after 4 seconds
-        setTimeout(() => {
+        // Clear any existing timeout to prevent the toast from disappearing early
+        if (reactionToastTimeoutRef.current) {
+            clearTimeout(reactionToastTimeoutRef.current);
+        }
+
+        // Set a new timeout to hide the toast
+        reactionToastTimeoutRef.current = setTimeout(() => {
             setReactionToast(null);
         }, 4000);
     }
