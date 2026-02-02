@@ -130,19 +130,25 @@ export const groupSessionService = {
 
   // 6. Delete Room (Host only)
   deleteRoom: async (roomId: string) => {
+      // 1. Try to delete participants (Best Effort)
+      // We use Promise.allSettled so if one fails (e.g., permission denied for another user's doc),
+      // it doesn't stop the whole process.
       try {
-          // 1. Delete all participants first (cleanup subcollection)
           const participantsRef = collection(db, 'rooms', roomId, 'participants');
           const snapshot = await getDocs(participantsRef);
           
           const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-          await Promise.all(deletePromises);
+          await Promise.allSettled(deletePromises);
+      } catch (e) {
+          console.warn("Could not clear all participants (likely permission issues), proceeding to delete room:", e);
+      }
 
-          // 2. Delete the room document
+      // 2. Delete the room document (Critical)
+      try {
           await deleteDoc(doc(db, 'rooms', roomId));
       } catch (e) {
-          console.error("Error deleting room:", e);
-          throw e; // Re-throw so UI can handle it
+          console.error("Error deleting room doc:", e);
+          throw e; // This is the actual error we care about for the UI
       }
   },
 
