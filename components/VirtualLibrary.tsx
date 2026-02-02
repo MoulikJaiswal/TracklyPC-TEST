@@ -74,17 +74,13 @@ const ParticipantCard = memo(({
     isMe, 
     isHost,
     canKick,
-    onKick,
-    onReaction,
-    isReactionOnCooldown
+    onKick
 }: { 
     participant: StudyParticipant, 
     isMe: boolean, 
     isHost: boolean,
     canKick: boolean,
-    onKick: () => void,
-    onReaction: (emoji: string) => void,
-    isReactionOnCooldown: boolean
+    onKick: () => void
 }) => {
     const getSubjectIcon = (subj: string) => {
         switch(subj) {
@@ -125,26 +121,6 @@ const ParticipantCard = memo(({
                 </div>
                 
                 <div className="flex gap-1">
-                    {!isMe && !participant.isAway && participant.status === 'focus' && (
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                                onClick={() => onReaction('🔥')} 
-                                disabled={isReactionOnCooldown}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-orange-500/20 text-orange-500 hover:bg-orange-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-500/20"
-                                title={isReactionOnCooldown ? "On cooldown (1m)" : "Send Fire"}
-                            >
-                                <Flame size={12} fill="currentColor" />
-                            </button>
-                            <button 
-                                onClick={() => onReaction('👏')} 
-                                disabled={isReactionOnCooldown}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/20"
-                                title={isReactionOnCooldown ? "On cooldown (1m)" : "Send Kudos"}
-                            >
-                                <PartyPopper size={12} />
-                            </button>
-                        </div>
-                    )}
                     {participant.status === 'focus' && (
                         <div className="p-1.5 rounded-lg bg-black/20 border border-white/5">
                             {getSubjectIcon(participant.subject)}
@@ -197,8 +173,30 @@ const ParticipantCard = memo(({
 });
 
 // --- SUB-COMPONENT: Leaderboard ---
-const Leaderboard = memo(({ participants }: { participants: StudyParticipant[] }) => {
+const formatLeaderboardTime = (minutes: number) => {
+    if (minutes < 60) return `${minutes}m`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h}h ${m}m`;
+};
+
+const Leaderboard = memo(({ participants, myId }: { participants: StudyParticipant[], myId: string | undefined }) => {
     const sorted = [...participants].sort((a, b) => (b.accumulatedFocusTime || 0) - (a.accumulatedFocusTime || 0));
+    const maxTime = Math.max(1, sorted[0]?.accumulatedFocusTime || 1);
+
+    const getMedal = (index: number) => {
+        if (index === 0) return <Medal size={14} className="text-amber-400" />;
+        if (index === 1) return <Medal size={14} className="text-slate-400" />;
+        if (index === 2) return <Medal size={14} className="text-orange-400" />;
+        return <span className="text-[10px] font-bold text-slate-500 w-[14px] text-center">{index + 1}</span>;
+    };
+    
+    const getPodiumClass = (index: number) => {
+        if (index === 0) return 'bg-amber-500/10 border-amber-500/20';
+        if (index === 1) return 'bg-slate-500/10 border-slate-500/20';
+        if (index === 2) return 'bg-orange-800/10 border-orange-800/20';
+        return 'border-transparent';
+    };
 
     return (
         <div className="h-full flex flex-col">
@@ -207,32 +205,47 @@ const Leaderboard = memo(({ participants }: { participants: StudyParticipant[] }
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white">Session Leaders</span>
             </div>
             <div className="flex-1 overflow-y-auto p-2 custom-scrollbar space-y-1">
-                {sorted.map((p, index) => {
-                    const minutes = Math.floor(p.accumulatedFocusTime || 0);
-                    return (
-                        <div key={p.uid} className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
-                            <div className={`
-                                w-6 h-6 flex items-center justify-center rounded-full text-[10px] font-bold shrink-0
-                                ${index === 0 ? 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400' : 
-                                  index === 1 ? 'bg-slate-200 text-slate-600 dark:bg-slate-500/20 dark:text-slate-400' :
-                                  index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400' :
-                                  'text-slate-400'
-                                }
-                            `}>
-                                {index + 1}
-                            </div>
-                            <div className="flex-1 overflow-hidden">
-                                <p className={`text-xs font-bold truncate ${p.uid === 'me' ? 'text-indigo-500' : 'text-slate-700 dark:text-slate-200'}`}>
-                                    {p.displayName}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                                <Clock size={12} className="text-slate-400" />
-                                <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{minutes}m</span>
-                            </div>
-                        </div>
-                    );
-                })}
+                <AnimatePresence>
+                    {sorted.map((p, index) => {
+                        const minutes = p.accumulatedFocusTime || 0;
+                        const isMe = p.uid === myId;
+                        const progress = (minutes / maxTime) * 100;
+
+                        return (
+                            <MotionDiv
+                                key={p.uid}
+                                layout
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                className={`
+                                    p-3 rounded-xl border transition-all duration-300 space-y-2
+                                    ${getPodiumClass(index)}
+                                    ${isMe ? 'bg-indigo-500/10 border-indigo-500/30' : ''}
+                                `}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-5 flex items-center justify-center">{getMedal(index)}</div>
+                                    <div className="flex-1 flex items-center gap-2 overflow-hidden">
+                                        <p className={`text-xs font-bold truncate ${isMe ? 'text-indigo-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                                            {p.displayName}
+                                        </p>
+                                        {minutes > 60 && <Flame size={12} className="text-orange-500" title="On fire! (60+ mins)" />}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <Clock size={12} className="text-slate-400" />
+                                        <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{formatLeaderboardTime(minutes)}</span>
+                                    </div>
+                                </div>
+                                <div className="pl-8">
+                                    <div className="h-1 w-full bg-slate-200 dark:bg-black/30 rounded-full overflow-hidden">
+                                        <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400" style={{ width: `${progress}%` }} />
+                                    </div>
+                                </div>
+                            </MotionDiv>
+                        );
+                    })}
+                </AnimatePresence>
                 {sorted.length === 0 && (
                     <div className="p-4 text-center opacity-50">
                         <p className="text-[10px] uppercase text-slate-500 font-bold">No activity yet</p>
@@ -242,6 +255,7 @@ const Leaderboard = memo(({ participants }: { participants: StudyParticipant[] }
         </div>
     );
 });
+
 
 // --- SUB-COMPONENT: Reflection Modal ---
 const ReflectionModal = ({ 
@@ -304,31 +318,6 @@ const ReflectionModal = ({
     );
 };
 
-// --- SUB-COMPONENT: Reaction Toast ---
-const ReactionToast = ({ fromName, emoji }: { fromName: string, emoji: string }) => {
-    const message = useMemo(() => {
-        if (emoji === '🔥') return 'sent you fire!';
-        if (emoji === '👏') return 'sent you kudos!';
-        return 'sent a reaction!';
-    }, [emoji]);
-
-    return (
-        <MotionDiv
-            layout
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed bottom-24 md:bottom-10 left-1/2 -translate-x-1/2 z-[200] p-4 rounded-2xl shadow-2xl border flex items-center gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-slate-200 dark:border-white/10"
-        >
-            <div className="text-3xl filter drop-shadow-lg">{emoji}</div>
-            <p className="text-sm font-medium text-slate-900 dark:text-white">
-                <span className="font-bold text-indigo-500 dark:text-indigo-400">{fromName}</span> {message}
-            </p>
-        </MotionDiv>
-    );
-};
-
 export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, onLogin, isPro, targets, onCompleteTask }) => {
   const [activeRoom, setActiveRoom] = useState<StudyRoom | null>(null);
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
@@ -368,11 +357,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [isAway, setIsAway] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [reactionToast, setReactionToast] = useState<{ fromName: string; emoji: string } | null>(null);
-  const [isReactionOnCooldown, setIsReactionOnCooldown] = useState(false);
-  const reactionCooldownTimer = useRef<any>(null);
-  const lastReactionTimestamp = useRef(0);
-  const reactionToastTimeoutRef = useRef<any>(null);
   
   // --- OPTIMIZED LOCAL TIMER ---
   const myFocusStartTimeRef = useRef<number | null>(null);
@@ -380,52 +364,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
 
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-        if (reactionCooldownTimer.current) {
-            clearTimeout(reactionCooldownTimer.current);
-        }
-        if (reactionToastTimeoutRef.current) {
-            clearTimeout(reactionToastTimeoutRef.current);
-        }
-    };
-  }, []);
-
-  // Reset reaction timestamp when joining a room to prevent stale notifications.
-  useEffect(() => {
-    if (activeRoom) {
-      lastReactionTimestamp.current = Date.now();
-    }
-  }, [activeRoom]);
-
-  // Effect to listen for incoming reactions
-  useEffect(() => {
-    if (!user) return;
-    const me = participants.find(p => p.uid === user.uid);
-    const reaction = me?.lastReaction;
-    
-    // Check for a new reaction that we haven't processed yet.
-    if (reaction && reaction.timestamp > lastReactionTimestamp.current) {
-        lastReactionTimestamp.current = reaction.timestamp;
-        
-        setReactionToast({
-            fromName: reaction.fromName,
-            emoji: reaction.emoji
-        });
-
-        // Clear any existing timeout to prevent the toast from disappearing early
-        if (reactionToastTimeoutRef.current) {
-            clearTimeout(reactionToastTimeoutRef.current);
-        }
-
-        // Set a new timeout to hide the toast
-        reactionToastTimeoutRef.current = setTimeout(() => {
-            setReactionToast(null);
-        }, 4000);
-    }
-  }, [participants, user]);
 
   // Local Timer for current user
   useEffect(() => {
@@ -706,21 +644,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           }
       }
   }, [activeRoom, isAmHost]);
-
-  // Handle Reactions
-  const handleReactionToUser = async (targetUid: string, emoji: string) => {
-    if (!activeRoom || !user || isReactionOnCooldown) return;
-
-    setIsReactionOnCooldown(true);
-    if (reactionCooldownTimer.current) {
-        clearTimeout(reactionCooldownTimer.current);
-    }
-    reactionCooldownTimer.current = setTimeout(() => {
-        setIsReactionOnCooldown(false);
-    }, 60000); // 1 minute cooldown
-
-    await groupSessionService.sendReaction(activeRoom.id, targetUid, emoji, displayName || 'Friend');
-  };
 
   const toggleMyTimer = () => {
     if (!user || !activeRoom) return;
@@ -1203,8 +1126,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                                   isHost={activeRoom.createdBy === p.uid}
                                   canKick={isAmHost && p.uid !== user?.uid}
                                   onKick={() => handleKick(p.uid)}
-                                  onReaction={(emoji) => handleReactionToUser(p.uid, emoji)}
-                                  isReactionOnCooldown={isReactionOnCooldown}
                               />
                           ))}
                       </div>
@@ -1214,7 +1135,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               {/* Desktop Leaderboard Sidebar */}
               {!zenMode && (
                   <div className="hidden lg:block w-72 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 rounded-3xl overflow-hidden shadow-sm shrink-0">
-                      <Leaderboard participants={participants} />
+                      <Leaderboard participants={participants} myId={user?.uid} />
                   </div>
               )}
           </div>
@@ -1420,7 +1341,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                           <button onClick={() => setShowMobileLeaderboard(false)} className="p-2 bg-white/5 rounded-full text-slate-400"><X size={16}/></button>
                       </div>
                       <div className="flex-1 overflow-hidden min-h-0">
-                          <Leaderboard participants={participants} />
+                          <Leaderboard participants={participants} myId={user?.uid} />
                       </div>
                   </div>
               </div>,
@@ -1466,12 +1387,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               duration={lastSessionDuration}
           />
       </div>
-      {createPortal(
-        <AnimatePresence>
-            {reactionToast && <ReactionToast {...reactionToast} />}
-        </AnimatePresence>,
-        document.body
-      )}
     </>
   );
 };

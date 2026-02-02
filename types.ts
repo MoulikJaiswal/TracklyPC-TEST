@@ -136,11 +136,6 @@ export interface StudyParticipant {
   
   // New Engagement Fields
   isAway?: boolean; // True if AFK > 5 mins
-  lastReaction?: {
-    emoji: string;
-    fromName: string;
-    timestamp: number;
-  } | null;
 }
 
 export interface StudyRoom {
@@ -160,7 +155,7 @@ export interface StudyRoom {
 // --- FOCUS ROOM TYPES FOR TIMER HOOK ---
 
 export interface FocusRoomState {
-  status: 'waiting' | 'focus' | 'break' | 'completed';
+  status: 'waiting' | 'break' | 'completed';
   startTime?: number;
   endTime?: number;
   pausedAt?: number;

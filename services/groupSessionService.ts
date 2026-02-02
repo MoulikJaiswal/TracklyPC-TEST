@@ -230,20 +230,4 @@ export const groupSessionService = {
           }
       });
   },
-
-  // 8. Send Reaction (Emoji)
-  sendReaction: async (roomId: string, targetUserId: string, emoji: string, fromName: string) => {
-      const participantRef = doc(db, `rooms/${roomId}/participants`, targetUserId);
-      try {
-          await updateDoc(participantRef, {
-              lastReaction: {
-                  emoji,
-                  fromName,
-                  timestamp: Date.now()
-              }
-          });
-      } catch (e) {
-          console.error("Failed to send reaction", e);
-      }
-  }
 };
