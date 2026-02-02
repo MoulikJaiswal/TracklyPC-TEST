@@ -25,7 +25,8 @@ import {
   Clock,
   Book,
   Menu,
-  Hammer
+  Hammer,
+  Rocket
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder } from './types';
 import { QUOTES, THEME_CONFIG } from './constants';
@@ -54,7 +55,8 @@ const TestLog = lazy(() => import('./components/TestLog').then(module => ({ defa
 const Analytics = lazy(() => import('./components/Analytics').then(module => ({ default: module.Analytics })));
 const Resources = lazy(() => import('./components/Resources').then(module => ({ default: module.Resources })));
 const Library = lazy(() => import('./components/Library').then(module => ({ default: module.Library })));
-const VirtualLibrary = lazy(() => import('./components/VirtualLibrary').then(module => ({ default: module.VirtualLibrary })));
+// VirtualLibrary is currently hidden/under maintenance
+// const VirtualLibrary = lazy(() => import('./components/VirtualLibrary').then(module => ({ default: module.VirtualLibrary })));
 
 const MotionDiv = motion.div as any;
 
@@ -2031,12 +2033,19 @@ const App: React.FC = () => {
                         </div>
                     )}
                     {view === 'group-focus' && (
-                        <VirtualLibrary 
-                            user={user}
-                            userName={user?.displayName || 'Guest'}
-                            onLogin={handleLogin}
-                            isPro={hasProAccess}
-                        />
+                        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in fade-in zoom-in duration-300">
+                            <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 rounded-full mb-4 border border-indigo-100 dark:border-indigo-500/20 relative overflow-hidden">
+                                <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full"></div>
+                                <Wifi size={40} className="text-indigo-500 relative z-10" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">Study Rooms</h3>
+                            <div className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold uppercase tracking-widest mb-6">
+                                Under Construction
+                            </div>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                                We're architecting a new realtime study space. Group sessions, live counters, and focus leaderboards are coming soon.
+                            </p>
+                        </div>
                     )}
                     {view === 'tests' && (
                         <TestLog 
