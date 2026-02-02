@@ -80,15 +80,28 @@ export const groupSessionService = {
     const roomRef = doc(db, 'rooms', roomId);
     
     try {
+        // If joining, check if we are already in the room (e.g. refresh) to avoid double counting
+        let shouldIncrement = false;
+        if (isJoining) {
+            const docSnap = await getDoc(participantRef);
+            if (!docSnap.exists()) {
+                shouldIncrement = true;
+            } else {
+                // If doc exists but was stale (ghost), we might still want to increment?
+                // The ghost cleaner removes docs, so if it exists, it's either active or waiting to be cleaned.
+                // If we treat it as active, we don't increment.
+                // However, updated "lastActivity" will revive it. 
+                // If it was a ghost that hadn't been cleaned yet, it was counted in the room's activeCount (or should have been).
+                // So not incrementing is generally safe to prevent bloating.
+            }
+        }
+
         await setDoc(participantRef, {
             ...data,
             lastActivity: Date.now()
         }, { merge: true });
 
-        // If joining for the first time in this session, increment count
-        if (isJoining) {
-            // Check if room is closing before joining? 
-            // Ideally yes, but Firestore rules or client check usually handles this.
+        if (shouldIncrement) {
             await updateDoc(roomRef, {
                 activeCount: increment(1)
             }).catch(e => console.warn("Failed to increment count (room might be closing)", e));
@@ -147,10 +160,15 @@ export const groupSessionService = {
         }
         
         // Self-Healing Count Sync
-        // To fix drift between 'activeCount' on room doc and actual participants
-        // We randomly update the room doc with the true count to ensure eventual consistency
-        // Probability is 10% per update per client to avoid write contention
-        if (Math.random() < 0.1) {
+        // To fix drift between 'activeCount' on room doc and actual participants.
+        // We update the room doc with the true count to ensure consistency.
+        
+        // Strategy:
+        // 1. If small room (< 5 users), high probability of sync (helps testing/small groups).
+        // 2. If large room, lower probability to avoid write contention.
+        const shouldSync = activeParts.length < 5 ? Math.random() < 0.5 : Math.random() < 0.05;
+
+        if (shouldSync) {
              const roomRef = doc(db, 'rooms', roomId);
              // Just set it to the actual length of active parts
              // This overrides any drift caused by missed decrements
