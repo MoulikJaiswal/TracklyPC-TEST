@@ -126,5 +126,25 @@ export const groupSessionService = {
     }, (error) => {
         console.error("Error subscribing to room participants:", error);
     });
+  },
+
+  // 6. Delete Room (Host only)
+  deleteRoom: async (roomId: string) => {
+      try {
+          await deleteDoc(doc(db, 'rooms', roomId));
+      } catch (e) {
+          console.error("Error deleting room:", e);
+      }
+  },
+
+  // 7. Subscribe to Room Doc Status (to detect shutdown)
+  subscribeToRoomStatus: (roomId: string, onUpdate: (data: StudyRoom | null) => void) => {
+      return onSnapshot(doc(db, 'rooms', roomId), (docSnap) => {
+          if (docSnap.exists()) {
+              onUpdate({ id: docSnap.id, ...docSnap.data() } as StudyRoom);
+          } else {
+              onUpdate(null); // Room deleted
+          }
+      });
   }
 };

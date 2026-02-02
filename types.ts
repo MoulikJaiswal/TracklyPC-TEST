@@ -119,6 +119,7 @@ export type StreamType = 'JEE' | 'NEET';
 export interface StudyParticipant {
   uid: string;
   displayName: string;
+  photoURL?: string | null;
   // We use this timestamp to filter out "ghosts" (people who closed the tab hours ago)
   lastActivity: number; 
   

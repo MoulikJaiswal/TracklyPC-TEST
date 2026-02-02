@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Users, 
@@ -18,7 +18,11 @@ import {
   X,
   Palette,
   AlertTriangle,
-  Pencil
+  Pencil,
+  Camera,
+  Crown,
+  UserMinus,
+  Power
 } from 'lucide-react';
 import { StudyParticipant, StudyRoom } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
@@ -33,7 +37,19 @@ interface VirtualLibraryProps {
 }
 
 // --- SUB-COMPONENT: Participant Card (Calculates its own progress) ---
-const ParticipantCard = memo(({ participant, isMe }: { participant: StudyParticipant, isMe: boolean }) => {
+const ParticipantCard = memo(({ 
+    participant, 
+    isMe, 
+    isHost,
+    canKick,
+    onKick 
+}: { 
+    participant: StudyParticipant, 
+    isMe: boolean, 
+    isHost: boolean,
+    canKick: boolean,
+    onKick: () => void
+}) => {
     const [progress, setProgress] = useState(0);
     const [timeLeftStr, setTimeLeftStr] = useState('');
 
@@ -83,26 +99,45 @@ const ParticipantCard = memo(({ participant, isMe }: { participant: StudyPartici
 
     return (
         <div className={`
-            relative overflow-hidden rounded-2xl p-4 border transition-all duration-300
+            relative overflow-hidden rounded-2xl p-4 border transition-all duration-300 group
             ${isMe ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-white/5 border-white/5'}
         `}>
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 border border-white/10">
-                        {participant.displayName.charAt(0).toUpperCase()}
+                    <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 border border-white/10 overflow-hidden relative">
+                        {participant.photoURL ? (
+                            <img src={participant.photoURL} alt={participant.displayName} className="w-full h-full object-cover" />
+                        ) : (
+                            participant.displayName.charAt(0).toUpperCase()
+                        )}
                     </div>
                     <div className="overflow-hidden">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[80px]">{participant.displayName}</p>
+                        <div className="flex items-center gap-1">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[80px]">{participant.displayName}</p>
+                            {isHost && <Crown size={12} className="text-amber-500 fill-amber-500" />}
+                        </div>
                         <p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
                             {participant.status === 'focus' ? participant.subject : 'On Break'}
                         </p>
                     </div>
                 </div>
-                {participant.status === 'focus' && (
-                    <div className="p-1.5 rounded-lg bg-black/20 border border-white/5">
-                        {getSubjectIcon(participant.subject)}
-                    </div>
-                )}
+                
+                <div className="flex gap-1">
+                    {participant.status === 'focus' && (
+                        <div className="p-1.5 rounded-lg bg-black/20 border border-white/5">
+                            {getSubjectIcon(participant.subject)}
+                        </div>
+                    )}
+                    {canKick && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onKick(); }}
+                            className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-500 hover:text-white"
+                            title="Kick User"
+                        >
+                            <UserMinus size={14} />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {participant.status === 'focus' ? (
@@ -134,8 +169,10 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   
-  // Custom Name State
+  // Custom Name & Avatar State
   const [displayName, setDisplayName] = useState(userName || 'Guest');
+  const [customAvatar, setCustomAvatar] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Create Room Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -148,10 +185,21 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [myDuration, setMyDuration] = useState(25);
   const [isMyTimerRunning, setIsMyTimerRunning] = useState(false);
 
+  // Check if I am host
+  const isAmHost = activeRoom?.createdBy === user?.uid;
+
   // Update display name when user logs in/out
   useEffect(() => {
       if (userName) setDisplayName(userName);
-  }, [userName]);
+      
+      // Load custom avatar from local storage if available, else use user photo
+      const storedAvatar = localStorage.getItem('trackly_guest_avatar');
+      if (storedAvatar) {
+          setCustomAvatar(storedAvatar);
+      } else if (user?.photoURL) {
+          setCustomAvatar(user.photoURL);
+      }
+  }, [userName, user]);
 
   // 1. Subscribe to Room List (Lobby)
   useEffect(() => {
@@ -170,6 +218,21 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       return () => unsubscribe();
   }, [activeRoom]);
 
+  // 3. Subscribe to Room Status (Shutdown detection)
+  useEffect(() => {
+      if (!activeRoom) return;
+      const unsubscribe = groupSessionService.subscribeToRoomStatus(activeRoom.id, (updatedRoom) => {
+          if (!updatedRoom) {
+              // Room was deleted
+              setActiveRoom(null);
+              setParticipants([]);
+              setIsMyTimerRunning(false);
+              alert("The host has closed this room.");
+          }
+      });
+      return () => unsubscribe();
+  }, [activeRoom?.id]);
+
   // Handle Joining a Room
   const handleJoin = (room: StudyRoom) => {
       if (!user) {
@@ -181,6 +244,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       groupSessionService.updatePresence(room.id, user.uid, {
           uid: user.uid,
           displayName: displayName || 'Anonymous',
+          photoURL: customAvatar || undefined,
           status: 'idle',
           subject: mySubject,
           lastActivity: Date.now()
@@ -196,6 +260,23 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       setParticipants([]);
       setIsMyTimerRunning(false);
   };
+
+  // Handle Kick (Host only)
+  const handleKick = useCallback((targetUserId: string) => {
+      if (!activeRoom || !isAmHost) return;
+      if (confirm("Are you sure you want to kick this user?")) {
+          groupSessionService.leaveRoom(activeRoom.id, targetUserId);
+      }
+  }, [activeRoom, isAmHost]);
+
+  // Handle Shutdown (Host only)
+  const handleShutdown = useCallback(async () => {
+      if (!activeRoom || !isAmHost) return;
+      if (confirm("Shut down the room? All participants will be disconnected.")) {
+          await groupSessionService.deleteRoom(activeRoom.id);
+          setActiveRoom(null); // Return to lobby
+      }
+  }, [activeRoom, isAmHost]);
 
   // Handle Timer Start/Stop
   const toggleMyTimer = () => {
@@ -254,6 +335,24 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }
   };
 
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      if (file.size > 500 * 1024) {
+          alert("Image is too large. Please select an image under 500KB.");
+          return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+          const result = ev.target?.result as string;
+          setCustomAvatar(result);
+          localStorage.setItem('trackly_guest_avatar', result);
+      };
+      reader.readAsDataURL(file);
+  };
+
   // --- RENDER: LOBBY ---
   if (!activeRoom) {
       return (
@@ -264,9 +363,27 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                       <p className="text-xs text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mt-1 font-bold">Join others for accountability</p>
                       
                       <div className="flex items-center gap-3 mt-4 bg-white/50 dark:bg-slate-800/50 p-2 pr-4 rounded-xl border border-slate-200 dark:border-white/5 w-fit backdrop-blur-sm shadow-sm">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-                              {displayName.charAt(0).toUpperCase()}
+                          <div 
+                            className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-sm relative group cursor-pointer overflow-hidden"
+                            onClick={() => avatarInputRef.current?.click()}
+                          >
+                              {customAvatar ? (
+                                  <img src={customAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                              ) : (
+                                  displayName.charAt(0).toUpperCase()
+                              )}
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Camera size={14} className="text-white" />
+                              </div>
                           </div>
+                          <input 
+                              type="file" 
+                              ref={avatarInputRef} 
+                              className="hidden" 
+                              accept="image/*"
+                              onChange={handleAvatarUpload}
+                          />
+                          
                           <div className="flex flex-col">
                               <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Joining as</span>
                               <input 
@@ -444,13 +561,24 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                       </div>
                   </div>
               </div>
-              <button 
-                  onClick={handleLeave}
-                  className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors"
-                  title="Leave Room"
-              >
-                  <LogOut size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                  {isAmHost && (
+                      <button 
+                          onClick={handleShutdown}
+                          className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors"
+                          title="Shutdown Room"
+                      >
+                          <Power size={20} />
+                      </button>
+                  )}
+                  <button 
+                      onClick={handleLeave}
+                      className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-colors"
+                      title="Leave Room"
+                  >
+                      <LogOut size={20} />
+                  </button>
+              </div>
           </div>
 
           {/* Participants Grid */}
@@ -460,7 +588,10 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                       <ParticipantCard 
                           key={p.uid} 
                           participant={p} 
-                          isMe={user?.uid === p.uid} 
+                          isMe={user?.uid === p.uid}
+                          isHost={activeRoom.createdBy === p.uid}
+                          canKick={isAmHost && p.uid !== user?.uid}
+                          onKick={() => handleKick(p.uid)}
                       />
                   ))}
               </div>
