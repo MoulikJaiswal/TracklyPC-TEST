@@ -52,14 +52,15 @@ export const groupSessionService = {
   },
 
   // 2. Create a Room
-  createRoom: async (roomData: Omit<StudyRoom, 'id' | 'activeCount' | 'createdAt'>) => {
+  createRoom: async (roomData: Omit<StudyRoom, 'id' | 'activeCount' | 'createdAt'>): Promise<string> => {
     try {
-        await addDoc(collection(db, 'rooms'), {
+        const docRef = await addDoc(collection(db, 'rooms'), {
             ...roomData,
             activeCount: 0,
             createdAt: Date.now(),
             status: 'active' // Default status
         });
+        return docRef.id;
     } catch (e) {
         console.error("Error creating room:", e);
         throw e;

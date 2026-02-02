@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, memo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -37,7 +38,8 @@ import {
   PartyPopper,
   Lock,
   Link as LinkIcon,
-  Share2
+  Share2,
+  Copy
 } from 'lucide-react';
 import { StudyParticipant, StudyRoom, Target, Session } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
@@ -394,6 +396,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [lastSessionDuration, setLastSessionDuration] = useState(0);
   const [isAway, setIsAway] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Check if I am host
   const isAmHost = activeRoom?.createdBy === user?.uid;
@@ -553,9 +556,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }
   };
 
-  const handleShareRoom = () => {
+  const handleCopyLink = () => {
       if (!activeRoom) return;
-      // Construct a URL that the app can handle on load
       const url = `${window.location.origin}${window.location.pathname}?room=${activeRoom.id}`;
       navigator.clipboard.writeText(url).then(() => {
           setShareCopied(true);
@@ -675,7 +677,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       setIsCreating(true);
       setCreateError(null);
       try {
-          await groupSessionService.createRoom({
+          // 1. Create the room and get the ID
+          const newRoomId = await groupSessionService.createRoom({
               name: newRoomData.name,
               topic: newRoomData.topic,
               description: newRoomData.description,
@@ -683,8 +686,27 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               createdBy: user.uid,
               isPrivate: newRoomData.isPrivate
           });
+
+          // 2. Immediately Join the room
+          // We construct a temporary room object to join immediately without waiting for subscription
+          const newRoom: StudyRoom = {
+              id: newRoomId,
+              name: newRoomData.name,
+              topic: newRoomData.topic,
+              description: newRoomData.description,
+              color: newRoomData.color,
+              createdBy: user.uid,
+              isPrivate: newRoomData.isPrivate,
+              activeCount: 0,
+              createdAt: Date.now(),
+              status: 'active'
+          };
+
           setShowCreateModal(false);
           setNewRoomData({ name: '', topic: '', description: '', color: 'indigo', isPrivate: false });
+          
+          handleJoin(newRoom);
+
       } catch (err: any) {
           console.error("Failed to create room:", err);
           let msg = "Failed to create room.";
@@ -972,7 +994,10 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                           {activeRoom.isPrivate ? <Lock size={20} /> : <Users size={20} />}
                       </div>
                       <div>
-                          <h3 className="text-sm font-bold text-slate-900 dark:text-white">{activeRoom.name}</h3>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                              {activeRoom.name}
+                              {activeRoom.isPrivate && <span className="text-[9px] bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">Private</span>}
+                          </h3>
                           <div className="flex items-center gap-2">
                               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -986,11 +1011,12 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                   <div className="flex items-center gap-2">
                       {/* Share Button */}
                       <button 
-                          onClick={handleShareRoom}
-                          className="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-xl transition-all relative overflow-hidden"
-                          title="Copy Invite Link"
+                          onClick={() => setShowShareModal(true)}
+                          className="flex items-center gap-2 px-3 py-2 text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-xl transition-all relative overflow-hidden"
+                          title="Invite Link"
                       >
-                          {shareCopied ? <CheckCircle2 size={20} className="animate-in zoom-in" /> : <Share2 size={20} />}
+                          <Share2 size={16} />
+                          <span className="text-[10px] font-bold uppercase tracking-wide hidden md:inline">Invite</span>
                       </button>
 
                       {/* Mobile Leaderboard Toggle */}
@@ -1177,6 +1203,43 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                   </div>
               </div>
           </div>
+
+          {/* Share Modal */}
+          {showShareModal && createPortal(
+              <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+                  <div className="bg-white dark:bg-[#0f172a] w-full max-w-sm rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200">
+                      <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-lg font-bold text-slate-900 dark:text-white">Invite Others</h3>
+                          <button onClick={() => setShowShareModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors">
+                              <X size={18} className="text-slate-500" />
+                          </button>
+                      </div>
+                      
+                      <div className="p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-200 dark:border-white/10 mb-4">
+                          <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Room Link</p>
+                          <div className="flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-white/10 overflow-hidden">
+                              <span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate flex-1">
+                                  {window.location.origin}{window.location.pathname}?room={activeRoom.id}
+                              </span>
+                          </div>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-200 dark:border-white/10 mb-6">
+                          <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Room Code</p>
+                          <p className="text-xl font-mono font-bold text-slate-900 dark:text-white text-center tracking-widest">{activeRoom.id}</p>
+                      </div>
+
+                      <button 
+                          onClick={handleCopyLink}
+                          className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                          {shareCopied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                          {shareCopied ? 'Link Copied!' : 'Copy Link'}
+                      </button>
+                  </div>
+              </div>,
+              document.body
+          )}
 
           {/* Mobile Leaderboard Sheet */}
           {showMobileLeaderboard && createPortal(
