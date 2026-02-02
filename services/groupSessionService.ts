@@ -106,16 +106,16 @@ export const groupSessionService = {
         const parts = snapshot.docs.map(d => d.data() as StudyParticipant);
         
         // Client-Side Ghost Check
-        // If we find ghosts (inactive > 2h), we delete them to fix the count
+        // If we find ghosts (inactive > 20m), we delete them to fix the count
         // We only do this if we are receiving data (someone is online looking at the room)
         const now = Date.now();
-        const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+        const ghostThreshold = now - (20 * 60 * 1000); // 20 minutes timeout
         
         const activeParts: StudyParticipant[] = [];
         const ghostIds: string[] = [];
 
         parts.forEach(p => {
-            if (p.lastActivity < twoHoursAgo) {
+            if (p.lastActivity < ghostThreshold) {
                 ghostIds.push(p.uid);
             } else {
                 activeParts.push(p);
@@ -128,6 +128,17 @@ export const groupSessionService = {
             Promise.allSettled(batchPromises).then(() => console.log(`Cleaned ${ghostIds.length} ghosts`));
         }
         
+        // Self-Healing Count Sync
+        // To fix drift between 'activeCount' on room doc and actual participants
+        // We randomly update the room doc with the true count to ensure eventual consistency
+        // Probability is 10% per update per client to avoid write contention
+        if (Math.random() < 0.1) {
+             const roomRef = doc(db, 'rooms', roomId);
+             // Just set it to the actual length of active parts
+             // This overrides any drift caused by missed decrements
+             updateDoc(roomRef, { activeCount: activeParts.length }).catch(() => {}); 
+        }
+
         callback(activeParts);
     }, (error) => {
         // console.error("Error subscribing to room participants:", error);
