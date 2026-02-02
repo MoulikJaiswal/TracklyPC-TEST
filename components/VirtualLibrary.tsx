@@ -1159,35 +1159,45 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                               ))}
                           </div>
                           
-                          <div className="flex items-center gap-3 bg-slate-100 dark:bg-white/5 rounded-xl p-1.5 px-3 border border-slate-200 dark:border-white/10 shadow-sm">
-                              <Clock size={14} className="text-slate-400" />
-                              <div className="flex items-baseline gap-1">
+                          <div className="flex items-center gap-3 bg-slate-100 dark:bg-white/5 rounded-2xl p-2 px-4 border border-slate-200 dark:border-white/10 shadow-sm">
+                              <div className="flex flex-col items-center">
                                   <input 
                                       type="number" 
                                       min="0" 
-                                      max="23"
+                                      max="12"
                                       value={Math.floor(myDuration / 60)}
                                       onChange={(e) => {
-                                          const h = Math.max(0, parseInt(e.target.value) || 0);
-                                          const m = myDuration % 60;
-                                          setMyDuration(Math.max(1, (h * 60) + m));
+                                          const val = parseInt(e.target.value);
+                                          if (!isNaN(val)) {
+                                              const h = Math.max(0, Math.min(12, val));
+                                              const m = myDuration % 60;
+                                              setMyDuration(Math.max(1, (h * 60) + m));
+                                          }
                                       }}
-                                      className="w-6 bg-transparent text-center font-mono font-bold text-slate-900 dark:text-white outline-none p-0 border-b border-transparent focus:border-indigo-500 transition-colors"
+                                      className="w-12 bg-transparent text-center font-mono text-xl font-bold text-slate-900 dark:text-white outline-none appearance-none p-0 border-b-2 border-transparent focus:border-indigo-500 transition-colors"
+                                      placeholder="0"
                                   />
-                                  <span className="text-[10px] text-slate-400 font-bold mr-1">h</span>
+                                  <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Hrs</span>
+                              </div>
+                              <span className="text-xl font-bold text-slate-300 dark:text-slate-600 pb-4">:</span>
+                              <div className="flex flex-col items-center">
                                   <input 
                                       type="number" 
                                       min="0" 
                                       max="59"
                                       value={myDuration % 60}
                                       onChange={(e) => {
-                                          const m = Math.max(0, Math.min(59, parseInt(e.target.value) || 0));
-                                          const h = Math.floor(myDuration / 60);
-                                          setMyDuration(Math.max(1, (h * 60) + m));
+                                          const val = parseInt(e.target.value);
+                                          if (!isNaN(val)) {
+                                              const m = Math.max(0, Math.min(59, val));
+                                              const h = Math.floor(myDuration / 60);
+                                              setMyDuration(Math.max(1, (h * 60) + m));
+                                          }
                                       }}
-                                      className="w-6 bg-transparent text-center font-mono font-bold text-slate-900 dark:text-white outline-none p-0 border-b border-transparent focus:border-indigo-500 transition-colors"
+                                      className="w-12 bg-transparent text-center font-mono text-xl font-bold text-slate-900 dark:text-white outline-none appearance-none p-0 border-b-2 border-transparent focus:border-indigo-500 transition-colors"
+                                      placeholder="00"
                                   />
-                                  <span className="text-[10px] text-slate-400 font-bold">m</span>
+                                  <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Mins</span>
                               </div>
                           </div>
                       </div>
