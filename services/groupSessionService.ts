@@ -144,6 +144,7 @@ export const groupSessionService = {
       }
 
       // 2. Delete the room document (Critical)
+      // This removes the room from the list regardless of orphaned participants
       try {
           await deleteDoc(doc(db, 'rooms', roomId));
       } catch (e) {
