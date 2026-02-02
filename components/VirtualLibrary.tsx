@@ -820,57 +820,62 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                   </div>
               ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {rooms.map(room => (
-                          <Card 
-                              key={room.id}
-                              className={`group hover:border-indigo-500/30 cursor-pointer transition-all active:scale-[0.98] p-6 relative overflow-hidden flex flex-col justify-between min-h-[180px] ${room.isPrivate ? 'opacity-80' : ''}`}
-                              onClick={() => {
-                                  if (room.isPrivate) {
-                                      setShowJoinCodeModal(true);
-                                  } else {
-                                      handleJoin(room);
-                                  }
-                              }}
-                          >
-                              <div className={`absolute top-0 right-0 p-16 rounded-bl-full opacity-5 bg-${room.color}-500 transition-transform group-hover:scale-150`} />
-                              
-                              <div className="relative z-10">
-                                  <div className="flex justify-between items-start mb-4">
-                                      <div className={`p-3 rounded-2xl bg-${room.color}-500/10 text-${room.color}-500`}>
-                                          {room.isPrivate ? <Lock size={24} /> : <Users size={24} />}
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                          {room.createdBy === user?.uid && (
-                                              <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                                                  Mine
+                      {rooms.map(room => {
+                          const isHost = room.createdBy === user?.uid;
+                          const canEnter = !room.isPrivate || isHost;
+                          
+                          return (
+                              <Card 
+                                  key={room.id}
+                                  className={`group hover:border-indigo-500/30 cursor-pointer transition-all active:scale-[0.98] p-6 relative overflow-hidden flex flex-col justify-between min-h-[180px] ${!canEnter ? 'opacity-80' : ''}`}
+                                  onClick={() => {
+                                      if (!canEnter) {
+                                          setShowJoinCodeModal(true);
+                                      } else {
+                                          handleJoin(room);
+                                      }
+                                  }}
+                              >
+                                  <div className={`absolute top-0 right-0 p-16 rounded-bl-full opacity-5 bg-${room.color}-500 transition-transform group-hover:scale-150`} />
+                                  
+                                  <div className="relative z-10">
+                                      <div className="flex justify-between items-start mb-4">
+                                          <div className={`p-3 rounded-2xl bg-${room.color}-500/10 text-${room.color}-500`}>
+                                              {room.isPrivate ? <Lock size={24} /> : <Users size={24} />}
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                              {isHost && (
+                                                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                                                      Mine
+                                                  </span>
+                                              )}
+                                              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                  {room.activeCount || 0} Online
                                               </span>
-                                          )}
-                                          <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                              {room.activeCount || 0} Online
-                                          </span>
+                                          </div>
+                                      </div>
+                                      <h3 className="font-bold text-xl text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                                          {room.name}
+                                          {room.isPrivate && <span className="text-[9px] bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">Private</span>}
+                                      </h3>
+                                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                                          {room.topic}
+                                      </p>
+                                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                                          {room.description || 'No description provided.'}
+                                      </p>
+                                  </div>
+                                  
+                                  <div className="relative z-10 mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex justify-between items-center">
+                                      <div className={`flex items-center gap-2 text-xs font-bold transition-transform ${!canEnter ? 'text-slate-400' : 'text-indigo-500 group-hover:translate-x-1'}`}>
+                                          <span>{!canEnter ? 'Requires Code' : 'Enter Room'}</span>
+                                          {!canEnter ? <Lock size={14} /> : <ArrowLeft size={14} className="rotate-180" />}
                                       </div>
                                   </div>
-                                  <h3 className="font-bold text-xl text-slate-900 dark:text-white mb-1 flex items-center gap-2">
-                                      {room.name}
-                                      {room.isPrivate && <span className="text-[9px] bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">Private</span>}
-                                  </h3>
-                                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                                      {room.topic}
-                                  </p>
-                                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
-                                      {room.description || 'No description provided.'}
-                                  </p>
-                              </div>
-                              
-                              <div className="relative z-10 mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex justify-between items-center">
-                                  <div className={`flex items-center gap-2 text-xs font-bold transition-transform ${room.isPrivate ? 'text-slate-400' : 'text-indigo-500 group-hover:translate-x-1'}`}>
-                                      <span>{room.isPrivate ? 'Requires Code' : 'Enter Room'}</span>
-                                      {room.isPrivate ? <Lock size={14} /> : <ArrowLeft size={14} className="rotate-180" />}
-                                  </div>
-                              </div>
-                          </Card>
-                      ))}
+                              </Card>
+                          );
+                      })}
                   </div>
               )}
 
