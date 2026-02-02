@@ -82,29 +82,6 @@ const ParticipantCard = memo(({
     canKick: boolean,
     onKick: () => void
 }) => {
-    const [isLikelyOffline, setIsLikelyOffline] = useState(false);
-
-    useEffect(() => {
-        const checkStatus = () => {
-            const sinceLastActivity = Date.now() - participant.lastActivity;
-            // Heartbeat is every 30s. If we miss 3, they are likely offline.
-            const OFFLINE_THRESHOLD = 90 * 1000; 
-            
-            // isAway is an explicit status set by the user's client when AFK.
-            // If they are just AFK, we shouldn't mark them as offline.
-            if (!participant.isAway && sinceLastActivity > OFFLINE_THRESHOLD) {
-                setIsLikelyOffline(true);
-            } else {
-                setIsLikelyOffline(false);
-            }
-        };
-
-        checkStatus();
-        const interval = setInterval(checkStatus, 15000); // Check every 15 seconds
-
-        return () => clearInterval(interval);
-    }, [participant.lastActivity, participant.isAway]);
-
     const getSubjectIcon = (subj: string) => {
         switch(subj) {
             case 'Physics': return <Atom size={14} className="text-blue-400" />;
@@ -119,7 +96,7 @@ const ParticipantCard = memo(({
         <div className={`
             relative overflow-hidden rounded-2xl p-4 border transition-all duration-300 group
             ${isMe ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-white/5 border-white/5'}
-            ${(participant.isAway || isLikelyOffline) ? 'opacity-60 grayscale-[0.5]' : ''}
+            ${participant.isAway ? 'opacity-60 grayscale-[0.5]' : ''}
         `}>
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-2">
@@ -131,7 +108,6 @@ const ParticipantCard = memo(({
                         )}
                         {/* Status Dot */}
                         <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${
-                            isLikelyOffline ? 'bg-slate-500' :
                             participant.isAway ? 'bg-amber-500' : 
                             participant.status === 'focus' ? 'bg-emerald-500' : 'bg-slate-500'
                         }`} />
@@ -142,7 +118,7 @@ const ParticipantCard = memo(({
                             {isHost && <Crown size={12} className="text-amber-500 fill-amber-500" />}
                         </div>
                         <p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
-                            {isLikelyOffline ? 'Offline' : participant.isAway ? 'Away' : participant.status === 'focus' ? participant.subject : 'On Break'}
+                            {participant.isAway ? 'Away' : participant.status === 'focus' ? participant.subject : 'On Break'}
                         </p>
                     </div>
                 </div>
@@ -190,8 +166,8 @@ const ParticipantCard = memo(({
             ) : (
                 <div className="h-8 flex items-center justify-center opacity-50">
                     <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold flex items-center gap-1">
-                        {isLikelyOffline ? <Power size={12} /> : participant.isAway ? <Eye size={12} /> : <Coffee size={12} />} 
-                        {isLikelyOffline ? 'Offline' : participant.isAway ? 'Away from Keyboard' : 'Idle'}
+                        {participant.isAway ? <Eye size={12} /> : <Coffee size={12} />} 
+                        {participant.isAway ? 'Away from Keyboard' : 'Idle'}
                     </span>
                 </div>
             )}
@@ -465,6 +441,22 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
     }, 30 * 1000); // Every 30 seconds
 
     return () => clearInterval(heartbeatInterval);
+  }, [activeRoom?.id, user?.uid]);
+  
+  // Handle user leaving the page
+  useEffect(() => {
+    if (!user || !activeRoom) return;
+
+    const handleBeforeUnload = () => {
+        // This is a "best-effort" fire-and-forget call. The ghost cleanup is the fallback.
+        groupSessionService.leaveRoom(activeRoom.id, user.uid);
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, [activeRoom?.id, user?.uid]);
 
   // IDLE DETECTION (AFK)

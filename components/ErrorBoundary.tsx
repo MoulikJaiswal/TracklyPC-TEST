@@ -14,7 +14,7 @@ interface ErrorBoundaryState {
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   // Fix: The user's build setup might not be handling class properties correctly.
-  // Reverting to constructor-based state initialization.
+  // Reverting to constructor-based state initialization and manual method binding.
   // This resolves errors where `this.props` and `this.setState` were not found.
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -22,6 +22,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       hasError: false,
       error: null,
     };
+    // Bind methods to 'this' to ensure they have the correct context
+    this.handleReset = this.handleReset.bind(this);
+    this.handleReload = this.handleReload.bind(this);
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -38,14 +41,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
   }
 
-  handleReset = () => {
+  handleReset() {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
     }
   }
 
-  handleReload = () => {
+  handleReload() {
     window.location.reload();
   }
 
