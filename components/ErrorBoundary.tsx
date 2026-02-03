@@ -32,7 +32,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   // Reset the error boundary when the view changes.
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
+    // FIX: Use this.props to access component properties.
     if (this.props.viewKey !== prevProps.viewKey) {
+      // FIX: Use this.setState to update component state.
       this.setState({ hasError: false, error: null });
     }
   }
@@ -40,8 +42,11 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   // Method to reset the error state and attempt to re-render.
   // FIX: Using an arrow function to automatically bind `this`.
   handleReset = () => {
+    // FIX: Use this.setState to update component state.
     this.setState({ hasError: false, error: null });
+    // FIX: Use this.props to access component properties.
     if (this.props.onReset) {
+      // FIX: Use this.props to access component properties.
       this.props.onReset();
     }
   };
@@ -93,6 +98,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       );
     }
 
+    // FIX: Use this.props to access component properties.
     return this.props.children;
   }
 }

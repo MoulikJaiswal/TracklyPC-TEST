@@ -756,7 +756,7 @@ const OverdueTasksModal = ({
         <div className="p-6 border-t" style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)' }}>
             <button
                 onClick={onClose}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
             >
                 Got It
             </button>
@@ -1992,14 +1992,15 @@ const App: React.FC = () => {
                         </div>
                     )}
                     {view === 'group-focus' && (
-                        <VirtualLibrary 
-                            user={user}
-                            userName={user?.displayName || 'Guest'}
-                            onLogin={handleLogin}
-                            isPro={hasProAccess}
-                            targets={targets}
-                            onCompleteTask={handleUpdateTarget}
-                        />
+                        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in fade-in zoom-in duration-300">
+                            <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 rounded-full mb-4">
+                                <Hammer size={32} className="text-indigo-500" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Upgrade in Progress</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
+                                The Focus Lounge is being rebuilt with a more reliable and efficient presence system. It'll be back online soon!
+                            </p>
+                        </div>
                     )}
                     {view === 'tests' && (
                         <TestLog 
