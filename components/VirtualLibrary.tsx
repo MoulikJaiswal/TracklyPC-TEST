@@ -733,13 +733,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               <div className="p-3">
                 {!isMyTimerRunning && (
                     <div className="flex flex-col md:flex-row items-center gap-3">
-                        <div className="flex items-center gap-2 shrink-0">
-                            {['Physics', 'Chemistry', 'Maths', 'Biology'].map(sub => (
-                                <button key={sub} onClick={() => setMySubject(sub as any)} className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border-2 ${mySubject === sub ? 'border-indigo-500' : 'border-transparent'}`} title={sub}>
-                                    <div className={`w-5 h-5 rounded-full ${sub === 'Physics' ? 'bg-blue-500' : sub === 'Chemistry' ? 'bg-orange-500' : sub === 'Maths' ? 'bg-rose-500' : 'bg-emerald-500'} ring-1 ring-inset ring-black/10 dark:ring-white/10`} />
-                                </button>
-                            ))}
-                        </div>
                         <div className="flex-1 w-full flex items-center gap-2 bg-slate-100 dark:bg-black/20 p-2 rounded-2xl border border-slate-200 dark:border-white/10 shadow-inner dark:shadow-none">
                              <button onClick={() => setShowMiniPlanner(true)} className={`p-2 rounded-xl transition-all shrink-0 ${linkedTaskId ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-200/50 dark:bg-white/5 text-slate-400 hover:text-slate-600 dark:hover:text-white'}`}>
                                 {linkedTaskId ? <CheckCircle2 size={18} /> : <ListTodo size={18} />}

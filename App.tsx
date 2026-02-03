@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { 
   Activity, 
@@ -26,7 +27,11 @@ import {
   Menu,
   Hammer,
   Rocket,
-  Brain
+  Brain,
+  ListChecks,
+  Check,
+  Trash2,
+  X
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder } from './types';
 import { QUOTES, THEME_CONFIG } from './constants';
@@ -689,6 +694,80 @@ const fadeVariants = {
   exit: { opacity: 0 },
 };
 
+const OverdueTasksModal = ({
+  isOpen,
+  tasks,
+  onClose,
+  onComplete,
+  onDelete
+}: {
+  isOpen: boolean;
+  tasks: Target[];
+  onClose: () => void;
+  onComplete: (id: string) => void;
+  onDelete: (id: string) => void;
+}) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+      <Card
+        className="w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+        style={{ 
+          backgroundColor: 'rgba(var(--theme-card-rgb), 0.95)',
+          borderColor: 'rgba(var(--theme-accent-rgb), 0.3)'
+        }}
+      >
+        <div className="flex justify-between items-center mb-4 p-6 border-b" style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)' }}>
+          <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--theme-text-main)' }}>
+            <ListChecks size={20} className="text-amber-500" /> Overdue Tasks
+          </h3>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-6 pb-6 overflow-y-auto space-y-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400 pb-2">You have {tasks.length} unfinished tasks from previous days.</p>
+          {tasks.map(task => (
+            <div key={task.id} className="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200 dark:border-white/10 flex items-center justify-between gap-2 group">
+              <div>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{task.text}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">{task.date}</p>
+              </div>
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => onComplete(task.id)}
+                  className="p-2 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-500/20"
+                  title="Mark as Done"
+                >
+                  <Check size={14} />
+                </button>
+                <button
+                  onClick={() => onDelete(task.id)}
+                  className="p-2 bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg hover:bg-rose-200 dark:hover:bg-rose-500/20"
+                  title="Delete Task"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="p-6 border-t" style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)' }}>
+            <button
+                onClick={onClose}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+            >
+                Got It
+            </button>
+        </div>
+      </Card>
+    </div>,
+    document.body
+  );
+};
+
+
 const App: React.FC = () => {
   const [view, setView] = useState<ViewType>('daily');
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -764,6 +843,10 @@ const App: React.FC = () => {
   const timerRef = useRef<any>(null);
   const endTimeRef = useRef<number>(0);
   const { isLagging, dismiss: dismissLag } = usePerformanceMonitor(graphicsEnabled && lagDetectionEnabled);
+  
+  // Overdue Task Reminder State
+  const [overdueTasks, setOverdueTasks] = useState<Target[]>([]);
+  const [showOverdueModal, setShowOverdueModal] = useState(false);
 
   // --- Theme Computed Values ---
   const themeConfig = THEME_CONFIG[theme];
@@ -821,6 +904,26 @@ const App: React.FC = () => {
       firebase_screen_class: 'App'
     });
   }, [view]);
+
+  // Overdue Task Reminder Logic
+  useEffect(() => {
+    const hasShownReminder = sessionStorage.getItem('trackly_overdue_reminder_shown');
+    if (targets.length > 0 && !hasShownReminder) {
+      const today = getLocalDate();
+      const overdue = targets.filter(t => t.date < today && !t.completed)
+                             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      if (overdue.length > 0) {
+        setOverdueTasks(overdue);
+        // Show after a small delay to let the app settle
+        const timer = setTimeout(() => {
+          setShowOverdueModal(true);
+          sessionStorage.setItem('trackly_overdue_reminder_shown', 'true');
+        }, 2500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [targets]);
 
   const activateLiteMode = useCallback(() => {
       setGraphicsEnabled(false);
@@ -2018,7 +2121,7 @@ const App: React.FC = () => {
 
       <SettingsModal 
         isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={() => setIsSettingsOpen(true)}
         animationsEnabled={animationsEnabled}
         toggleAnimations={() => setAnimationsEnabled(!animationsEnabled)}
         graphicsEnabled={graphicsEnabled}
@@ -2066,6 +2169,19 @@ const App: React.FC = () => {
         syncStatus={syncStatus}
         syncError={syncError}
         onOpenPrivacy={() => setView('privacy')}
+      />
+      <OverdueTasksModal
+        isOpen={showOverdueModal}
+        tasks={overdueTasks}
+        onClose={() => setShowOverdueModal(false)}
+        onComplete={(id) => {
+          handleUpdateTarget(id, true);
+          setOverdueTasks(prev => prev.filter(t => t.id !== id));
+        }}
+        onDelete={(id) => {
+          handleDeleteTarget(id);
+          setOverdueTasks(prev => prev.filter(t => t.id !== id));
+        }}
       />
     </div>
   );

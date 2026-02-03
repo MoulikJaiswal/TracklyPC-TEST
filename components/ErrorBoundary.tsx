@@ -12,12 +12,11 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: Converted ErrorBoundary to a class component by extending React.Component.
-// This gives it access to state, props, and lifecycle methods, resolving multiple property errors.
+// FIX: ErrorBoundary must be a class component to use error boundary lifecycle methods.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Initialized state within the constructor.
+  // FIX: Initialize state in the constructor to track if an error has occurred.
   constructor(props: ErrorBoundaryProps) {
-    // FIX: Added super(props) call, which is mandatory for React component constructors.
+    // FIX: `super(props)` must be called in the constructor of a React component.
     super(props);
     this.state = {
       hasError: false,
