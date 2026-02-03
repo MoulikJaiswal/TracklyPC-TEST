@@ -7,13 +7,13 @@ import {
   Square, Trophy, Medal, Flame, Clock, Eye, Star, PartyPopper, Lock, Link as LinkIcon,
   Share2, Copy
 } from 'lucide-react';
-import { StudyParticipant, StudyRoom, Target, Session } from '../types';
+import { StudyParticipant, StudyRoom, Target } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
 import { Card } from './Card';
 import { User } from 'firebase/auth';
 import { AnimatePresence, motion } from 'framer-motion';
 import { db } from '../firebase';
-import { doc, getDoc, setDoc, collection, query, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, onSnapshot, writeBatch, getDocs, updateDoc } from 'firebase/firestore';
 
 const MotionDiv = motion.div as any;
 
@@ -180,7 +180,6 @@ const Leaderboard = memo(({ roomId, myId }: { roomId: string, myId: string | und
         
         const key = filter === 'today' ? 'dailyFocusTime' : 'weeklyFocusTime';
         
-        // Filter out users who have 0 time for the selected filter to keep the list clean
         sortedParticipants = sortedParticipants.filter(p => (p[key] || 0) > 0);
 
         sortedParticipants.sort((a, b) => (b[key] || 0) - (a[key] || 0));
@@ -323,12 +322,10 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   
-  // Custom Name & Avatar
   const [displayName, setDisplayName] = useState(userName || 'Guest');
   const [customAvatar, setCustomAvatar] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRoomData, setNewRoomData] = useState({ name: '', topic: '', description: '', color: 'indigo', isPrivate: false });
   const [isCreating, setIsCreating] = useState(false);
@@ -337,7 +334,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [joinCode, setJoinCode] = useState('');
   const [isJoiningByCode, setIsJoiningByCode] = useState(false);
 
-  // Controls
   const [mySubject, setMySubject] = useState<'Physics'|'Chemistry'|'Maths'|'Biology'|'Other'>('Physics');
   const [myDuration, setMyDuration] = useState(25);
   const [isMyTimerRunning, setIsMyTimerRunning] = useState(false);
@@ -356,7 +352,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
   const [myLiveTime, setMyLiveTime] = useState(0); 
   const isAmHost = activeRoom?.createdBy === user?.uid;
 
-  // Local Timer
   useEffect(() => {
     if (!isMyTimerRunning) {
         setMyLiveTime(0);
@@ -371,7 +366,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
     return () => clearInterval(interval);
   }, [isMyTimerRunning]);
 
-  // URL Auto-Join
   useEffect(() => {
       const searchParams = new URLSearchParams(window.location.search);
       const roomIdFromUrl = searchParams.get('room');
@@ -390,7 +384,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       }
   }, []);
 
-  // Update Display Name
   useEffect(() => {
       if (userName) setDisplayName(userName);
       const storedAvatar = localStorage.getItem('trackly_guest_avatar');
@@ -398,16 +391,14 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       else if (user?.photoURL) setCustomAvatar(user.photoURL);
   }, [userName, user]);
 
-  // SLOWER HEARTBEAT (30 seconds) to reduce Firestore writes
   useEffect(() => {
     if (!user || !activeRoom) return;
     const heartbeatInterval = setInterval(() => {
-      groupSessionService.updatePresence(activeRoom.id, user.uid, {});
-    }, 30000); // Changed from 5000 to 30000
+      groupSessionService.updatePresence(activeRoom.id, user.uid, { isOnline: true });
+    }, 30000);
     return () => clearInterval(heartbeatInterval);
   }, [activeRoom?.id, user?.uid]);
   
-  // Tab Close Handler (Fallback)
   useEffect(() => {
     if (!user || !activeRoom) return;
     const handleBeforeUnload = () => {
@@ -417,7 +408,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [activeRoom?.id, user?.uid]);
 
-  // Idle Detection
   useEffect(() => {
       if (!user || !activeRoom) return;
       let idleTimer: any;
@@ -448,7 +438,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       };
   }, [activeRoom?.id, user?.uid, isAway]);
 
-  // Subscribe to Rooms
   useEffect(() => {
     const unsubscribe = groupSessionService.subscribeToRooms((fetchedRooms) => {
         const defaultJeeRoom: StudyRoom = {
@@ -461,7 +450,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
     return () => unsubscribe();
   }, []);
 
-  // Subscribe to Participants & SELF-DISCONNECT LOGIC
   useEffect(() => {
       if (!activeRoom || !user) return;
       const unsubscribe = groupSessionService.subscribeToRoom(activeRoom.id, (parts) => {
@@ -477,8 +465,62 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       });
       return () => unsubscribe();
   }, [activeRoom, user]);
+  
+  // --- The Quiet Hall Monitor ---
+  useEffect(() => {
+    if (!activeRoom || !user) return;
 
-  // Subscribe to Room Status
+    const monitorInterval = setInterval(async () => {
+      // The first person in the participant list (sorted by name) is the monitor.
+      if (participants.length > 0 && participants[0].uid === user.uid) {
+        const now = Date.now();
+        const ghostThreshold = now - 90 * 1000; // 90 seconds ago
+
+        const participantsRef = collection(db, `rooms/${activeRoom.id}/participants`);
+        const allParticipantsSnapshot = await getDocs(query(participantsRef));
+
+        const batch = writeBatch(db);
+        let onlineCount = 0;
+        let changesMade = false;
+
+        allParticipantsSnapshot.forEach(docSnap => {
+          const p = docSnap.data() as StudyParticipant;
+          
+          if (p.lastActivity < ghostThreshold) {
+            // This is a ghost. If they are marked as online, mark them offline.
+            if (p.isOnline) {
+              batch.update(docSnap.ref, { isOnline: false });
+              changesMade = true;
+            }
+          } else {
+            // This is an active user.
+            onlineCount++;
+            // If they were marked offline but are now active, mark them online again.
+            if (!p.isOnline) {
+              batch.update(docSnap.ref, { isOnline: true });
+              changesMade = true;
+            }
+          }
+        });
+
+        // Self-heal the room's activeCount
+        const roomRef = doc(db, 'rooms', activeRoom.id);
+        const roomSnap = await getDoc(roomRef);
+        if (roomSnap.exists() && roomSnap.data().activeCount !== onlineCount) {
+          batch.update(roomRef, { activeCount: onlineCount });
+          changesMade = true;
+        }
+
+        if (changesMade) {
+          await batch.commit().catch(err => console.error("Hall monitor failed to commit batch:", err));
+        }
+      }
+    }, 60 * 1000); // Run every 60 seconds.
+
+    return () => clearInterval(monitorInterval);
+  }, [activeRoom, user, participants]);
+
+
   useEffect(() => {
       if (!activeRoom) return;
       const unsubscribe = groupSessionService.subscribeToRoomStatus(activeRoom.id, (updatedRoom) => {
@@ -497,10 +539,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       return () => unsubscribe();
   }, [activeRoom?.id, user?.uid]);
 
-  // JOIN LOGIC
   const handleJoin = async (room: StudyRoom) => {
       if (!user) { onLogin(); return; }
-
       try {
           if (room.isSystem) {
             const roomRef = doc(db, 'rooms', room.id);
@@ -511,15 +551,12 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                 });
             }
           }
-
           await groupSessionService.joinSession(
               room.id, 
               { uid: user.uid, displayName: displayName || 'Anonymous', photoURL: customAvatar },
               mySubject
           );
-
           setActiveRoom(room);
-          
       } catch (e) {
           console.error("Failed to join room:", e);
           alert("Could not join room. Please try again.");

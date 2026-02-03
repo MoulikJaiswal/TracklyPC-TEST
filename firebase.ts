@@ -3,11 +3,14 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 import { getAnalytics, logEvent } from 'firebase/analytics';
+import { getDatabase } from 'firebase/database';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyABuDd5YLHJC3FwJQRtacPtXWEzJ3qk2bk",
   authDomain: "tracklypc.firebaseapp.com",
+  // IMPORTANT: Add the databaseURL for Realtime Database
+  databaseURL: "https://tracklypc-default-rtdb.firebaseio.com",
   projectId: "tracklypc",
   storageBucket: "tracklypc.firebasestorage.app",
   messagingSenderId: "509028484372",
@@ -21,6 +24,8 @@ const app = initializeApp(firebaseConfig);
 // Export services so the app can use them
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+// Initialize and export RTDB
+export const rtdb = getDatabase(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Initialize Analytics (Safe for SSR/Non-browser environments if applicable)

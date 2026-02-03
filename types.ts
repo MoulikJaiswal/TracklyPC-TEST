@@ -123,6 +123,7 @@ export interface StudyParticipant {
   photoURL?: string | null;
   // We use this timestamp to filter out "ghosts" (people who closed the tab hours ago)
   lastActivity: number; 
+  isOnline?: boolean; // New flag for RTDB presence
   
   // Real-time State (Event Based)
   status: 'focus' | 'break' | 'idle';
