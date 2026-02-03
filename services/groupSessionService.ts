@@ -26,14 +26,14 @@ export const groupSessionService = {
     return onSnapshot(q, (snapshot) => {
         const rooms = snapshot.docs
             .map(d => ({ id: d.id, ...d.data() } as StudyRoom))
-            .filter(r => r.status !== 'closing'); // Show all active rooms, including private ones
+            .filter(r => r.status !== 'closing'); // Show all active rooms
         callback(rooms);
     }, (error) => {
         console.error("Error subscribing to rooms:", error);
     });
   },
 
-  // 1.5 Get Specific Room (for joining via ID/Link)
+  // 1.5 Get Specific Room
   getRoom: async (roomId: string): Promise<StudyRoom | null> => {
       try {
           const docRef = doc(db, 'rooms', roomId);
@@ -57,7 +57,7 @@ export const groupSessionService = {
             ...roomData,
             activeCount: 0,
             createdAt: Date.now(),
-            status: 'active' // Default status
+            status: 'active'
         });
         return docRef.id;
     } catch (e) {
@@ -66,73 +66,111 @@ export const groupSessionService = {
     }
   },
 
-  // 3. Join/Update Presence
+  // 3. Join Session (Strict Single Room Enforcement)
+  joinSession: async (roomId: string, user: { uid: string, displayName: string, photoURL?: string | null }, subject: string) => {
+      try {
+          // 1. Check Previous Room from User Presence Doc
+          const presenceRef = doc(db, `users/${user.uid}/presence/status`);
+          const presenceSnap = await getDoc(presenceRef);
+          
+          if (presenceSnap.exists()) {
+              const prevRoomId = presenceSnap.data().currentRoomId;
+              // If in a different room, leave it first
+              if (prevRoomId && prevRoomId !== roomId) {
+                  await groupSessionService.leaveRoom(prevRoomId, user.uid);
+              }
+          }
+
+          // 2. Update Presence for NEW Room
+          const participantRef = doc(db, `rooms/${roomId}/participants`, user.uid);
+          const roomRef = doc(db, 'rooms', roomId);
+
+          // Check if already in this room to avoid double count
+          const partSnap = await getDoc(participantRef);
+          const isNewJoin = !partSnap.exists();
+
+          const participantData: StudyParticipant = {
+              uid: user.uid,
+              displayName: user.displayName || 'Anonymous',
+              photoURL: user.photoURL,
+              status: 'idle',
+              subject: subject as any,
+              lastActivity: Date.now(),
+              isAway: false
+          };
+
+          await setDoc(participantRef, participantData, { merge: true });
+
+          // 3. Update Global Presence Tracker
+          await setDoc(presenceRef, { currentRoomId: roomId }, { merge: true });
+
+          if (isNewJoin) {
+              await updateDoc(roomRef, {
+                  activeCount: increment(1)
+              }).catch(() => {});
+          }
+
+      } catch (e) {
+          console.error("Error joining session:", e);
+          throw e;
+      }
+  },
+
+  // 4. Update Presence (Heartbeat)
   updatePresence: async (
     roomId: string, 
     userId: string, 
-    data: Partial<StudyParticipant>,
-    isJoining: boolean = false
+    data: Partial<StudyParticipant>
   ) => {
     if (!userId) return;
-    
     const participantRef = doc(db, `rooms/${roomId}/participants`, userId);
-    const roomRef = doc(db, 'rooms', roomId);
-    
     try {
-        // If joining, check if we are already in the room (e.g. refresh) to avoid double counting
-        let shouldIncrement = false;
-        if (isJoining) {
-            const docSnap = await getDoc(participantRef);
-            if (!docSnap.exists()) {
-                shouldIncrement = true;
-            }
-        }
-
         await setDoc(participantRef, {
             ...data,
             lastActivity: Date.now()
         }, { merge: true });
-
-        if (shouldIncrement) {
-            await updateDoc(roomRef, {
-                activeCount: increment(1)
-            }).catch(e => console.warn("Failed to increment count (room might be closing)", e));
-        }
     } catch (e) {
-        console.error("Error updating presence:", e);
+        // Silent fail for heartbeat
     }
   },
 
-  // 4. Leave Room
+  // 5. Leave Room & Clear Presence
   leaveRoom: async (roomId: string, userId: string) => {
     if (!userId) return;
     
     const participantRef = doc(db, `rooms/${roomId}/participants`, userId);
     const roomRef = doc(db, 'rooms', roomId);
+    const presenceRef = doc(db, `users/${userId}/presence/status`);
     
     try {
         await deleteDoc(participantRef);
+        // Clear global presence if it matches this room
+        const presenceSnap = await getDoc(presenceRef);
+        if (presenceSnap.exists() && presenceSnap.data().currentRoomId === roomId) {
+             await deleteDoc(presenceRef);
+        }
+
         // Decrement count
         await updateDoc(roomRef, {
             activeCount: increment(-1)
-        }).catch(() => {}); // Ignore error if room already deleted
+        }).catch(() => {}); 
     } catch (e) {
         console.error("Error leaving room:", e);
     }
   },
 
-  // 5. Subscribe to Room Participants & Clean Ghosts
+  // 6. Subscribe to Room & Auto-Clean Ghosts
   subscribeToRoom: (roomId: string, callback: (participants: StudyParticipant[]) => void) => {
     const q = query(collection(db, `rooms/${roomId}/participants`), orderBy('lastActivity', 'desc'));
     
     return onSnapshot(q, async (snapshot) => {
         const parts = snapshot.docs.map(d => d.data() as StudyParticipant);
         
-        // Client-Side Ghost Check
-        // If we find ghosts (inactive > 90s), we delete them to fix the count
-        // Participants send heartbeats every 30s. If we miss 3, they are gone.
+        // --- STRICT GHOST PROTOCOL ---
+        // Reduce threshold to 15 seconds for faster "auto-leave" on tab close.
+        // Heartbeat is sent every 5s. If 3 heartbeats missed, user is gone.
         const now = Date.now();
-        const ghostThreshold = now - (90 * 1000); 
+        const ghostThreshold = now - (15 * 1000); 
         
         const activeParts: StudyParticipant[] = [];
         const ghostIds: string[] = [];
@@ -145,55 +183,36 @@ export const groupSessionService = {
             }
         });
 
-        // Async cleanup (don't block UI)
+        // Async cleanup
         if (ghostIds.length > 0) {
-            const batchPromises = ghostIds.map(uid => groupSessionService.leaveRoom(roomId, uid));
-            Promise.allSettled(batchPromises);
+            ghostIds.forEach(uid => groupSessionService.leaveRoom(roomId, uid));
         }
         
-        // Self-Healing Count Sync
-        const shouldSync = activeParts.length < 5 ? Math.random() < 0.5 : Math.random() < 0.05;
-
-        if (shouldSync) {
+        // Self-Healing Count Sync (approx 10% chance to run to save writes)
+        if (activeParts.length < 5 || Math.random() < 0.1) {
              const roomRef = doc(db, 'rooms', roomId);
              updateDoc(roomRef, { activeCount: activeParts.length }).catch(() => {}); 
         }
 
         callback(activeParts);
-    }, (error) => {
-        // Suppress error log if permission denied
     });
   },
 
-  // 6. Delete Room (Host only)
+  // 7. Delete Room
   deleteRoom: async (roomId: string) => {
       const roomRef = doc(db, 'rooms', roomId);
-
       try {
           await updateDoc(roomRef, { status: 'closing' });
-      } catch (e) {
-          console.warn("Could not mark room as closing:", e);
-      }
-
-      try {
           const participantsRef = collection(db, 'rooms', roomId, 'participants');
           const snapshot = await getDocs(participantsRef);
-          
           const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
           await Promise.allSettled(deletePromises);
-      } catch (e) {
-          console.warn("Partial failure clearing participants:", e);
-      }
-
-      try {
           await deleteDoc(roomRef);
       } catch (e) {
-          console.error("CRITICAL: Error deleting room doc:", e);
-          throw e;
+          console.error("Error deleting room:", e);
       }
   },
 
-  // 7. Subscribe to Room Doc Status (to detect shutdown)
   subscribeToRoomStatus: (roomId: string, onUpdate: (data: StudyRoom | null) => void) => {
       return onSnapshot(doc(db, 'rooms', roomId), (docSnap) => {
           if (docSnap.exists()) {

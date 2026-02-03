@@ -12,6 +12,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+// FIX: Extend React.Component to make this a valid class component and resolve property errors.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   // Fix: Explicitly initialize state in the constructor and bind methods to resolve property lookup errors
   constructor(props: ErrorBoundaryProps) {
