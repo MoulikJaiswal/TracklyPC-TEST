@@ -69,9 +69,9 @@ const ParticipantCard = memo(({
                 <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 border border-white/10 overflow-hidden relative">
                         {participant.photoURL ? (
-                            <img src={participant.photoURL} alt={participant.displayName} className="w-full h-full object-cover" />
+                            <img src={participant.photoURL} alt={participant.displayName || 'Avatar'} className="w-full h-full object-cover" />
                         ) : (
-                            participant.displayName.charAt(0).toUpperCase()
+                            (participant.displayName || 'G').charAt(0).toUpperCase()
                         )}
                         <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${
                             participant.isAway ? 'bg-amber-500' : 
@@ -80,7 +80,7 @@ const ParticipantCard = memo(({
                     </div>
                     <div className="overflow-hidden">
                         <div className="flex items-center gap-1">
-                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[80px]">{participant.displayName}</p>
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[80px]">{participant.displayName || 'Guest'}</p>
                             {isHost && <Crown size={12} className="text-amber-500 fill-amber-500" />}
                         </div>
                         <p className="text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
@@ -595,10 +595,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       setShowMiniPlanner(false);
   };
 
-  // FIX: Define handleReflectionConfirm to handle the onConfirm event from the ReflectionModal.
   const handleReflectionConfirm = (rating: number) => {
     setShowReflection(false);
-    // You can optionally log this rating to your analytics or user state
     console.log(`User rated focus session of ${lastSessionDuration}m with score: ${rating}/10`);
     if (user && activeRoom) {
       // Future-proofing: If a 'focusRating' field were added to StudyParticipant, this is where it would be sent.
@@ -617,7 +615,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
                       
                       <div className="flex items-center gap-3 mt-4 bg-white/50 dark:bg-slate-800/50 p-2 pr-4 rounded-xl border border-slate-200 dark:border-white/5 w-fit backdrop-blur-sm shadow-sm">
                           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-sm relative group cursor-pointer overflow-hidden" onClick={() => avatarInputRef.current?.click()}>
-                              {customAvatar ? <img src={customAvatar} alt="Avatar" className="w-full h-full object-cover" /> : displayName.charAt(0).toUpperCase()}
+                              {customAvatar ? <img src={customAvatar} alt="Avatar" className="w-full h-full object-cover" /> : (displayName || 'G').charAt(0).toUpperCase()}
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera size={14} className="text-white" /></div>
                           </div>
                           <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if(file){ const reader = new FileReader(); reader.onload = (ev) => { const res = ev.target?.result as string; setCustomAvatar(res); localStorage.setItem('trackly_guest_avatar', res); }; reader.readAsDataURL(file); } }} />
