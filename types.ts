@@ -136,6 +136,12 @@ export interface StudyParticipant {
   
   // New Engagement Fields
   isAway?: boolean; // True if AFK > 5 mins
+  
+  // New fields for leaderboard
+  dailyFocusTime?: number;
+  weeklyFocusTime?: number;
+  lastFocusDate?: string; // YYYY-MM-DD
+  lastFocusWeek?: number; // Week number of the year
 }
 
 export interface StudyRoom {

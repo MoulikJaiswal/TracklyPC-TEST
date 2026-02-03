@@ -26,6 +26,21 @@ interface VirtualLibraryProps {
   onCompleteTask: (id: string, completed: boolean) => void;
 }
 
+const getLocalDate = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getWeekNumber = (d: Date): number => {
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return weekNo;
+};
+
 const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -143,9 +158,30 @@ const ParticipantCard = memo(({
 
 // --- SUB-COMPONENT: Leaderboard ---
 const Leaderboard = memo(({ participants, myId }: { participants: StudyParticipant[], myId: string | undefined }) => {
-    const sorted = [...participants].sort((a, b) => (b.accumulatedFocusTime || 0) - (a.accumulatedFocusTime || 0));
-    const maxTime = Math.max(1, sorted[0]?.accumulatedFocusTime || 1);
+    const [filter, setFilter] = useState<'session' | 'today' | 'weekly'>('session');
 
+    const sortedData = useMemo(() => {
+        let sortedParticipants = [...participants];
+        
+        const key = filter === 'today' ? 'dailyFocusTime' :
+                    filter === 'weekly' ? 'weeklyFocusTime' :
+                    'accumulatedFocusTime';
+
+        sortedParticipants.sort((a, b) => (b[key] || 0) - (a[key] || 0));
+
+        const maxTime = Math.max(1, sortedParticipants[0]?.[key] || 1);
+
+        return sortedParticipants.map(p => {
+            const minutes = p[key] || 0;
+            return {
+                participant: p,
+                minutes,
+                progress: (minutes / maxTime) * 100
+            };
+        });
+
+    }, [participants, filter]);
+    
     const getMedal = (index: number) => {
         if (index === 0) return <Medal size={14} className="text-amber-400" />;
         if (index === 1) return <Medal size={14} className="text-slate-400" />;
@@ -155,17 +191,21 @@ const Leaderboard = memo(({ participants, myId }: { participants: StudyParticipa
     
     return (
         <div className="h-full flex flex-col">
-            <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center gap-2 bg-white/50 dark:bg-black/20">
-                <Trophy size={16} className="text-amber-500" />
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white">Session Leaders</span>
+            <div className="p-2 border-b border-slate-100 dark:border-white/5 flex flex-col gap-2 bg-white/50 dark:bg-black/20">
+                <div className="flex items-center gap-2 px-2 pt-2">
+                    <Trophy size={16} className="text-amber-500" />
+                    <span className="text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white">Leaderboard</span>
+                </div>
+                <div className="flex bg-slate-200/50 dark:bg-black/30 p-1 rounded-lg">
+                    <button onClick={() => setFilter('session')} className={`flex-1 py-1 rounded text-[10px] font-bold uppercase transition-all ${filter === 'session' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-white' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-white/10'}`}>Session</button>
+                    <button onClick={() => setFilter('today')} className={`flex-1 py-1 rounded text-[10px] font-bold uppercase transition-all ${filter === 'today' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-white' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-white/10'}`}>Today</button>
+                    <button onClick={() => setFilter('weekly')} className={`flex-1 py-1 rounded text-[10px] font-bold uppercase transition-all ${filter === 'weekly' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-white' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-white/10'}`}>Weekly</button>
+                </div>
             </div>
             <div className="flex-1 overflow-y-auto p-2 custom-scrollbar space-y-1">
                 <AnimatePresence>
-                    {sorted.map((p, index) => {
-                        const minutes = p.accumulatedFocusTime || 0;
+                    {sortedData.map(({ participant: p, minutes, progress }, index) => {
                         const isMe = p.uid === myId;
-                        const progress = (minutes / maxTime) * 100;
-
                         return (
                             <MotionDiv
                                 key={p.uid}
@@ -203,7 +243,7 @@ const Leaderboard = memo(({ participants, myId }: { participants: StudyParticipa
                         );
                     })}
                 </AnimatePresence>
-                {sorted.length === 0 && (
+                {sortedData.length === 0 && (
                     <div className="p-4 text-center opacity-50">
                         <p className="text-[10px] uppercase text-slate-500 font-bold">No activity yet</p>
                     </div>
@@ -412,16 +452,8 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       const unsubscribe = groupSessionService.subscribeToRoom(activeRoom.id, (parts) => {
           setParticipants(parts);
           
-          // Self-Check: If I am not in the participant list anymore, it means I was removed remotely
-          // (e.g., joined another room in a different tab, or timed out).
           const amIHere = parts.find(p => p.uid === user.uid);
           if (!amIHere && parts.length > 0) {
-              // Wait a brief moment to allow for initial join latency, but usually this means we are out.
-              // We check parts.length > 0 to ensure it's not just an empty room glitch.
-              // Assuming if we just joined, we should be there immediately due to optimistic update or fast sync.
-              // To be safe, we can rely on a flag "hasJoined" but for now, simple check:
-              // If we thought we were in activeRoom, but data says we aren't...
-              // Force leave locally to sync state.
               console.log("Detected remote removal from room.");
               setActiveRoom(null);
               setIsMyTimerRunning(false);
@@ -465,7 +497,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
             }
           }
 
-          // Use secure join that enforces single-room constraint
           await groupSessionService.joinSession(
               room.id, 
               { uid: user.uid, displayName: displayName || 'Anonymous', photoURL: customAvatar },
@@ -555,7 +586,22 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
         if (elapsedMs > 60000) { 
           sessionMins = Math.floor(elapsedMs / 60000);
           const me = participants.find(p => p.uid === user.uid);
-          updates.accumulatedFocusTime = (me?.accumulatedFocusTime || 0) + sessionMins;
+          if (me) {
+              updates.accumulatedFocusTime = (me.accumulatedFocusTime || 0) + sessionMins;
+              
+              const today = getLocalDate(new Date());
+              const thisWeek = getWeekNumber(new Date());
+
+              const dailyTime = me.lastFocusDate === today ? (me.dailyFocusTime || 0) : 0;
+              const weeklyTime = me.lastFocusWeek === thisWeek ? (me.weeklyFocusTime || 0) : 0;
+              
+              updates.dailyFocusTime = dailyTime + sessionMins;
+              updates.weeklyFocusTime = weeklyTime + sessionMins;
+              updates.lastFocusDate = today;
+              updates.lastFocusWeek = thisWeek;
+          } else {
+            updates.accumulatedFocusTime = sessionMins;
+          }
         }
       }
       setLastSessionDuration(sessionMins);
@@ -599,7 +645,6 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
     setShowReflection(false);
     console.log(`User rated focus session of ${lastSessionDuration}m with score: ${rating}/10`);
     if (user && activeRoom) {
-      // Future-proofing: If a 'focusRating' field were added to StudyParticipant, this is where it would be sent.
       // groupSessionService.updatePresence(activeRoom.id, user.uid, { focusRating: rating });
     }
   };

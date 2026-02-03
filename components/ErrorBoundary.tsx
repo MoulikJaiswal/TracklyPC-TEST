@@ -16,6 +16,7 @@ interface ErrorBoundaryState {
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   // Fix: Explicitly initialize state in the constructor and bind methods to resolve property lookup errors
   constructor(props: ErrorBoundaryProps) {
+    // FIX: Add super(props) call which is required in the constructor of a React.Component subclass.
     super(props);
     this.state = {
       hasError: false,
