@@ -12,35 +12,42 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: ErrorBoundary must be a class component to use error boundary lifecycle methods.
+// Converted to a class component to implement React Error Boundary, which is not possible with functional components.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Initialize state in the constructor to track if an error has occurred.
+  // FIX: All errors stem from TypeScript not correctly recognizing the inherited properties
+  // `state` and `props`. Moving state initialization to a class property is a common
+  // way to fix such resolution issues in modern React projects.
+  public state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
+
   constructor(props: ErrorBoundaryProps) {
-    // FIX: `super(props)` must be called in the constructor of a React component.
+    // `super(props)` must be called in the constructor of a React component.
     super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-    };
     // Bind methods to 'this' to ensure they have the correct context.
     this.handleReset = this.handleReset.bind(this);
     this.handleReload = this.handleReload.bind(this);
   }
 
+  // This lifecycle method is used to render a fallback UI after an error has been thrown.
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
+  // This lifecycle method is used to log error information.
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 
+  // Reset the error boundary when the view changes.
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
     if (this.props.viewKey !== prevProps.viewKey) {
       this.setState({ hasError: false, error: null });
     }
   }
 
+  // Method to reset the error state and attempt to re-render.
   handleReset() {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
@@ -48,6 +55,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   }
 
+  // Method to reload the entire application.
   handleReload() {
     window.location.reload();
   }

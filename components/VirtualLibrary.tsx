@@ -13,7 +13,7 @@ import { Card } from './Card';
 import { User } from 'firebase/auth';
 import { AnimatePresence, motion } from 'framer-motion';
 import { db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, onSnapshot } from 'firebase/firestore';
 
 const MotionDiv = motion.div as any;
 
@@ -156,14 +156,32 @@ const ParticipantCard = memo(({
     );
 });
 
-// --- SUB-COMPONENT: Leaderboard ---
-const Leaderboard = memo(({ participants, myId }: { participants: StudyParticipant[], myId: string | undefined }) => {
+// --- SUB-COMPONENT: Universal Leaderboard ---
+const Leaderboard = memo(({ roomId, myId }: { roomId: string, myId: string | undefined }) => {
     const [filter, setFilter] = useState<'today' | 'weekly'>('today');
+    const [allParticipants, setAllParticipants] = useState<StudyParticipant[]>([]);
+
+    useEffect(() => {
+        if (!roomId) return;
+
+        const q = query(collection(db, `rooms/${roomId}/participants`));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const parts = snapshot.docs.map(d => d.data() as StudyParticipant);
+            setAllParticipants(parts);
+        }, (error) => {
+            console.error("Leaderboard subscription error:", error);
+        });
+
+        return () => unsubscribe();
+    }, [roomId]);
 
     const sortedData = useMemo(() => {
-        let sortedParticipants = [...participants];
+        let sortedParticipants = [...allParticipants];
         
         const key = filter === 'today' ? 'dailyFocusTime' : 'weeklyFocusTime';
+        
+        // Filter out users who have 0 time for the selected filter to keep the list clean
+        sortedParticipants = sortedParticipants.filter(p => (p[key] || 0) > 0);
 
         sortedParticipants.sort((a, b) => (b[key] || 0) - (a[key] || 0));
 
@@ -178,7 +196,7 @@ const Leaderboard = memo(({ participants, myId }: { participants: StudyParticipa
             };
         });
 
-    }, [participants, filter]);
+    }, [allParticipants, filter]);
     
     const getMedal = (index: number) => {
         if (index === 0) return <Medal size={14} className="text-amber-400" />;
@@ -380,12 +398,12 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
       else if (user?.photoURL) setCustomAvatar(user.photoURL);
   }, [userName, user]);
 
-  // FAST HEARTBEAT (5 seconds)
+  // SLOWER HEARTBEAT (30 seconds) to reduce Firestore writes
   useEffect(() => {
     if (!user || !activeRoom) return;
     const heartbeatInterval = setInterval(() => {
       groupSessionService.updatePresence(activeRoom.id, user.uid, {});
-    }, 5000); 
+    }, 30000); // Changed from 5000 to 30000
     return () => clearInterval(heartbeatInterval);
   }, [activeRoom?.id, user?.uid]);
   
@@ -725,7 +743,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               <div className="flex-1 overflow-y-auto custom-scrollbar pb-32">
                   {participants.length === 0 ? (<div className="h-full flex flex-col items-center justify-center opacity-40"><Users size={32} className="text-slate-400 mb-2" /><p className="text-xs font-bold uppercase tracking-widest text-slate-500">Room is empty</p></div>) : (<div className={`grid gap-3 transition-all ${zenMode ? 'grid-cols-2 md:grid-cols-4 opacity-50 hover:opacity-100' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'}`}>{participants.map(p => (<ParticipantCard key={p.uid} participant={p} isMe={user?.uid === p.uid} isHost={activeRoom.createdBy === p.uid} canKick={isAmHost && p.uid !== user?.uid} onKick={() => handleKick(p.uid)} />))}</div>)}
               </div>
-              {!zenMode && (<div className="hidden lg:block w-72 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 rounded-3xl overflow-hidden shadow-sm shrink-0"><Leaderboard participants={participants} myId={user?.uid} /></div>)}
+              {!zenMode && (<div className="hidden lg:block w-72 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 rounded-3xl overflow-hidden shadow-sm shrink-0"><Leaderboard roomId={activeRoom.id} myId={user?.uid} /></div>)}
           </div>
 
           <div className={`${zenMode ? 'fixed bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl' : 'absolute bottom-4 left-4 right-4'} bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden transition-all duration-500 z-50`}>
@@ -780,7 +798,7 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
           </div>
 
           {showShareModal && createPortal(<div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200"><div className="bg-white dark:bg-[#0f172a] w-full max-w-sm rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-slate-900 dark:text-white">Invite Others</h3><button onClick={() => setShowShareModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors"><X size={18} className="text-slate-500" /></button></div><div className="p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-200 dark:border-white/10 mb-4"><p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Room Link</p><div className="flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-white/10 overflow-hidden"><span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate flex-1">{window.location.origin}{window.location.pathname}?room={activeRoom.id}</span></div></div><div className="p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-200 dark:border-white/10 mb-6"><p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Room Code</p><p className="text-xl font-mono font-bold text-slate-900 dark:text-white text-center tracking-widest">{activeRoom.id}</p></div><button onClick={handleCopyLink} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">{shareCopied ? <CheckCircle2 size={16} /> : <Copy size={16} />}{shareCopied ? 'Link Copied!' : 'Copy Link'}</button></div></div>, document.body)}
-          {showMobileLeaderboard && createPortal(<div className="fixed inset-0 z-[200] flex items-end justify-center p-4"><div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMobileLeaderboard(false)} /><div className="relative bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300 max-h-[60vh] flex flex-col"><div className="flex justify-between items-center mb-4 shrink-0"><h3 className="text-lg font-bold text-white">Leaderboard</h3><button onClick={() => setShowMobileLeaderboard(false)} className="p-2 bg-white/5 rounded-full text-slate-400"><X size={16}/></button></div><div className="flex-1 overflow-hidden min-h-0"><Leaderboard participants={participants} myId={user?.uid} /></div></div></div>, document.body)}
+          {showMobileLeaderboard && createPortal(<div className="fixed inset-0 z-[200] flex items-end justify-center p-4"><div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMobileLeaderboard(false)} /><div className="relative bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300 max-h-[60vh] flex flex-col"><div className="flex justify-between items-center mb-4 shrink-0"><h3 className="text-lg font-bold text-white">Leaderboard</h3><button onClick={() => setShowMobileLeaderboard(false)} className="p-2 bg-white/5 rounded-full text-slate-400"><X size={16}/></button></div><div className="flex-1 overflow-hidden min-h-0"><Leaderboard roomId={activeRoom.id} myId={user?.uid} /></div></div></div>, document.body)}
           {showMiniPlanner && createPortal(<div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-4"><div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMiniPlanner(false)} /><div className="relative bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300"><div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-white">Select Task</h3><button onClick={() => setShowMiniPlanner(false)} className="p-2 bg-white/5 rounded-full text-slate-400"><X size={16}/></button></div><div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">{targets.filter(t => !t.completed).length === 0 ? (<p className="text-center text-slate-500 text-xs py-8">No pending tasks found.</p>) : (targets.filter(t => !t.completed).map(task => (<button key={task.id} onClick={() => handleLinkTask(task)} className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors flex items-center gap-3 group"><div className={`w-3 h-3 rounded-full border-2 border-slate-500 group-hover:border-indigo-500`} /><span className="text-sm text-slate-300 group-hover:text-white truncate">{task.text}</span></button>)))}</div></div></div>, document.body)}
           <ReflectionModal isOpen={showReflection} onClose={() => setShowReflection(false)} onConfirm={handleReflectionConfirm} duration={lastSessionDuration} />
       </div>

@@ -138,24 +138,22 @@ export const groupSessionService = {
   leaveRoom: async (roomId: string, userId: string) => {
     if (!userId) return;
     
-    const participantRef = doc(db, `rooms/${roomId}/participants`, userId);
-    const roomRef = doc(db, 'rooms', roomId);
+    // This function's main responsibility is now to clear the user's global presence lock,
+    // allowing them to join other rooms. We no longer delete the participant document
+    // to preserve their leaderboard stats. The activeCount is managed by a self-healing
+    // mechanism in `subscribeToRoom`.
     const presenceRef = doc(db, `users/${userId}/presence/status`);
     
     try {
-        await deleteDoc(participantRef);
-        // Clear global presence if it matches this room
         const presenceSnap = await getDoc(presenceRef);
+        // Only delete the presence lock if it's for the room they are leaving.
         if (presenceSnap.exists() && presenceSnap.data().currentRoomId === roomId) {
              await deleteDoc(presenceRef);
         }
-
-        // Decrement count
-        await updateDoc(roomRef, {
-            activeCount: increment(-1)
-        }).catch(() => {}); 
     } catch (e) {
-        console.error("Error leaving room:", e);
+        // This might fail if permissions are strict, but it's not critical.
+        // The main presence update happens on the next join anyway.
+        console.error("Error clearing global presence:", e);
     }
   },
 
@@ -166,11 +164,11 @@ export const groupSessionService = {
     return onSnapshot(q, async (snapshot) => {
         const parts = snapshot.docs.map(d => d.data() as StudyParticipant);
         
-        // --- STRICT GHOST PROTOCOL ---
-        // Reduce threshold to 15 seconds for faster "auto-leave" on tab close.
-        // Heartbeat is sent every 5s. If 3 heartbeats missed, user is gone.
+        // --- GHOST PROTOCOL ---
+        // Heartbeat is sent every 30s. If 3 heartbeats are missed (90s),
+        // the user is considered a "ghost" and removed from the active list.
         const now = Date.now();
-        const ghostThreshold = now - (15 * 1000); 
+        const ghostThreshold = now - (90 * 1000); // Changed from 15s to 90s for 30s heartbeat
         
         const activeParts: StudyParticipant[] = [];
         const ghostIds: string[] = [];
