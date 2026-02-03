@@ -158,14 +158,12 @@ const ParticipantCard = memo(({
 
 // --- SUB-COMPONENT: Leaderboard ---
 const Leaderboard = memo(({ participants, myId }: { participants: StudyParticipant[], myId: string | undefined }) => {
-    const [filter, setFilter] = useState<'session' | 'today' | 'weekly'>('session');
+    const [filter, setFilter] = useState<'today' | 'weekly'>('today');
 
     const sortedData = useMemo(() => {
         let sortedParticipants = [...participants];
         
-        const key = filter === 'today' ? 'dailyFocusTime' :
-                    filter === 'weekly' ? 'weeklyFocusTime' :
-                    'accumulatedFocusTime';
+        const key = filter === 'today' ? 'dailyFocusTime' : 'weeklyFocusTime';
 
         sortedParticipants.sort((a, b) => (b[key] || 0) - (a[key] || 0));
 
@@ -197,7 +195,6 @@ const Leaderboard = memo(({ participants, myId }: { participants: StudyParticipa
                     <span className="text-xs font-bold uppercase tracking-widest text-slate-900 dark:text-white">Leaderboard</span>
                 </div>
                 <div className="flex bg-slate-200/50 dark:bg-black/30 p-1 rounded-lg">
-                    <button onClick={() => setFilter('session')} className={`flex-1 py-1 rounded text-[10px] font-bold uppercase transition-all ${filter === 'session' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-white' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-white/10'}`}>Session</button>
                     <button onClick={() => setFilter('today')} className={`flex-1 py-1 rounded text-[10px] font-bold uppercase transition-all ${filter === 'today' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-white' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-white/10'}`}>Today</button>
                     <button onClick={() => setFilter('weekly')} className={`flex-1 py-1 rounded text-[10px] font-bold uppercase transition-all ${filter === 'weekly' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-white' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-white/10'}`}>Weekly</button>
                 </div>
@@ -733,9 +730,59 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
 
           <div className={`${zenMode ? 'fixed bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl' : 'absolute bottom-4 left-4 right-4'} bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden transition-all duration-500 z-50`}>
               {isMyTimerRunning && (<div className="absolute top-0 left-0 w-full h-[2px] bg-slate-800"><div className="h-full bg-indigo-500 animate-pulse w-full" /></div>)}
-              <div className="p-4 flex flex-col gap-4">
-                  {!isMyTimerRunning && (<div className="flex justify-between items-center px-1"><div className="flex gap-2">{['Physics', 'Chemistry', 'Maths', 'Biology'].map(sub => (<button key={sub} onClick={() => setMySubject(sub as any)} className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${mySubject === sub ? 'ring-2 ring-offset-2 ring-offset-black ring-indigo-500 scale-110' : 'opacity-50 hover:opacity-100'}`} title={sub}><div className={`w-full h-full rounded-full ${sub === 'Physics' ? 'bg-blue-500' : sub === 'Chemistry' ? 'bg-orange-500' : sub === 'Maths' ? 'bg-rose-500' : 'bg-emerald-500'}`} /></button>))}</div><div className="flex items-center gap-3 bg-slate-100 dark:bg-white/5 rounded-2xl p-2 px-4 border border-slate-200 dark:border-white/10 shadow-sm"><div className="flex flex-col items-center"><input type="number" min="0" max="12" value={Math.floor(myDuration / 60)} onChange={(e) => { const val = parseInt(e.target.value); if (!isNaN(val)) { const h = Math.max(0, Math.min(12, val)); const m = myDuration % 60; setMyDuration(Math.max(1, (h * 60) + m)); } }} className="w-12 bg-transparent text-center font-mono text-xl font-bold text-slate-900 dark:text-white outline-none appearance-none p-0 border-b-2 border-transparent focus:border-indigo-500 transition-colors" placeholder="0" /><span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Hrs</span></div><span className="text-xl font-bold text-slate-300 dark:text-slate-600 pb-4">:</span><div className="flex flex-col items-center"><input type="number" min="0" max="59" value={myDuration % 60} onChange={(e) => { const val = parseInt(e.target.value); if (!isNaN(val)) { const m = Math.max(0, Math.min(59, val)); const h = Math.floor(myDuration / 60); setMyDuration(Math.max(1, (h * 60) + m)); } }} className="w-12 bg-transparent text-center font-mono text-xl font-bold text-slate-900 dark:text-white outline-none appearance-none p-0 border-b-2 border-transparent focus:border-indigo-500 transition-colors" placeholder="00" /><span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Mins</span></div></div></div>)}
-                  <div className="flex items-center gap-3">{!isMyTimerRunning && (<button onClick={() => setShowMiniPlanner(true)} className={`p-3 rounded-2xl transition-all flex-shrink-0 ${linkedTaskId ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/50' : 'bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'}`}>{linkedTaskId ? <CheckCircle2 size={20} /> : <ListTodo size={20} />}</button>)}<div className="flex-1 relative">{isMyTimerRunning ? (<div className="flex justify-between items-center h-full px-2"><div><span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider mb-0.5">Focusing On</span><span className="text-sm font-bold text-white truncate block">{myIntention || mySubject}</span></div><span className="text-lg font-mono font-bold text-white">{formatTime(myLiveTime)}</span></div>) : (<input type="text" placeholder="What is your goal? (e.g. Rotational Motion)" className="w-full bg-transparent border-b border-slate-700 pb-2 text-sm font-medium text-white placeholder:text-slate-600 outline-none focus:border-indigo-500 transition-colors" value={myIntention} onChange={(e) => setMyIntention(e.target.value)} />)}</div><div className="flex items-center gap-3">{isMyTimerRunning && (<button onClick={() => setZenMode(!zenMode)} className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 transition-colors">{zenMode ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>)}<button onClick={toggleMyTimer} className={`h-12 px-6 rounded-2xl flex items-center justify-center transition-all shadow-lg active:scale-95 font-bold uppercase text-xs tracking-wider gap-2 ${isMyTimerRunning ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20' : 'bg-white text-slate-900 hover:bg-slate-200 shadow-white/10'}`}>{isMyTimerRunning ? (<><Square size={16} fill="currentColor" /> Stop</>) : (<><Play size={16} fill="currentColor" /> Start</>)}</button></div></div>
+              <div className="p-3">
+                {!isMyTimerRunning && (
+                    <div className="flex flex-col md:flex-row items-center gap-3">
+                        <div className="flex items-center gap-2 shrink-0">
+                            {['Physics', 'Chemistry', 'Maths', 'Biology'].map(sub => (
+                                <button key={sub} onClick={() => setMySubject(sub as any)} className={`w-7 h-7 rounded-full flex items-center justify-center transition-all border-2 ${mySubject === sub ? 'border-indigo-500' : 'border-transparent'}`} title={sub}>
+                                    <div className={`w-5 h-5 rounded-full ${sub === 'Physics' ? 'bg-blue-500' : sub === 'Chemistry' ? 'bg-orange-500' : sub === 'Maths' ? 'bg-rose-500' : 'bg-emerald-500'} ring-1 ring-inset ring-black/10 dark:ring-white/10`} />
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex-1 w-full flex items-center gap-2 bg-slate-100 dark:bg-black/20 p-2 rounded-2xl border border-slate-200 dark:border-white/10 shadow-inner dark:shadow-none">
+                             <button onClick={() => setShowMiniPlanner(true)} className={`p-2 rounded-xl transition-all shrink-0 ${linkedTaskId ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-200/50 dark:bg-white/5 text-slate-400 hover:text-slate-600 dark:hover:text-white'}`}>
+                                {linkedTaskId ? <CheckCircle2 size={18} /> : <ListTodo size={18} />}
+                             </button>
+                             <input type="text" placeholder="What is your goal? (e.g. Rotational Motion)" className="w-full bg-transparent text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 outline-none" value={myIntention} onChange={(e) => setMyIntention(e.target.value)} />
+                        </div>
+                        <div className="w-full md:w-auto flex items-stretch gap-3">
+                            <div className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-black/20 rounded-2xl p-2 px-3 border border-slate-200 dark:border-white/10 shadow-inner dark:shadow-none">
+                                <div className="flex flex-col items-center">
+                                    <input type="number" min="0" max="12" value={Math.floor(myDuration / 60)} onChange={(e) => { const val = parseInt(e.target.value); if (!isNaN(val)) { const h = Math.max(0, Math.min(12, val)); const m = myDuration % 60; setMyDuration(Math.max(1, (h * 60) + m)); } }} className="w-10 bg-transparent text-center font-mono text-xl font-bold text-slate-900 dark:text-white outline-none appearance-none p-0 border-b-2 border-transparent focus:border-indigo-500 transition-colors" />
+                                    <span className="text-[8px] font-bold uppercase text-slate-400 tracking-wider">Hrs</span>
+                                </div>
+                                <span className="text-xl font-bold text-slate-300 dark:text-slate-600 pb-3">:</span>
+                                <div className="flex flex-col items-center">
+                                    <input type="number" min="0" max="59" value={myDuration % 60} onChange={(e) => { const val = parseInt(e.target.value); if (!isNaN(val)) { const m = Math.max(0, Math.min(59, val)); const h = Math.floor(myDuration / 60); setMyDuration(Math.max(1, (h * 60) + m)); } }} className="w-10 bg-transparent text-center font-mono text-xl font-bold text-slate-900 dark:text-white outline-none appearance-none p-0 border-b-2 border-transparent focus:border-indigo-500 transition-colors" />
+                                    <span className="text-[8px] font-bold uppercase text-slate-400 tracking-wider">Mins</span>
+                                </div>
+                            </div>
+                            <button onClick={toggleMyTimer} className={`px-6 rounded-2xl flex items-center justify-center transition-all shadow-lg active:scale-95 font-bold uppercase text-xs tracking-wider gap-2 bg-white text-slate-900 hover:bg-slate-200 shadow-white/10`}>
+                                <Play size={16} fill="currentColor" /> Start
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {isMyTimerRunning && (
+                    <div className="flex items-center gap-3 p-1">
+                        <div className="flex-1 relative">
+                            <div className="flex justify-between items-center h-full px-2">
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider mb-0.5">Focusing On</span>
+                                    <span className="text-sm font-bold text-white truncate block">{myIntention || mySubject}</span>
+                                </div>
+                                <span className="text-lg font-mono font-bold text-white">{formatTime(myLiveTime)}</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setZenMode(!zenMode)} className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 transition-colors">{zenMode ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>
+                            <button onClick={toggleMyTimer} className={`h-12 px-6 rounded-2xl flex items-center justify-center transition-all shadow-lg active:scale-95 font-bold uppercase text-xs tracking-wider gap-2 bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/20`}>
+                                <Square size={16} fill="currentColor" /> Stop
+                            </button>
+                        </div>
+                    </div>
+                )}
               </div>
           </div>
 

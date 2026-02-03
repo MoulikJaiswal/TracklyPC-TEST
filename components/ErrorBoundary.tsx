@@ -12,17 +12,18 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: Extend React.Component to make this a valid class component and resolve property errors.
+// FIX: Converted ErrorBoundary to a class component by extending React.Component.
+// This gives it access to state, props, and lifecycle methods, resolving multiple property errors.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Explicitly initialize state in the constructor and bind methods to resolve property lookup errors
+  // FIX: Initialized state within the constructor.
   constructor(props: ErrorBoundaryProps) {
-    // FIX: Add super(props) call which is required in the constructor of a React.Component subclass.
+    // FIX: Added super(props) call, which is mandatory for React component constructors.
     super(props);
     this.state = {
       hasError: false,
       error: null,
     };
-    // Bind methods to 'this' to ensure they have the correct context and are recognized as members
+    // Bind methods to 'this' to ensure they have the correct context.
     this.handleReset = this.handleReset.bind(this);
     this.handleReload = this.handleReload.bind(this);
   }
@@ -36,14 +37,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
-    // Accessing this.props through React.Component inheritance
     if (this.props.viewKey !== prevProps.viewKey) {
       this.setState({ hasError: false, error: null });
     }
   }
 
   handleReset() {
-    // Accessing this.setState and this.props for state reset logic
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
@@ -55,7 +54,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   render() {
-    // Fix: Accessing state and props which are inherited from React.Component
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-in fade-in zoom-in duration-300">

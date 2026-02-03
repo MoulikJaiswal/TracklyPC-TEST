@@ -188,10 +188,19 @@ export const groupSessionService = {
             ghostIds.forEach(uid => groupSessionService.leaveRoom(roomId, uid));
         }
         
-        // Self-Healing Count Sync (approx 10% chance to run to save writes)
-        if (activeParts.length < 5 || Math.random() < 0.1) {
+        // More aggressive self-healing for activeCount accuracy.
+        // It runs on average every 5 participant updates (e.g., heartbeats).
+        // It also checks if a write is necessary before performing it.
+        if (Math.random() < 0.2) {
              const roomRef = doc(db, 'rooms', roomId);
-             updateDoc(roomRef, { activeCount: activeParts.length }).catch(() => {}); 
+             try {
+                const roomSnap = await getDoc(roomRef);
+                if (roomSnap.exists() && roomSnap.data().activeCount !== activeParts.length) {
+                    await updateDoc(roomRef, { activeCount: activeParts.length });
+                }
+             } catch (e) {
+                // Silently fail, not critical
+             }
         }
 
         callback(activeParts);
