@@ -44,21 +44,13 @@ export interface TestResult {
   total: number;
   temperament: 'Calm' | 'Anxious' | 'Focused' | 'Fatigued';
   type?: 'full' | 'part'; // New field
-  syllabus?: { // New field
-    Physics: string[];
-    Chemistry: string[];
-    Maths: string[];
-  };
+  syllabus?: SyllabusData;
   testType?: 'Generic' | 'PYP' | 'Coaching Mock';
   pypYear?: number;
   pypSession?: string;
   coachingName?: string;
   analysis?: string; // Legacy field
-  breakdown?: {
-    Physics: SubjectBreakdown;
-    Chemistry: SubjectBreakdown;
-    Maths: SubjectBreakdown;
-  };
+  breakdown?: Record<string, SubjectBreakdown>;
   timestamp: number;
   attachment?: string | null;
   attachmentType?: 'image' | 'pdf' | null;

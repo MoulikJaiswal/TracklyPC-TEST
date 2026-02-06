@@ -1,13 +1,12 @@
-
 import React, { useMemo, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Target, Trophy, Brain, TrendingUp, Zap, Atom, Calculator, Grid, Lock, Crown,
   X, CheckCircle2, AlertCircle, Clock, PieChart, Activity, Calendar, Dna
 } from 'lucide-react';
-import { Session, TestResult, MistakeCounts, StreamType } from '../types';
+import { Session, TestResult, MistakeCounts, StreamType, SyllabusData } from '../types';
 import { Card } from './Card';
-import { MISTAKE_TYPES, JEE_SYLLABUS, STREAM_SUBJECTS } from '../constants';
+import { MISTAKE_TYPES, ALL_SYLLABUS, STREAM_SUBJECTS } from '../constants';
 import { AdUnit } from './AdUnit';
 
 interface AnalyticsProps {
@@ -15,7 +14,8 @@ interface AnalyticsProps {
   tests: TestResult[];
   isPro: boolean;
   onOpenUpgrade: () => void;
-  stream?: StreamType;
+  stream: StreamType;
+  syllabus: SyllabusData;
 }
 
 // --- Topic Detail Modal ---
@@ -202,12 +202,10 @@ const SubjectProficiency = memo(({ sessions, stream }: { sessions: Session[], st
   ].filter(s => STREAM_SUBJECTS[stream].includes(s.id as any)), [stream]);
 
   const stats = useMemo(() => {
-      const acc = {
-          Physics: { attempted: 0, correct: 0 },
-          Chemistry: { attempted: 0, correct: 0 },
-          Maths: { attempted: 0, correct: 0 },
-          Biology: { attempted: 0, correct: 0 }
-      };
+      const acc: Record<string, { attempted: number, correct: number }> = {};
+      STREAM_SUBJECTS[stream].forEach(sub => {
+        acc[sub] = { attempted: 0, correct: 0 };
+      });
       
       sessions.forEach(s => {
           const sub = s.subject as keyof typeof acc;
@@ -217,7 +215,7 @@ const SubjectProficiency = memo(({ sessions, stream }: { sessions: Session[], st
           }
       });
       return acc;
-  }, [sessions]);
+  }, [sessions, stream]);
 
   return (
     <div className="space-y-4">
@@ -254,7 +252,7 @@ const SubjectProficiency = memo(({ sessions, stream }: { sessions: Session[], st
   );
 });
 
-const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream }: { sessions: Session[], isPro: boolean, onOpenUpgrade: () => void, stream: StreamType }) => {
+const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream, syllabus }: { sessions: Session[], isPro: boolean, onOpenUpgrade: () => void, stream: StreamType, syllabus: SyllabusData }) => {
   const [selectedTopic, setSelectedTopic] = useState<{subject: string, topic: string} | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -278,7 +276,7 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream }: { sess
       }
   };
 
-  const visibleSubjects = Object.entries(JEE_SYLLABUS).filter(([subject]) => STREAM_SUBJECTS[stream].includes(subject as any));
+  const visibleSubjects = Object.entries(syllabus);
 
   return (
     <div className="mt-8 space-y-6 relative">
@@ -305,25 +303,22 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream }: { sess
                         let bgClass = "bg-slate-200 dark:bg-white/5 text-slate-400 dark:text-slate-600 hover:bg-slate-300 dark:hover:bg-white/10";
                         if (attempted > 0) {
                             if (attempted < 20 || accuracy < 0.3) {
-                                bgClass = "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 hover:bg-rose-500/30";
-                            } else if (attempted < 50 || accuracy < 0.7) {
-                                bgClass = "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/30";
+                                bgClass = "bg-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-500/30 dark:hover:bg-rose-500/30 border border-rose-500/10";
+                            } else if (accuracy < 0.6) {
+                                bgClass = "bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30 dark:hover:bg-amber-500/30 border border-amber-500/10";
                             } else {
-                                bgClass = "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30";
+                                bgClass = "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/30 dark:hover:bg-emerald-500/30 border border-emerald-500/10";
                             }
                         }
 
                         return (
                             <button 
-                              key={topic} 
-                              onClick={() => handleTopicClick(subject, topic, attempted)}
-                              className={`
-                                h-8 px-3 rounded-lg flex items-center justify-center transition-all active:scale-95
-                                ${bgClass} cursor-pointer shadow-sm
-                              `}
-                              title={`${topic}: ${attempted} Qs (${Math.round(accuracy * 100)}%)`}
+                                key={topic} 
+                                onClick={() => handleTopicClick(subject, topic, attempted)}
+                                className={`px-2 py-1 rounded-md text-[10px] font-bold transition-colors ${bgClass}`}
+                                title={`Solved: ${attempted} | Accuracy: ${Math.round(accuracy * 100)}%`}
                             >
-                                <span className="text-[9px] font-bold uppercase truncate max-w-[100px]">{topic.split(' ').slice(0, 2).join(' ')}</span>
+                                {topic}
                             </button>
                         )
                     })}
@@ -331,177 +326,72 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream }: { sess
             </div>
          ))}
       </div>
-
-      {/* Paywall Overlay */}
+      
       {!isPro && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-              <div className="p-6 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl flex flex-col items-center text-center max-w-xs animate-in fade-in duration-300">
-                  <div className="p-3 bg-amber-500/20 rounded-2xl mb-4 text-amber-500">
-                      <Lock size={32} />
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-1">Advanced Analytics</h3>
-                  <p className="text-xs text-slate-400 mb-6">See exactly which chapters need work with the Topic Heatmap.</p>
-                  <button 
-                    onClick={onOpenUpgrade}
-                    className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 active:scale-95"
-                  >
-                      <Crown size={14} /> Unlock Pro
-                  </button>
+          <div 
+              onClick={onOpenUpgrade}
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-900/50 backdrop-blur-md rounded-3xl cursor-pointer group"
+          >
+              <div className="w-16 h-16 bg-amber-500 rounded-full flex items-center justify-center shadow-2xl shadow-amber-500/30 mb-4 group-hover:scale-110 transition-transform">
+                  <Lock size={32} className="text-white" />
+              </div>
+              <h4 className="text-xl font-bold text-white mb-1">Unlock Pro Analytics</h4>
+              <p className="text-sm text-slate-300 mb-6">Gain full access to the Topic Heatmap and more.</p>
+              <div className="flex items-center gap-2 px-5 py-3 bg-white text-slate-900 rounded-xl font-bold uppercase text-xs tracking-wider shadow-lg group-hover:bg-amber-400 transition-colors">
+                  <Crown size={14} /> Upgrade Now
               </div>
           </div>
       )}
 
-      {/* Toast Notification for Empty Topics */}
-      {toastMessage && createPortal(
-          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-bottom-5 fade-in duration-300">
-              <div className="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-white/10 flex items-center gap-3 backdrop-blur-xl">
-                  <div className="p-1 bg-amber-500/20 rounded-full">
-                      <AlertCircle size={16} className="text-amber-500" />
-                  </div>
-                  <span className="text-xs font-bold">{toastMessage}</span>
-              </div>
-          </div>,
-          document.body
-      )}
-
-      {/* Detail Modal */}
       {selectedTopic && (
           <TopicDetailModal 
-              subject={selectedTopic.subject}
+              subject={selectedTopic.subject} 
               topic={selectedTopic.topic}
               sessions={sessions.filter(s => s.subject === selectedTopic.subject && s.topic === selectedTopic.topic)}
-              onClose={() => setSelectedTopic(null)}
+              onClose={() => setSelectedTopic(null)} 
           />
       )}
-    </div>
-  )
-});
 
-export const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPro, onOpenUpgrade, stream = 'JEE' }) => {
-  const stats = useMemo(() => {
-    const totalAttempted = sessions.reduce((acc, s) => acc + (Number(s.attempted) || 0), 0);
-    const totalCorrect = sessions.reduce((acc, s) => acc + (Number(s.correct) || 0), 0);
-    const avgAccuracy = totalAttempted > 0 ? (totalCorrect / totalAttempted) * 100 : 0;
-
-    const mistakeDistribution: Record<string, number> = {};
-    sessions.forEach(s => {
-        Object.entries(s.mistakes).forEach(([key, val]) => {
-            mistakeDistribution[key] = (mistakeDistribution[key] || 0) + (Number(val) || 0);
-        });
-    });
-
-    const totalMistakes = Object.values(mistakeDistribution).reduce((a: number, b: number) => a + b, 0);
-
-    return { totalAttempted, totalCorrect, avgAccuracy, mistakeDistribution, totalMistakes };
-  }, [sessions]);
-
-
-  return (
-    <div id="analytics-container" className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-10">
-      
-      {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="relative overflow-hidden group" delay={0.1}>
-           <div className="absolute right-0 top-0 p-3 opacity-20 dark:opacity-5 group-hover:opacity-30 dark:group-hover:opacity-10 transition-opacity">
-              <TrendingUp size={80} className="text-indigo-200 dark:text-white" />
-           </div>
-           <div className="flex flex-col relative z-10">
-              <span className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-300 tracking-widest mb-1">Accuracy</span>
-              <div className="flex items-baseline gap-2">
-                 <span className="text-4xl font-mono font-light text-slate-900 dark:text-white">{Math.round(stats.avgAccuracy)}%</span>
-                 {stats.avgAccuracy > 75 && <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase">Good</span>}
-              </div>
-           </div>
-        </Card>
-
-        <Card className="relative overflow-hidden group" delay={0.2}>
-           <div className="absolute right-0 top-0 p-3 opacity-20 dark:opacity-5 group-hover:opacity-30 dark:group-hover:opacity-10 transition-opacity">
-              <Target size={80} className="text-emerald-200 dark:text-white" />
-           </div>
-           <div className="flex flex-col relative z-10">
-              <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-300 tracking-widest mb-1">Solved</span>
-              <div className="flex items-baseline gap-2">
-                 <span className="text-4xl font-mono font-light text-slate-900 dark:text-white">{stats.totalAttempted}</span>
-                 <span className="text-xs text-slate-500 font-bold uppercase">Qs</span>
-              </div>
-           </div>
-        </Card>
-
-        <Card className="relative overflow-hidden group" delay={0.3}>
-           <div className="absolute right-0 top-0 p-3 opacity-20 dark:opacity-5 group-hover:opacity-30 dark:group-hover:opacity-10 transition-opacity">
-              <Trophy size={80} className="text-amber-200 dark:text-white" />
-           </div>
-           <div className="flex flex-col relative z-10">
-              <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-300 tracking-widest mb-1">Tests</span>
-              <div className="flex items-baseline gap-2">
-                 <span className="text-4xl font-mono font-light text-slate-900 dark:text-white">{tests.length}</span>
-                 <span className="text-xs text-slate-500 font-bold uppercase">Taken</span>
-              </div>
-           </div>
-        </Card>
-      </div>
-
-      <div className="animate-in fade-in duration-500 space-y-6 md:space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-                {/* Subject Breakdown */}
-                <div className="space-y-4">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 ml-1">Subject Proficiency</h3>
-                    <SubjectProficiency sessions={sessions} stream={stream} />
-                </div>
-
-                {/* Error Distribution */}
-                <div>
-                    <Card className="bg-white/60 dark:bg-slate-900/60 p-6 h-full">
-                    <h3 className="text-sm font-bold uppercase tracking-widest text-rose-500 dark:text-rose-400 mb-6 flex items-center gap-2">
-                        <Brain size={16} /> Error Analysis
-                    </h3>
-                    <div className="space-y-5">
-                        {MISTAKE_TYPES.map(type => {
-                        const count = stats.mistakeDistribution[type.id] || 0;
-                        const totalMistakes = stats.totalMistakes;
-                        const percent = totalMistakes > 0 ? (count / totalMistakes) : 0;
-                        
-                        if (totalMistakes > 0 && count === 0) return null;
-
-                        const scaleVal = Math.max(Number.isFinite(percent) ? percent : 0, totalMistakes > 0 ? 0.05 : 0);
-
-                        return (
-                            <div key={type.id} className="group">
-                            <div className="flex justify-between items-end mb-2">
-                                <div className="flex items-center gap-2">
-                                <span className={`${type.color.replace('text-','text-').replace('-400','-500 dark:text-' + type.color.split('-')[1] + '-400')} opacity-80 group-hover:opacity-100 transition-opacity`}>{type.icon}</span>
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">{type.label}</span>
-                                </div>
-                                <span className="text-[10px] font-mono text-slate-500">{count}</span>
-                            </div>
-                            <div className="h-2 w-full bg-slate-200 dark:bg-black/40 rounded-full overflow-hidden">
-                                <div 
-                                className={`h-full ${type.color.replace('text', 'bg').replace('-400', '-500 dark:bg-' + type.color.split('-')[1] + '-400')} transition-transform duration-1000 ease-out origin-left will-change-transform`}
-                                style={{ width: '100%', transform: `scaleX(${scaleVal})` }}
-                                />
-                            </div>
-                            </div>
-                        );
-                        })}
-                        {Object.keys(stats.mistakeDistribution).length === 0 && (
-                        <div className="text-center py-10 opacity-30">
-                            <p className="text-[10px] uppercase font-bold tracking-widest text-slate-900 dark:text-white">No mistakes recorded</p>
-                        </div>
-                        )}
-                    </div>
-                    </Card>
-                </div>
-            </div>
-            
-            {/* Syllabus Heatmap Section - Locked if not Pro */}
-            <SyllabusHeatmap sessions={sessions} isPro={isPro} onOpenUpgrade={onOpenUpgrade} stream={stream} />
-
-            <AdUnit 
-                client="ca-pub-YOUR_PUBLISHER_ID_HERE" 
-                slot="1234567890" 
-                label="Sponsored"
-            />
-      </div>
+      {toastMessage && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[160] px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+              {toastMessage}
+          </div>
+      )}
     </div>
   );
+});
+
+// FIX: Add missing Analytics component export
+export const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPro, onOpenUpgrade, stream, syllabus }: AnalyticsProps) => {
+    return (
+        <div id="analytics-container" className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20">
+            <div>
+                <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Analytics</h2>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mt-1 font-bold">
+                    Deep dive into your performance metrics
+                </p>
+            </div>
+            
+            <Card className="p-6 md:p-8">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                    <TrendingUp size={14} /> Subject Proficiency
+                </h3>
+                <SubjectProficiency sessions={sessions} stream={stream} />
+            </Card>
+
+            <SyllabusHeatmap 
+                sessions={sessions} 
+                isPro={isPro} 
+                onOpenUpgrade={onOpenUpgrade} 
+                stream={stream}
+                syllabus={syllabus}
+            />
+            
+            <AdUnit
+                client="ca-pub-YOUR_PUBLISHER_ID_HERE"
+                slot="1234567890"
+                label="Sponsored"
+            />
+        </div>
+    );
 });

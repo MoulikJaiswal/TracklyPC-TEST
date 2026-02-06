@@ -22,8 +22,6 @@ interface TestLogProps {
   targets?: TargetType[]; 
   onSave: (test: Omit<TestResult, 'id' | 'timestamp'>) => void;
   onDelete: (id: string) => void;
-  isPro: boolean;
-  onOpenUpgrade: () => void;
 }
 
 const DEFAULT_BREAKDOWN: SubjectBreakdown = {
@@ -409,7 +407,7 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
     );
 });
 
-export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onOpenUpgrade }: TestLogProps) => {
+export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogProps) => {
   const [isAdding, setIsAdding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
@@ -507,11 +505,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
   }, [viewingAttachment]);
 
   const handleAddClick = () => {
-      if (!isPro && tests.length >= 2) {
-          onOpenUpgrade();
-      } else {
-          setIsAdding(!isAdding);
-      }
+      setIsAdding(!isAdding);
   };
 
   const handleCalculateMarks = useCallback(() => {
@@ -813,8 +807,6 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
   const activeMistakes = activeBreakdown.mistakes || {};
   const activeTaggedCount = (Object.values(activeMistakes) as number[]).reduce((a, b) => a + (b || 0), 0);
 
-  const isUpgrade = !isPro && tests.length >= 2;
-
   return (
     <div id="test-log-container" className="space-y-8 animate-in fade-in duration-500 pb-20">
       
@@ -824,32 +816,19 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
           <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Test Log</h2>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mt-1">
               <p className="text-xs text-indigo-600 dark:text-indigo-400 uppercase tracking-widest font-bold">Track performance curves</p>
-              {!isPro && (
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-100 dark:bg-amber-900/20 rounded-full border border-amber-200 dark:border-amber-500/20 w-fit">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-50 animate-pulse shrink-0" />
-                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 whitespace-nowrap">
-                          {tests.length} / 2 Free Tests
-                      </span>
-                  </div>
-              )}
           </div>
         </div>
         <button 
           onClick={handleAddClick} 
-          className={`group flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider shadow-lg active:scale-95 transition-all
-            ${isUpgrade ? 'bg-amber-500 hover:bg-amber-400 text-white shadow-amber-500/20' : ''}
-          `}
-          style={!isUpgrade ? {
+          className={`group flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider shadow-lg active:scale-95 transition-all`}
+          style={{
               backgroundColor: 'var(--theme-accent)',
               color: 'var(--theme-on-accent)',
               boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.3), 0 4px 6px -2px rgba(var(--theme-accent-rgb), 0.1)'
-          } : {}}
+          }}
         >
-          {isAdding 
-            ? <X size={16} /> 
-            : (isUpgrade) ? <Crown size={16} /> : <Plus size={16} className="group-hover:rotate-90 transition-transform" />
-          }
-          {isAdding ? 'Cancel' : (isUpgrade) ? 'Upgrade to Log' : 'Log Test'}
+          {isAdding ? <X size={16} /> : <Plus size={16} className="group-hover:rotate-90 transition-transform" />}
+          {isAdding ? 'Cancel' : 'Log Test'}
         </button>
       </div>
 
@@ -1241,433 +1220,4 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
 
             {/* File Upload Section */}
             <div className="space-y-2">
-               <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Attachment</label>
-               <div className="w-full border-2 border-dashed border-slate-700 bg-black/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-not-allowed opacity-75">
-                    <div className="p-3 bg-indigo-500/10 rounded-full mb-3 border border-indigo-500/20">
-                        <Hammer className="text-indigo-400" size={20} />
-                    </div>
-                    <p className="text-xs font-bold text-slate-300 uppercase tracking-wide mb-1">
-                        Uploads Paused
-                    </p>
-                    <p className="text-[10px] text-slate-500 max-w-[200px] leading-relaxed">
-                        We are currently upgrading our storage infrastructure. Attachments will be back soon.
-                    </p>
-               </div>
-            </div>
-
-            <button type="submit" 
-                className="w-full py-4 rounded-xl font-bold uppercase text-xs tracking-widest shadow-xl transition-all active:scale-95"
-                style={{
-                    backgroundColor: 'var(--theme-accent)',
-                    color: 'var(--theme-on-accent)',
-                    boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.3), 0 4px 6px -2px rgba(var(--theme-accent-rgb), 0.1)'
-                }}
-            >
-                Save Performance
-            </button>
-          </form>
-        </Card>
-      )}
-
-      {/* Grid Layout for Tests */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {processedTests.length === 0 ? (
-          <div className="col-span-full text-center py-20 opacity-60 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-3xl bg-white/30 dark:bg-white/5">
-            <Trophy size={48} className="mx-auto mb-4 text-slate-400 dark:text-slate-500" />
-            <p className="text-xs uppercase font-bold tracking-[0.3em] text-slate-600 dark:text-slate-400">
-                {searchQuery ? 'No matching tests found' : 'No test records found'}
-            </p>
-          </div>
-        ) : (
-          processedTests.map((t, i) => (
-            <Card 
-                key={t.id} 
-                className="group flex flex-col justify-between hover:border-indigo-500/30 cursor-pointer overflow-hidden p-0" 
-                delay={i * 0.1}
-                onClick={() => { setViewingReport(t); setReportSubject(null); }}
-            >
-              <div className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex flex-col">
-                         <div className="flex items-center gap-2 mb-1">
-                             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">{t.date}</span>
-                             {t.type === 'part' && (
-                                 <span className="px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 text-[8px] font-bold uppercase tracking-wider">
-                                     Part
-                                 </span>
-                             )}
-                             {t.testType === 'PYP' && (
-                                <span className="px-1.5 py-0.5 rounded-md bg-sky-100 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 text-[8px] font-bold uppercase tracking-wider">
-                                    PYP
-                                </span>
-                             )}
-                            {t.testType === 'Coaching Mock' && (
-                                <span className="px-1.5 py-0.5 rounded-md bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-300 text-[8px] font-bold uppercase tracking-wider">
-                                    Mock
-                                </span>
-                            )}
-                         </div>
-                         <h3 className="text-slate-900 dark:text-white font-bold text-base line-clamp-1 leading-tight">{t.name}</h3>
-                         <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider mt-2 w-fit ${
-                             t.temperament === 'Calm' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' :
-                             t.temperament === 'Anxious' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400' :
-                             'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400'
-                         }`}>
-                             {t.temperament}
-                         </span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <div className="text-3xl font-display font-bold text-slate-900 dark:text-white leading-none">
-                          {t.marks}
-                          <span className="text-xs text-slate-400 font-medium ml-0.5">/{t.total}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-indigo-500 mt-1">
-                          {t.total > 0 ? Math.round((t.marks/t.total)*100) : 0}% Score
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {t.thumbnail && (
-                      <div className="aspect-video rounded-lg overflow-hidden my-4 border border-slate-200 dark:border-white/5">
-                          <img src={t.thumbnail} alt="Test Preview" className="w-full h-full object-cover" />
-                      </div>
-                  )}
-
-                  {/* Visual Bar Breakdown */}
-                  {t.breakdown && (
-                    <div className="flex gap-1 h-2 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-white/5 mt-4">
-                        {(['Physics', 'Chemistry', 'Maths'] as const).map(sub => {
-                            const d = t.breakdown?.[sub];
-                            const correct = Number(d?.correct) || 0;
-                            const incorrect = Number(d?.incorrect) || 0;
-                            const accuracy = (correct + incorrect > 0) ? (correct / (correct + incorrect)) : 0;
-                            const safeWidth = Number.isFinite(accuracy) ? accuracy * 100 : 0;
-                            
-                            const width = (100/3); 
-                            const color = sub === 'Physics' ? 'bg-blue-500' : sub === 'Chemistry' ? 'bg-orange-500' : 'bg-rose-500';
-                            
-                            return (
-                                <div key={sub} className="h-full relative group/bar" style={{ width: `${width}%` }}>
-                                    <div className={`h-full ${color} opacity-30 w-full absolute top-0 left-0`} />
-                                    <div className={`h-full ${color} absolute top-0 left-0`} style={{ width: `${safeWidth}%` }} />
-                                </div>
-                            )
-                        })}
-                    </div>
-                  )}
-                  
-                  {/* Legend */}
-                  <div className="flex justify-between mt-2 px-1">
-                      {(['Physics', 'Chemistry', 'Maths'] as const).map(sub => (
-                          <span key={sub} className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{sub.slice(0,1)}</span>
-                      ))}
-                  </div>
-              </div>
-              
-              {/* Footer Actions */}
-              <div className="flex justify-between items-center px-5 py-3 bg-slate-50 dark:bg-white/5 border border-t border-slate-100 dark:border-white/5 mt-auto">
-                <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-indigo-500 transition-colors">
-                    View Report <ChevronRight size={12} />
-                </div>
-                <div className="flex gap-2">
-                    {t.attachment && (
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setViewingAttachment(t); }}
-                            className="p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-500 transition-colors"
-                        >
-                            {t.attachmentType === 'pdf' ? <FileText size={14} /> : <ImageIcon size={14} />}
-                        </button>
-                    )}
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); setDeletingTestId(t.id); }} 
-                        className="p-1.5 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-500 transition-colors"
-                    >
-                        <Trash2 size={14} />
-                    </button>
-                </div>
-              </div>
-            </Card>
-          ))
-        )}
-      </div>
-
-      {/* --- Detailed Report Card Modal --- */}
-      {viewingReport && createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 backdrop-blur-lg animate-in fade-in duration-200">
-              <div className="bg-white dark:bg-[#0f172a] w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/10">
-                  {/* ... (Header) ... */}
-                  <div className="relative p-8 bg-slate-900 overflow-hidden shrink-0">
-                      <div className="absolute inset-0 opacity-30">
-                          <div className={`absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-[80px] translate-x-1/2 -translate-y-1/2`} />
-                          <div className={`absolute bottom-0 left-0 w-48 h-48 bg-purple-500 rounded-full blur-[60px] -translate-x-1/3 translate-y-1/3`} />
-                      </div>
-                      
-                      <div className="relative z-10 flex justify-between items-start">
-                          <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                  <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{viewingReport.date}</span>
-                                  <span className="w-1 h-1 bg-white/40 rounded-full" />
-                                  <span className={`text-[10px] font-bold uppercase tracking-widest ${
-                                      viewingReport.testType === 'PYP' ? 'text-sky-300' :
-                                      viewingReport.testType === 'Coaching Mock' ? 'text-teal-300' :
-                                      viewingReport.type === 'part' ? 'text-purple-300' : 'text-emerald-400'
-                                  }`}>
-                                      {getTestSubtitle(viewingReport)}
-                                  </span>
-                              </div>
-                              <h2 className="text-2xl font-bold text-white leading-tight">{viewingReport.name}</h2>
-                          </div>
-                          <button onClick={() => setViewingReport(null)} className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors">
-                              <X size={18} />
-                          </button>
-                      </div>
-
-                      <div className="relative z-10 flex items-end gap-2 mt-6">
-                          <span className="text-6xl font-display font-bold text-white tracking-tighter">
-                              {viewingReport.marks}
-                          </span>
-                          <div className="flex flex-col mb-2">
-                              <span className="text-sm font-medium text-white/60">/ {viewingReport.total}</span>
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">
-                                  {viewingReport.total > 0 ? Math.round((viewingReport.marks / viewingReport.total) * 100) : 0}% Score
-                              </span>
-                          </div>
-                      </div>
-                  </div>
-
-                  {/* Body */}
-                  <div className="p-6 overflow-y-auto bg-slate-50 dark:bg-[#0f172a]">
-                      
-                      {/* Subject Breakdown List */}
-                      <div className="mb-8">
-                          <div className="flex justify-between items-center mb-4">
-                              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                                  <PieChart size={14} /> Subject Analysis
-                              </h4>
-                              {reportSubject && (
-                                <button 
-                                    onClick={() => setReportSubject(null)}
-                                    className="text-[9px] font-bold text-indigo-500 flex items-center gap-1 hover:underline"
-                                >
-                                    Viewing {reportSubject} <X size={10} />
-                                </button>
-                              )}
-                          </div>
-                          
-                          <div className="space-y-3">
-                              {(['Physics', 'Chemistry', 'Maths'] as const).map(sub => {
-                                  // Fix: Added full fallback object to match SubjectBreakdown type
-                                  const d: SubjectBreakdown = viewingReport.breakdown?.[sub] || { 
-                                      correct: 0, 
-                                      incorrect: 0, 
-                                      unattempted: 0,
-                                      calcErrors: 0,
-                                      otherErrors: 0,
-                                      mistakes: {} 
-                                  };
-                                  const total = d.correct + d.incorrect + d.unattempted;
-                                  const attempted = d.correct + d.incorrect;
-                                  const acc = attempted > 0 ? Math.round((d.correct / attempted) * 100) : 0;
-                                  
-                                  const color = sub === 'Physics' ? 'text-blue-500' : sub === 'Chemistry' ? 'text-orange-500' : 'text-rose-500';
-                                  const bg = sub === 'Physics' ? 'bg-blue-500' : sub === 'Chemistry' ? 'bg-orange-500' : 'bg-rose-500';
-                                  const isSelected = reportSubject === sub;
-
-                                  return (
-                                      <div 
-                                        key={sub} 
-                                        onClick={() => setReportSubject(prev => prev === sub ? null : sub)}
-                                        className={`
-                                            relative overflow-hidden rounded-2xl p-4 cursor-pointer transition-all duration-300 border
-                                            ${isSelected 
-                                                ? 'bg-white dark:bg-white/5 border-indigo-500 dark:border-indigo-500 shadow-lg scale-[1.02]' 
-                                                : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/5 hover:border-indigo-300 dark:hover:border-white/20'
-                                            }
-                                        `}
-                                      >
-                                          <div className="flex items-center justify-between mb-3 relative z-10">
-                                              <div className="flex items-center gap-3">
-                                                  <div className={`p-2 rounded-lg ${bg} bg-opacity-10 dark:bg-opacity-20 ${color}`}>
-                                                      {sub === 'Physics' ? <Atom size={18} /> : sub === 'Chemistry' ? <Zap size={18} /> : <Calculator size={18} />}
-                                                  </div>
-                                                  <div>
-                                                      <h5 className={`text-sm font-bold ${isSelected ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-900 dark:text-white'}`}>{sub}</h5>
-                                                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{d.correct}/{total} Correct</p>
-                                                  </div>
-                                              </div>
-                                              <div className="text-right">
-                                                  <span className="text-lg font-mono font-bold text-slate-900 dark:text-white">{acc}%</span>
-                                                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Accuracy</p>
-                                              </div>
-                                          </div>
-                                          
-                                          {/* Mini Stats Grid */}
-                                          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-white/5 relative z-10">
-                                              <div className="text-center">
-                                                  <span className="block text-xs font-mono font-bold text-emerald-500">{d.correct}</span>
-                                                  <span className="block text-[8px] uppercase font-bold text-slate-400 tracking-wider">Right</span>
-                                              </div>
-                                              <div className="text-center">
-                                                  <span className="block text-xs font-mono font-bold text-rose-500">{d.incorrect}</span>
-                                                  <span className="block text-[8px] uppercase font-bold text-slate-400 tracking-wider">Wrong</span>
-                                              </div>
-                                              <div className="text-center">
-                                                  <span className="block text-xs font-mono font-bold text-slate-500">{d.unattempted}</span>
-                                                  <span className="block text-[8px] uppercase font-bold text-slate-400 tracking-wider">Skip</span>
-                                              </div>
-                                          </div>
-
-                                          {/* Expanded Mistake View */}
-                                          {isSelected && (
-                                              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 animate-in slide-in-from-top-2 duration-300 relative z-10 cursor-default" onClick={(e) => e.stopPropagation()}>
-                                                  <div className="flex justify-between items-center mb-3">
-                                                      <h6 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Mistake Analysis</h6>
-                                                      <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded">
-                                                          {Object.values(d.mistakes || {}).reduce((a:number, b:number) => a + (Number(b)||0), 0)} Tagged
-                                                      </span>
-                                                  </div>
-                                                  
-                                                  <div className="space-y-2">
-                                                      {MISTAKE_TYPES.map(type => {
-                                                          const count = d.mistakes?.[type.id as keyof MistakeCounts] || 0;
-                                                          if (count <= 0) return null;
-                                                          
-                                                          return (
-                                                              <div key={type.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
-                                                                  <div className="flex items-center gap-2">
-                                                                      <span className={`${type.color} scale-75`}>{type.icon}</span>
-                                                                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">{type.label}</span>
-                                                                  </div>
-                                                                  <span className="text-xs font-mono font-bold text-slate-900 dark:text-white bg-white dark:bg-black/20 px-1.5 rounded">{count}</span>
-                                                              </div>
-                                                          )
-                                                      })}
-                                                      
-                                                      {Object.values(d.mistakes || {}).reduce((a:number, b:number) => a + (Number(b)||0), 0) === 0 && (
-                                                          <div className="text-center py-2 opacity-50">
-                                                              <p className="text-[10px] text-slate-500 italic">No specific mistakes recorded</p>
-                                                          </div>
-                                                      )}
-                                                  </div>
-                                              </div>
-                                          )}
-                                      </div>
-                                  )
-                              })}
-                          </div>
-                      </div>
-
-                      {/* Syllabus Covered Section (Only if Part Test and data exists) */}
-                      {viewingReport.type === 'part' && viewingReport.syllabus && (
-                          <div className="mb-8">
-                              <div className="flex items-center justify-between mb-4">
-                                  <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                                    <ListChecks size={14} /> Syllabus Covered
-                                  </h4>
-                              </div>
-                              <div className="space-y-3">
-                                  {(['Physics', 'Chemistry', 'Maths'] as const).map(sub => {
-                                      const chapters = viewingReport.syllabus?.[sub];
-                                      if (!chapters || chapters.length === 0) return null;
-                                      return (
-                                          <div key={sub} className="p-3 bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
-                                              <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2">{sub}</p>
-                                              <div className="flex flex-wrap gap-1.5">
-                                                  {chapters.map(chapter => (
-                                                      <span key={chapter} className="px-2 py-1 bg-slate-200 dark:bg-white/10 rounded text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                                                          {chapter}
-                                                      </span>
-                                                  ))}
-                                              </div>
-                                          </div>
-                                      )
-                                  })}
-                              </div>
-                          </div>
-                      )}
-                  </div>
-              </div>
-          </div>,
-          document.body
-      )}
-
-      {/* --- Attachment Viewer Modal (Added for completeness) --- */}
-      {viewingAttachment && createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="bg-white dark:bg-[#0f172a] w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-white/10">
-                  <div className="p-4 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-white dark:bg-[#0f172a]">
-                      <div className="flex items-center gap-3">
-                          <div className="p-2 bg-indigo-100 dark:bg-indigo-500/20 rounded-lg text-indigo-600 dark:text-indigo-400">
-                              {viewingAttachment.attachmentType === 'pdf' ? <FileText size={20} /> : <ImageIcon size={20} />}
-                          </div>
-                          <div>
-                              <h3 className="text-sm font-bold text-slate-900 dark:text-white">{viewingAttachment.name}</h3>
-                              <p className="text-[10px] text-slate-500 font-mono uppercase">
-                                  {viewingAttachment.fileName || 'Attachment'}
-                              </p>
-                          </div>
-                      </div>
-                      <div className="flex gap-2">
-                          <a 
-                            href={viewingAttachment.attachment!} 
-                            download={viewingAttachment.fileName || "download"}
-                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
-                            title="Download"
-                          >
-                              <Download size={20} />
-                          </a>
-                          <button 
-                            onClick={() => setViewingAttachment(null)}
-                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
-                          >
-                              <X size={20} />
-                          </button>
-                      </div>
-                  </div>
-                  <div className="flex-1 bg-slate-100 dark:bg-black/50 overflow-auto flex items-center justify-center p-4 relative">
-                      {viewingAttachment.attachmentType === 'image' ? (
-                          <img 
-                            src={viewingAttachment.attachment!} 
-                            alt="Test Attachment" 
-                            className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
-                          />
-                      ) : (
-                          <div className="w-full h-full flex flex-col">
-                              {pdfBlobUrl ? (
-                                  <iframe 
-                                      src={pdfBlobUrl} 
-                                      className="w-full flex-1 rounded-lg shadow-lg border-0 bg-white"
-                                      title="PDF Viewer"
-                                  />
-                              ) : (
-                                  <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                      <Loader2 size={32} className="animate-spin mb-2" />
-                                      <p className="text-xs uppercase font-bold">Loading PDF...</p>
-                                  </div>
-                              )}
-                          </div>
-                      )}
-                  </div>
-              </div>
-          </div>,
-          document.body
-      )}
-
-      {/* Confirmation Modal */}
-      <ConfirmationModal
-          isOpen={!!deletingTestId}
-          onClose={() => setDeletingTestId(null)}
-          onConfirm={handleConfirmDelete}
-          title="Delete Test Log?"
-          message="Are you sure you want to delete this test record? This action cannot be undone."
-      />
-
-      {/* Ad Unit at the bottom of the log */}
-      <AdUnit 
-          client="ca-pub-YOUR_PUBLISHER_ID_HERE" 
-          slot="1234567890" 
-          label="Sponsored"
-      />
-    </div>
-  );
-});
+               <label className="text-[1

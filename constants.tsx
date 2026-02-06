@@ -112,6 +112,58 @@ export const JEE_SYLLABUS = {
   ]
 };
 
+export const BIOLOGY_SYLLABUS = [
+  "The Living World",
+  "Biological Classification",
+  "Plant Kingdom",
+  "Animal Kingdom",
+  "Morphology of Flowering Plants",
+  "Anatomy of Flowering Plants",
+  "Structural Organisation in Animals",
+  "Cell: The Unit of Life",
+  "Biomolecules",
+  "Cell Cycle and Cell Division",
+  "Transport in Plants",
+  "Mineral Nutrition",
+  "Photosynthesis in Higher Plants",
+  "Respiration in Plants",
+  "Plant Growth and Development",
+  "Digestion and Absorption",
+  "Breathing and Exchange of Gases",
+  "Body Fluids and Circulation",
+  "Excretory Products and their Elimination",
+  "Locomotion and Movement",
+  "Neural Control and Coordination",
+  "Chemical Coordination and Integration",
+  "Reproduction in Organisms",
+  "Sexual Reproduction in Flowering Plants",
+  "Human Reproduction",
+  "Reproductive Health",
+  "Principles of Inheritance and Variation",
+  "Molecular Basis of Inheritance",
+  "Evolution",
+  "Human Health and Disease",
+  "Strategies for Enhancement in Food Production",
+  "Microbes in Human Welfare",
+  "Biotechnology: Principles and Processes",
+  "Biotechnology and its Applications",
+  "Organisms and Populations",
+  "Ecosystem",
+  "Biodiversity and Conservation",
+  "Environmental Issues"
+];
+
+export const NEET_SYLLABUS = {
+  Physics: JEE_SYLLABUS.Physics,
+  Chemistry: JEE_SYLLABUS.Chemistry,
+  Biology: BIOLOGY_SYLLABUS
+};
+
+export const ALL_SYLLABUS = {
+  JEE: JEE_SYLLABUS,
+  NEET: NEET_SYLLABUS
+};
+
 export const STREAM_SUBJECTS = {
   JEE: ['Physics', 'Chemistry', 'Maths'],
   NEET: ['Physics', 'Chemistry', 'Biology']

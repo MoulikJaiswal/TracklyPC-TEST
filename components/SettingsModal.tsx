@@ -1,8 +1,7 @@
-
 import React, { useRef } from 'react';
-import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate, LogOut, Check, Loader2, UploadCloud, Shield } from 'lucide-react';
+import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate, LogOut, Check, Loader2, UploadCloud, Shield, BookOpen } from 'lucide-react';
 import { Card } from './Card';
-import { ThemeId } from '../types';
+import { ThemeId, StreamType } from '../types';
 import { THEME_CONFIG } from '../constants';
 import { User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -47,8 +46,7 @@ interface SettingsModalProps {
   toggleCustomBackground: () => void;
   customBackgroundAlign: 'center' | 'top' | 'bottom';
   setCustomBackgroundAlign: (align: 'center' | 'top' | 'bottom') => void;
-  isPro: boolean;
-  onOpenUpgrade: () => void;
+
   // Account Props
   user: User | null;
   isGuest: boolean;
@@ -57,6 +55,10 @@ interface SettingsModalProps {
   syncStatus: 'idle' | 'syncing' | 'success' | 'error';
   syncError: string | null;
   onOpenPrivacy: () => void;
+
+  // Stream Props
+  stream: StreamType;
+  setStream: (stream: StreamType) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -97,15 +99,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   toggleCustomBackground,
   customBackgroundAlign,
   setCustomBackgroundAlign,
-  isPro,
-  onOpenUpgrade,
+
   user,
   isGuest,
   onLogout,
   onForceSync,
   syncStatus,
   syncError,
-  onOpenPrivacy
+  onOpenPrivacy,
+
+  stream,
+  setStream
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -195,6 +199,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="space-y-8 overflow-y-auto pr-2 pb-4 flex-1 min-h-0">
           
+          {/* --- SECTION 0: STUDY STREAM --- */}
+          <div className="space-y-4">
+             <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
+                <BookOpen size={16} />
+                <span className="text-xs font-bold uppercase tracking-widest">Study Stream</span>
+             </div>
+             <div className="flex bg-slate-100 dark:bg-black/20 p-1 rounded-xl">
+                <button
+                    onClick={() => setStream('JEE')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${stream === 'JEE' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                >
+                    JEE (Eng.)
+                </button>
+                <button
+                    onClick={() => setStream('NEET')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${stream === 'NEET' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                >
+                    NEET (Med.)
+                </button>
+            </div>
+          </div>
+          
           {/* --- SECTION 1: APPEARANCE --- */}
           <div className="space-y-4">
              <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
@@ -236,7 +262,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 })}
              </div>
 
-             {/* Custom Background (PRO) */}
+             {/* Custom Background (Unlocked for All) */}
              <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
                  <div className="flex justify-between items-center mb-4">
                      <div className="flex items-center gap-2">
@@ -245,22 +271,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                          </div>
                          <span className="text-sm font-bold text-slate-900 dark:text-white">Custom Wallpaper</span>
                      </div>
-                     {isPro ? (
-                         <button 
-                            onClick={toggleCustomBackground}
-                            className={`w-10 h-5 rounded-full relative transition-colors ${customBackgroundEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`}
-                            style={customBackgroundEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}
-                         >
-                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${customBackgroundEnabled ? 'left-6' : 'left-1'}`} />
-                         </button>
-                     ) : (
-                         <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded text-[9px] font-bold uppercase tracking-wider">
-                             Pro
-                         </span>
-                     )}
+                     <button 
+                        onClick={toggleCustomBackground}
+                        className={`w-10 h-5 rounded-full relative transition-colors ${customBackgroundEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                        style={customBackgroundEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}
+                     >
+                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${customBackgroundEnabled ? 'left-6' : 'left-1'}`} />
+                     </button>
                  </div>
 
-                 {isPro && customBackgroundEnabled ? (
+                 {customBackgroundEnabled && (
                      <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                          {customBackground ? (
                              <div className="space-y-3">
@@ -321,24 +341,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             onChange={handleImageUpload}
                          />
                          <p className="text-[10px] text-slate-400 text-center">Recommended: 1920x1080 (Max 2MB)</p>
-                     </div>
-                 ) : isPro ? (
-                     <div className="text-center py-2 opacity-50">
-                         <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                             Enable to use a custom background image.
-                         </p>
-                     </div>
-                 ) : (
-                     <div className="text-center py-4 opacity-80">
-                         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                             Unlock Pro to set your own motivating background images.
-                         </p>
-                         <button 
-                            onClick={onOpenUpgrade}
-                            className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-                         >
-                             <Crown size={14} /> Unlock Feature
-                         </button>
                      </div>
                  )}
              </div>

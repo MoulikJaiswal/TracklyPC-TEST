@@ -1,8 +1,8 @@
-import React from "react";
+import React, { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {
-  children?: React.ReactNode;
+  children?: ReactNode;
   viewKey?: string;
   onReset?: () => void;
 }
@@ -12,47 +12,36 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// Converted to a class component to implement React Error Boundary, which is not possible with functional components.
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // state initialization as a class property.
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
-  // This lifecycle method is used to render a fallback UI after an error has been thrown.
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  // This lifecycle method is used to log error information.
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  // Reset the error boundary when the view changes.
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
-    // FIX: Use this.props to access component properties.
     if (this.props.viewKey !== prevProps.viewKey) {
-      // FIX: Use this.setState to update component state.
       this.setState({ hasError: false, error: null });
     }
   }
 
-  // Method to reset the error state and attempt to re-render.
-  // FIX: Using an arrow function to automatically bind `this`.
   handleReset = () => {
-    // FIX: Use this.setState to update component state.
     this.setState({ hasError: false, error: null });
-    // FIX: Use this.props to access component properties.
     if (this.props.onReset) {
-      // FIX: Use this.props to access component properties.
       this.props.onReset();
     }
   };
 
-  // Method to reload the entire application.
-  // FIX: Using an arrow function to automatically bind `this`.
   handleReload = () => {
     window.location.reload();
   };
@@ -98,7 +87,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       );
     }
 
-    // FIX: Use this.props to access component properties.
     return this.props.children;
   }
 }

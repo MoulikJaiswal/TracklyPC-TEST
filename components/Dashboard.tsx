@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
-import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, ShieldCheck } from 'lucide-react';
-import { Session, Target, MistakeCounts } from '../types';
+import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, ShieldCheck, Dna } from 'lucide-react';
+import { Session, Target, MistakeCounts, SyllabusData } from '../types';
 import { Card } from './Card';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
 import { AdUnit } from './AdUnit';
@@ -25,11 +25,13 @@ interface DashboardProps {
   targets: Target[];
   quote: { text: string; author: string };
   onDelete: (id: string) => void;
-  goals: { Physics: number; Chemistry: number; Maths: number };
-  setGoals: React.Dispatch<React.SetStateAction<{ Physics: number; Chemistry: number; Maths: number }>>;
+  goals: Record<string, number>;
+  setGoals: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   onSaveSession: (session: Omit<Session, 'id' | 'timestamp'>) => void;
   userName: string | null;
   onOpenPrivacy: () => void;
+  subjects: string[];
+  syllabus: SyllabusData;
 }
 
 const PrivacyConsentBanner = memo(({ onAccept, onReadPolicy }: { onAccept: () => void, onReadPolicy: () => void }) => (
@@ -138,7 +140,7 @@ const SubjectPod = memo(({
   count: number, 
   target: number, 
   onGoalChange: (newGoal: number) => void;
-  themeColor: 'blue' | 'orange' | 'rose',
+  themeColor: 'blue' | 'orange' | 'rose' | 'emerald',
   onClick: () => void
 }) => {
   const safeTarget = Math.max(1, target || 1); // Prevent division by zero
@@ -171,6 +173,13 @@ const SubjectPod = memo(({
         bgHover: 'from-rose-500/20 to-rose-500/5',
         bar: 'bg-rose-500',
         icon: 'text-rose-500 dark:text-rose-400'
+      };
+      case 'emerald': return {
+        text: 'text-emerald-500 dark:text-emerald-400',
+        bgBase: 'from-emerald-500/5 to-transparent',
+        bgHover: 'from-emerald-500/20 to-emerald-500/5',
+        bar: 'bg-emerald-500',
+        icon: 'text-emerald-500 dark:text-emerald-400'
       };
     }
   }, [themeColor]);
@@ -267,13 +276,15 @@ const SubjectDetailModal = memo(({
   sessions, 
   onClose,
   onSaveSession,
-  onDeleteSession
+  onDeleteSession,
+  syllabus
 }: { 
   subject: string, 
   sessions: Session[], 
   onClose: () => void,
   onSaveSession: (data: Omit<Session, 'id' | 'timestamp'>) => void,
-  onDeleteSession: (id: string) => void
+  onDeleteSession: (id: string) => void,
+  syllabus: SyllabusData
 }) => {
   const [activeTab, setActiveTab] = useState<'log' | 'history'>('log');
   
@@ -344,6 +355,15 @@ const SubjectDetailModal = memo(({
           gradient: 'from-orange-500 to-orange-600',
           lightText: 'text-orange-600 dark:text-orange-400'
       };
+       if (subject === 'Biology') return { 
+          bg: 'bg-emerald-500', 
+          text: 'text-emerald-500', 
+          border: 'border-emerald-500', 
+          lightBg: 'bg-emerald-50 dark:bg-emerald-500/10',
+          hoverBg: 'hover:bg-emerald-500',
+          gradient: 'from-emerald-500 to-emerald-600',
+          lightText: 'text-emerald-600 dark:text-emerald-400'
+      };
       return { 
           bg: 'bg-rose-500', 
           text: 'text-rose-500', 
@@ -377,6 +397,7 @@ const SubjectDetailModal = memo(({
                  {subject === 'Physics' && <Atom size={24} />}
                  {subject === 'Chemistry' && <Zap size={24} />}
                  {subject === 'Maths' && <Calculator size={24} />}
+                 {subject === 'Biology' && <Dna size={24} />}
              </div>
              <div>
                <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-wider leading-none">{subject} Hub</h2>
@@ -421,7 +442,7 @@ const SubjectDetailModal = memo(({
                               onChange={e => setLogData({...logData, topic: e.target.value})}
                             >
                               <option value="">Select Chapter...</option>
-                              {JEE_SYLLABUS[subject as keyof typeof JEE_SYLLABUS].map(t => <option key={t} value={t}>{t}</option>)}
+                              {syllabus[subject].map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
                             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                         </div>
@@ -606,7 +627,9 @@ export const Dashboard = memo(({
   setGoals, 
   onSaveSession, 
   userName,
-  onOpenPrivacy
+  onOpenPrivacy,
+  subjects,
+  syllabus
 }: DashboardProps) => {
   const todayStr = getLocalDate();
   const todaysSessions = useMemo(() => sessions.filter(s => getLocalDateFromTimestamp(s.timestamp) === todayStr), [sessions, todayStr]);
@@ -619,15 +642,22 @@ export const Dashboard = memo(({
     const name = userName ? `, ${userName.split(' ')[0]}` : '';
     return { greeting: greetingText, displayName: name };
   }, [userName]);
-  const stats = useMemo(() => ({
-      Physics: todaysSessions.filter(s => s.subject === 'Physics').reduce((a, b) => a + b.attempted, 0),
-      Chemistry: todaysSessions.filter(s => s.subject === 'Chemistry').reduce((a, b) => a + b.attempted, 0),
-      Maths: todaysSessions.filter(s => s.subject === 'Maths').reduce((a, b) => a + b.attempted, 0),
-  }), [todaysSessions]);
+  
+  const stats = useMemo(() => {
+    const subjectCounts: Record<string, number> = subjects.reduce((acc, sub) => ({...acc, [sub]: 0}), {});
+    todaysSessions.forEach(s => {
+        if (subjectCounts[s.subject] !== undefined) {
+            subjectCounts[s.subject] += s.attempted;
+        }
+    });
+    return subjectCounts;
+  }, [todaysSessions, subjects]);
+
   const pendingTargets = useMemo(() => targets.filter(t => t.date === todayStr && !t.completed).slice(0, 3), [targets, todayStr]);
-  const handlePhysicsGoal = useCallback((val: number) => setGoals(g => ({...g, Physics: val})), [setGoals]);
-  const handleChemGoal = useCallback((val: number) => setGoals(g => ({...g, Chemistry: val})), [setGoals]);
-  const handleMathsGoal = useCallback((val: number) => setGoals(g => ({...g, Maths: val})), [setGoals]);
+  
+  const handleGoalChange = useCallback((subject: string, value: number) => {
+      setGoals(g => ({ ...g, [subject]: value }));
+  }, [setGoals]);
 
   const handleOpenSubject = useCallback((subject: string) => {
       // 1. Capture Position
@@ -677,10 +707,6 @@ export const Dashboard = memo(({
       }
   }, []);
 
-  const openPhysics = useCallback(() => handleOpenSubject('Physics'), [handleOpenSubject]);
-  const openChem = useCallback(() => handleOpenSubject('Chemistry'), [handleOpenSubject]);
-  const openMaths = useCallback(() => handleOpenSubject('Maths'), [handleOpenSubject]);
-
   // Privacy Policy Banner Logic
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(false);
 
@@ -696,6 +722,21 @@ export const Dashboard = memo(({
       localStorage.setItem('trackly_privacy_accepted', 'true');
       setShowPrivacyBanner(false);
   }, []);
+
+  const iconMap: Record<string, React.FC<any>> = {
+    Physics: Atom,
+    Chemistry: Zap,
+    Maths: Calculator,
+    Biology: Dna
+  };
+
+  const colorMap: Record<string, 'blue' | 'orange' | 'rose' | 'emerald'> = {
+    Physics: 'blue',
+    Chemistry: 'orange',
+    Maths: 'rose',
+    Biology: 'emerald'
+  };
+
 
   return (
     <>
@@ -724,9 +765,18 @@ export const Dashboard = memo(({
             </div>
         </Card>
         <div id="dashboard-subjects" className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-          <SubjectPod subject="Physics" icon={Atom} count={stats.Physics} target={goals.Physics} onGoalChange={handlePhysicsGoal} themeColor="blue" onClick={openPhysics} />
-          <SubjectPod subject="Chemistry" icon={Zap} count={stats.Chemistry} target={goals.Chemistry} onGoalChange={handleChemGoal} themeColor="orange" onClick={openChem} />
-          <SubjectPod subject="Maths" icon={Calculator} count={stats.Maths} target={goals.Maths} onGoalChange={handleMathsGoal} themeColor="rose" onClick={openMaths} />
+          {subjects.map(subject => (
+            <SubjectPod 
+                key={subject}
+                subject={subject}
+                icon={iconMap[subject]}
+                count={stats[subject] || 0}
+                target={goals[subject] || 30}
+                onGoalChange={(val) => handleGoalChange(subject, val)}
+                themeColor={colorMap[subject]}
+                onClick={() => handleOpenSubject(subject)}
+            />
+          ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
           <div className="space-y-6">
@@ -812,6 +862,7 @@ export const Dashboard = memo(({
           onClose={handleCloseModal}
           onSaveSession={onSaveSession}
           onDeleteSession={(id) => onDelete(id)}
+          syllabus={syllabus}
         />
       )}
     </>

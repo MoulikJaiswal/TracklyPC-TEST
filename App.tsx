@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -34,20 +33,23 @@ import {
   Trash2,
   X
 } from 'lucide-react';
-import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder } from './types';
-import { QUOTES, THEME_CONFIG, JEE_SYLLABUS } from './constants';
+import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData } from './types';
+import { QUOTES, THEME_CONFIG, JEE_SYLLABUS, NEET_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
 import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
 import { PerformanceToast } from './components/PerformanceToast';
-import { ProUpgradeModal } from './components/ProUpgradeModal';
 import { SmartRecommendationToast } from './components/SmartRecommendationToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { getProStatus, PAYWALL_CONFIG } from './components/proController';
 import { GoogleIcon } from './components/GoogleIcon';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { Card } from './components/Card';
 import { BuyMeCoffee } from './components/BuyMeCoffee';
+import { ProUpgradeModal } from './components/ProUpgradeModal';
+import { getProStatus } from './components/proController';
+import { StreamTransition } from './components/StreamTransition';
+import { TracklyLogo } from './components/TracklyLogo';
+import { WelcomePage } from './components/WelcomePage';
 
 // Firebase Imports
 import { auth, db, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
@@ -117,22 +119,6 @@ const hexToRgb = (hex: string) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '0, 0, 0';
 };
-
-const TracklyLogo = React.memo(({ collapsed = false, id }: { collapsed?: boolean, id?: string }) => {
-  return (
-    <div id={id} className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} select-none transition-all duration-300 transform-gpu will-change-transform`}>
-      <div className="relative w-8 h-8 flex-shrink-0 text-slate-900 dark:text-white">
-          <svg viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className="w-full h-full filter drop-shadow-[0_0_8px_rgba(99,102,241,0.3)]">
-             <path d="M10 22.5C10 15.5964 15.5964 10 22.5 10H77.5C84.4036 10 90 15.5964 90 22.5C90 29.4036 84.4036 35 77.5 35H22.5C15.5964 35 10 29.4036 10 22.5Z" />
-             <path d="M37.5 42H62.5V77.5C62.5 84.4036 56.9036 90 50 90C43.0964 90 37.5 84.4036 37.5 77.5V42Z" />
-          </svg>
-      </div>
-      <span className={`text-xl font-display font-extrabold text-slate-900 dark:text-white tracking-tight transition-all duration-300 origin-left whitespace-nowrap overflow-hidden ${collapsed ? 'w-0 opacity-0 scale-0' : 'w-auto opacity-100 scale-100'}`}>
-        Trackly
-      </span>
-    </div>
-  );
-});
 
 const AnimatedBackground = React.memo(({ 
     themeId,
@@ -413,7 +399,7 @@ const TABS = [
   { id: 'daily', label: 'Home', icon: LayoutDashboard },
   { id: 'planner', label: 'Plan', icon: CalendarIcon },
   { id: 'focus', label: 'Focus', icon: Timer },
-  { id: 'group-focus', label: 'Focus Lounge', icon: Brain }, // CHANGED from Wifi to Brain
+  { id: 'group-focus', label: 'Focus Lounge', icon: Hammer },
   { id: 'tests', label: 'Tests', icon: PenTool },
   { id: 'analytics', label: 'Stats', icon: BarChart3 },
 ];
@@ -470,7 +456,6 @@ const TOUR_STEPS: TutorialStep[] = [
   }
 ];
 
-// ... Sidebar Component remains similar ...
 const Sidebar = React.memo(({ 
     view, 
     setView, 
@@ -502,7 +487,6 @@ const Sidebar = React.memo(({
     isPro: boolean,
     onOpenUpgrade: () => void
 }) => {
-  // ... Sidebar implementation ...
   return (
     <aside 
         className={`hidden md:flex flex-col h-screen fixed left-0 top-0 z-40 border-r border-slate-200 dark:border-white/5 backdrop-blur-xl transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isCollapsed ? 'w-20 items-center' : 'w-64'} overflow-visible transform-gpu will-change-transform`}
@@ -553,35 +537,6 @@ const Sidebar = React.memo(({
           )
         })}
       </nav>
-
-      {(!isPro || (isPro && PAYWALL_CONFIG.ENABLED)) && (
-        <div className={`px-4 mb-2 ${isCollapsed ? 'hidden' : 'block'}`}>
-            {!isPro ? (
-                <button 
-                  onClick={onOpenUpgrade}
-                  className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-xl group transition-all hover:scale-[1.02]"
-                >
-                    <div className="p-1.5 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg text-white shadow-lg shadow-amber-500/30">
-                        <Crown size={14} fill="currentColor" />
-                    </div>
-                    <div className="text-left">
-                        <p className="text-xs font-bold text-amber-600 dark:text-amber-400">Upgrade to Pro</p>
-                        <p className="text-[9px] text-amber-600/70 dark:text-amber-400/70 font-bold uppercase tracking-wider">Unleash Power</p>
-                    </div>
-                </button>
-            ) : (
-                <div className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl">
-                    <div className="p-1.5 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-lg text-white shadow-lg shadow-emerald-500/30">
-                        <Crown size={14} fill="currentColor" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Pro Active</p>
-                        <p className="text-[9px] text-emerald-600/70 dark:text-emerald-400/70 font-bold uppercase tracking-wider">Power User</p>
-                    </div>
-                </div>
-            )}
-        </div>
-      )}
 
       <div className={`px-4 py-2 ${isCollapsed ? 'hidden' : 'block'}`}>
           {user ? (
@@ -753,8 +708,19 @@ export const App: React.FC = () => {
   const [targets, setTargets] = useState<Target[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [goals, setGoals] = useState({ Physics: 30, Chemistry: 30, Maths: 30 });
   const [quoteIdx] = useState(() => Math.floor(Math.random() * QUOTES.length));
+
+  // Stream State
+  const [stream, setStream] = useState<StreamType>(() => safeJSONParse('trackly_stream', 'JEE'));
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionStream, setTransitionStream] = useState<StreamType>(stream);
+
+  const [goals, setGoals] = useState<Record<string, number>>(() => {
+    const savedStream: StreamType = safeJSONParse('trackly_stream', 'JEE');
+    const savedGoals = safeJSONParse('trackly_goals', {});
+    const defaultGoals = STREAM_SUBJECTS[savedStream].reduce((acc, sub) => ({ ...acc, [sub]: 30 }), {});
+    return { ...defaultGoals, ...savedGoals };
+  });
 
   // Auth State
   const [user, setUser] = useState<User | null>(null);
@@ -767,15 +733,13 @@ export const App: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [syncError, setSyncError] = useState<string | null>(null);
 
+  // Pro Features State
+  const [hasPaid, setHasPaid] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('trackly_pro') === 'true');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const isPro = getProStatus(hasPaid);
+
   // Clock State
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  // Pro State
-  const [isPro, setIsPro] = useState(false);
-  const [showProModal, setShowProModal] = useState(false);
-  
-  // Calculate Effective Pro Access (Paywall Bypass Logic)
-  const hasProAccess = getProStatus(isPro);
 
   // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -826,6 +790,52 @@ export const App: React.FC = () => {
   // Overdue Task Reminder State
   const [overdueTasks, setOverdueTasks] = useState<Target[]>([]);
   const [showOverdueModal, setShowOverdueModal] = useState(false);
+
+  // Focus Subject State (Lifted from FocusTimer)
+  const [selectedSubject, setSelectedSubject] = useState<string>(STREAM_SUBJECTS[stream][0]);
+
+  // Derived Stream Data
+  const currentSyllabus = useMemo(() => ALL_SYLLABUS[stream], [stream]);
+  const currentSubjects = useMemo(() => STREAM_SUBJECTS[stream], [stream]);
+  
+  const handleChangeStream = (newStream: StreamType) => {
+    if (stream === newStream) return;
+
+    setTransitionStream(newStream);
+    setIsTransitioning(true);
+
+    setTimeout(() => {
+        setStream(newStream);
+    }, 400);
+
+    setTimeout(() => {
+        setIsTransitioning(false);
+    }, 1000);
+  };
+
+  // Save stream to localStorage
+  useEffect(() => {
+    localStorage.setItem('trackly_stream', JSON.stringify(stream));
+    // When stream changes, update goals and selected subject
+    setGoals(prevGoals => {
+        const defaultGoals = currentSubjects.reduce((acc, sub) => ({ ...acc, [sub]: 30 }), {});
+        const newGoals = { ...defaultGoals };
+        for (const subject of currentSubjects) {
+            if (prevGoals[subject]) {
+                newGoals[subject] = prevGoals[subject];
+            }
+        }
+        return newGoals;
+    });
+    setSelectedSubject(currentSubjects[0]);
+  }, [stream, currentSubjects]);
+
+  // Save goals to localStorage
+  useEffect(() => {
+    if (user || isGuest) { // Only save if user has loaded
+        localStorage.setItem('trackly_goals', JSON.stringify(goals));
+    }
+  }, [goals, user, isGuest]);
 
   // --- Theme Computed Values ---
   const themeConfig = THEME_CONFIG[theme];
@@ -904,6 +914,12 @@ export const App: React.FC = () => {
     }
   }, [targets]);
 
+  const handleUpgrade = useCallback(() => {
+      setHasPaid(true);
+      localStorage.setItem('trackly_pro', 'true');
+      setShowUpgradeModal(false);
+  }, []);
+
   const activateLiteMode = useCallback(() => {
       setGraphicsEnabled(false);
       setAnimationsEnabled(false);
@@ -932,25 +948,12 @@ export const App: React.FC = () => {
       };
   }, []);
 
-  // Initialize Stats from LS
-  useEffect(() => {
-      const today = getLocalDate();
-      const saved = localStorage.getItem(`zenith_stats_${today}`);
-      if (saved) setTodayStats(JSON.parse(saved));
-  }, []);
-
-  // Persist Stats
-  useEffect(() => {
-      const today = getLocalDate();
-      localStorage.setItem(`zenith_stats_${today}`, JSON.stringify(todayStats));
-  }, [todayStats]);
-
   // Recommendation Logic
   useEffect(() => {
       if (sessions.length < 5) return; 
 
       const analyze = () => {
-          const subjectTopics = { Physics: new Set<string>(), Chemistry: new Set<string>(), Maths: new Set<string>() };
+          const subjectTopics: Record<string, Set<string>> = currentSubjects.reduce((acc, sub) => ({...acc, [sub]: new Set() }), {});
           const topicStats: Record<string, { subject: string, correct: number, attempted: number }> = {};
 
           sessions.forEach(s => {
@@ -965,12 +968,10 @@ export const App: React.FC = () => {
                   topicStats[key].attempted += (s.attempted || 0);
               }
           });
+          
+          const allSubjectsHaveSufficientData = currentSubjects.every(sub => subjectTopics[sub] && subjectTopics[sub].size >= 2);
 
-          const pCount = subjectTopics.Physics.size;
-          const cCount = subjectTopics.Chemistry.size;
-          const mCount = subjectTopics.Maths.size;
-
-          if (pCount >= 2 && cCount >= 2 && mCount >= 2) {
+          if (allSubjectsHaveSufficientData) {
               let weakest = null;
               let minAcc = 100;
 
@@ -1002,7 +1003,7 @@ export const App: React.FC = () => {
       const timer = setTimeout(analyze, 1500);
       return () => clearTimeout(timer);
 
-  }, [sessions]);
+  }, [sessions, currentSubjects]);
 
   const handleDismissRecommendation = () => {
       setShowRecommendation(false);
@@ -1051,6 +1052,79 @@ export const App: React.FC = () => {
       } catch (e) { console.error("Audio play failed", e); }
   }, [soundEnabled]);
 
+  const handleSaveSession = useCallback(async (newSession: Omit<Session, 'id' | 'timestamp'>) => {
+    const id = generateUUID();
+    const timestamp = Date.now();
+    const session: Session = { ...newSession, id, timestamp };
+    const isGuestSession = localStorage.getItem('trackly_is_guest') === 'true';
+
+    if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'sessions', id), sanitizeForFirestore(session));
+    } else if (isGuestSession) {
+        setSessions(prev => {
+            const updated = [session, ...prev];
+            localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
+            return updated;
+        });
+    }
+  }, [user]);
+
+  const handleCompleteSession = useCallback((elapsedTime?: number) => {
+      // Logic: If user logged questions (sessionLogs > 0), use that data.
+      // If user didn't log questions but time elapsed > 1 minute, create a "time-only" session.
+      
+      if (sessionLogs.length === 0) {
+          // Check if time-only session applies
+          const effectiveDuration = elapsedTime || 0;
+          if (effectiveDuration > 60) { // Minimum 1 minute
+             handleSaveSession({
+                 subject: selectedSubject,
+                 topic: 'Focus Session', 
+                 attempted: 0,
+                 correct: 0,
+                 mistakes: {},
+                 duration: effectiveDuration
+             });
+          }
+          handleTimerReset();
+          return;
+      }
+
+      const subjectGroups: Record<string, QuestionLog[]> = {};
+      sessionLogs.forEach(log => {
+          if (!subjectGroups[log.subject]) subjectGroups[log.subject] = [];
+          subjectGroups[log.subject].push(log);
+      });
+
+      Object.entries(subjectGroups).forEach(([subject, logs]) => {
+          const attempted = logs.length;
+          const correct = logs.filter(l => l.result === 'correct').length;
+          const mistakes: MistakeCounts = {};
+          
+          logs.forEach(l => {
+              if (l.result !== 'correct') {
+                  mistakes[l.result] = (mistakes[l.result] || 0) + 1;
+              }
+          });
+
+          // Calculate duration for this subject based on logs
+          // Note: This sums individual question times. 
+          const totalDuration = logs.reduce((acc, log) => acc + (log.duration || 0), 0);
+
+          handleSaveSession({
+              subject,
+              topic: 'Focus Session', 
+              attempted,
+              correct,
+              mistakes,
+              duration: totalDuration
+          });
+      });
+
+      setSessionLogs([]);
+      handleTimerReset();
+  }, [sessionLogs, handleSaveSession, selectedSubject, timerMode, timeLeft, timerDurations]);
+
   // Persistent Timer Logic
   useEffect(() => {
       if (timerState === 'running') {
@@ -1058,17 +1132,21 @@ export const App: React.FC = () => {
               const now = Date.now();
               const diff = Math.ceil((endTimeRef.current - now) / 1000);
               if (diff <= 0) {
+                  const fullDuration = timerDurations[timerMode] * 60;
                   setTimeLeft(0);
                   setTimerState('idle'); // Automatically stop when time is up
                   clearInterval(timerRef.current);
-                  playTimerEndSound(); 
+                  playTimerEndSound();
+                  
+                  // Auto-save session on timer completion
+                  handleCompleteSession(fullDuration);
               } else {
                   setTimeLeft(diff);
               }
           }, 1000);
       }
       return () => clearInterval(timerRef.current);
-  }, [timerState, playTimerEndSound]);
+  }, [timerState, playTimerEndSound, timerDurations, timerMode, handleCompleteSession]);
 
   const handleTimerToggle = useCallback(() => {
       if (timerState === 'idle' || timerState === 'paused') {
@@ -1106,62 +1184,6 @@ export const App: React.FC = () => {
       setTodayStats(prev => ({ ...prev, [subject]: (prev as any)[subject] + 1 }));
       setLastLogTime(Date.now());
   }, []);
-
-  const handleSaveSession = useCallback(async (newSession: Omit<Session, 'id' | 'timestamp'>) => {
-    const id = generateUUID();
-    const timestamp = Date.now();
-    const session: Session = { ...newSession, id, timestamp };
-    const isGuestSession = localStorage.getItem('trackly_is_guest') === 'true';
-
-    if (user) {
-        await setDoc(doc(db, 'users', user.uid, 'sessions', id), sanitizeForFirestore(session));
-    } else if (isGuestSession) {
-        setSessions(prev => {
-            const updated = [session, ...prev];
-            localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
-            return updated;
-        });
-    }
-  }, [user]);
-
-  const handleCompleteSession = useCallback(() => {
-      if (sessionLogs.length === 0) {
-        handleTimerReset();
-        return;
-      }
-
-      const subjectGroups: Record<string, QuestionLog[]> = {};
-      sessionLogs.forEach(log => {
-          if (!subjectGroups[log.subject]) subjectGroups[log.subject] = [];
-          subjectGroups[log.subject].push(log);
-      });
-
-      Object.entries(subjectGroups).forEach(([subject, logs]) => {
-          const attempted = logs.length;
-          const correct = logs.filter(l => l.result === 'correct').length;
-          const mistakes: MistakeCounts = {};
-          
-          logs.forEach(l => {
-              if (l.result !== 'correct') {
-                  mistakes[l.result] = (mistakes[l.result] || 0) + 1;
-              }
-          });
-
-          const totalDuration = logs.reduce((acc, log) => acc + (log.duration || 0), 0);
-
-          handleSaveSession({
-              subject,
-              topic: 'Focus Session', 
-              attempted,
-              correct,
-              mistakes,
-              duration: totalDuration
-          });
-      });
-
-      setSessionLogs([]);
-      handleTimerReset();
-  }, [sessionLogs, handleSaveSession, handleTimerReset]);
 
   // Check Installation Status
   useEffect(() => {
@@ -1281,11 +1303,14 @@ export const App: React.FC = () => {
     }
   }, [migrateGuestDataToFirebase]);
 
-  const handleGuestLogin = useCallback(() => {
-      if (!guestNameInput.trim()) return;
-      localStorage.setItem('trackly_guest_name', guestNameInput.trim());
+  // Updated to accept name argument
+  const handleGuestLogin = useCallback((name?: string) => {
+      const nameToUse = name || guestNameInput;
+      if (!nameToUse.trim()) return;
+      localStorage.setItem('trackly_guest_name', nameToUse.trim());
       setIsGuest(true);
       localStorage.setItem('trackly_is_guest', 'true');
+      setUserName(nameToUse.trim());
   }, [guestNameInput]);
 
   const handleLogout = useCallback(async () => {
@@ -1295,8 +1320,11 @@ export const App: React.FC = () => {
         setIsGuest(false);
         localStorage.removeItem('trackly_is_guest');
         localStorage.removeItem('trackly_guest_name');
+        setUserName(null); // Clear username on logout
     }
   }, [user, isGuest]);
+
+  // ... (Sync, audio, DB ready effects omitted for brevity, they are unchanged)
 
   const handleForceSync = useCallback(async () => {
     if (!user) {
@@ -1341,11 +1369,6 @@ export const App: React.FC = () => {
       setTimeout(() => setSyncStatus('idle'), 5000);
     }
   }, [user, sessions, tests, targets, notes, folders]);
-
-  const handleUpgrade = useCallback(() => {
-      setIsPro(true);
-      localStorage.setItem('trackly_pro_status', 'true');
-  }, []);
 
   useEffect(() => {
     const handleClick = () => {
@@ -1443,12 +1466,15 @@ export const App: React.FC = () => {
             unsubNotes();
         }
     } else if (isGuest) {
+        const guestStream: StreamType = safeJSONParse('trackly_stream', 'JEE');
+        const defaultGoals = STREAM_SUBJECTS[guestStream].reduce((acc, sub) => ({...acc, [sub]: 30}), {});
+        
         setSessions(safeJSONParse('trackly_guest_sessions', []));
         setTests(safeJSONParse('trackly_guest_tests', []));
         setTargets(safeJSONParse('trackly_guest_targets', []));
         setNotes(safeJSONParse('trackly_guest_notes', []));
         setFolders(safeJSONParse('trackly_guest_folders', []));
-        setGoals(safeJSONParse('trackly_guest_goals', { Physics: 30, Chemistry: 30, Maths: 30 }));
+        setGoals(safeJSONParse('trackly_guest_goals', defaultGoals));
     } else {
         setSessions([]); 
         setTests([]);
@@ -1458,13 +1484,7 @@ export const App: React.FC = () => {
     }
   }, [user, isGuest, isFirebaseReady]);
 
-  useEffect(() => {
-    if(isGuest) {
-        localStorage.setItem('trackly_guest_goals', JSON.stringify(goals));
-    }
-  }, [goals, isGuest]);
-
-  // ... (CRUD Handlers repeated for brevity - they are identical to before) ...
+  // ... (CRUD Handlers omitted for brevity, logic is unchanged) ...
   const handleSaveNote = useCallback(async (note: Note) => {
     const isGuestSession = localStorage.getItem('trackly_is_guest') === 'true';
     if (user) {
@@ -1564,7 +1584,9 @@ export const App: React.FC = () => {
         await setDoc(doc(db, 'users', user.uid, 'targets', target.id), sanitizeForFirestore(target));
     } else if (localStorage.getItem('trackly_is_guest') === 'true') {
         setTargets(prev => {
-            const updated = [...prev, target];
+            const existingIndex = prev.findIndex(t => t.id === target.id);
+            const updated = existingIndex >= 0 ? [...prev] : [target, ...prev];
+            if (existingIndex >= 0) updated[existingIndex] = target;
             localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
             return updated;
         });
@@ -1583,573 +1605,344 @@ export const App: React.FC = () => {
     }
   }, [user]);
 
-  // Load Settings
-  useEffect(() => {
-    setAnimationsEnabled(safeJSONParse('zenith_animations', true));
-    setGraphicsEnabled(safeJSONParse('zenith_graphics', true));
-    setLagDetectionEnabled(safeJSONParse('zenith_lag_detection', true)); 
-    const savedTheme = localStorage.getItem('zenith_theme_id');
-    if (savedTheme && THEME_CONFIG[savedTheme as ThemeId]) setTheme(savedTheme as ThemeId);
-    setSidebarCollapsed(safeJSONParse('zenith_sidebar_collapsed', false));
-    setShowAurora(safeJSONParse('zenith_aurora', true));
-    setParallaxEnabled(safeJSONParse('zenith_parallax', true));
-    setShowParticles(safeJSONParse('zenith_particles', true));
-    setSwipeAnimationEnabled(safeJSONParse('zenith_swipe_animation', true));
-    setSwipeStiffness(Number(safeJSONParse('zenith_swipe_stiffness', 6000)) || 6000);
-    setSwipeDamping(Number(safeJSONParse('zenith_swipe_damping', 300)) || 300);    
-    setIsPro(safeJSONParse('trackly_pro_status', false));
-    setSoundEnabled(safeJSONParse('zenith_sound_enabled', true));
-    setSoundPitch(Number(safeJSONParse('zenith_sound_pitch', 600)));
-    setSoundVolume(Number(safeJSONParse('zenith_sound_volume', 0.5)));
-    setTimerDurations(safeJSONParse('zenith_timer_durations', { focus: 25, short: 5, long: 15 }));
-    const savedBg = localStorage.getItem('zenith_custom_bg');
-    if (savedBg) setCustomBackground(savedBg);
-    setCustomBackgroundEnabled(safeJSONParse('zenith_custom_bg_enabled', false));
-    const savedBgAlign = localStorage.getItem('zenith_custom_bg_align');
-    if (savedBgAlign) setCustomBackgroundAlign(savedBgAlign as any);
-  }, []);
+  const toggleCollapsed = useCallback(() => setSidebarCollapsed(prev => !prev), []);
+  const toggleSettings = useCallback(() => setIsSettingsOpen(prev => !prev), []);
+  const toggleTutorial = useCallback(() => { setIsTutorialActive(true); setTutorialStep(0); }, []);
 
-  // Persist Settings
-  useEffect(() => {
-    localStorage.setItem('zenith_animations', JSON.stringify(animationsEnabled));
-    document.body.classList.toggle('reduce-motion', !animationsEnabled);
-  }, [animationsEnabled]);
-
-  useEffect(() => {
-    localStorage.setItem('zenith_graphics', JSON.stringify(graphicsEnabled));
-    document.body.classList.toggle('low-graphics', !graphicsEnabled);
-  }, [graphicsEnabled]);
-
-  useEffect(() => { localStorage.setItem('zenith_lag_detection', JSON.stringify(lagDetectionEnabled)); }, [lagDetectionEnabled]); 
-  useEffect(() => { localStorage.setItem('zenith_theme_id', theme); }, [theme]);
-  useEffect(() => { localStorage.setItem('zenith_aurora', JSON.stringify(showAurora)); }, [showAurora]);
-  useEffect(() => { localStorage.setItem('zenith_parallax', JSON.stringify(parallaxEnabled)); }, [parallaxEnabled]);
-  useEffect(() => { localStorage.setItem('zenith_particles', JSON.stringify(showParticles)); }, [showParticles]);
-  useEffect(() => { localStorage.setItem('zenith_swipe_animation', JSON.stringify(swipeAnimationEnabled)); }, [swipeAnimationEnabled]);
-  useEffect(() => { localStorage.setItem('zenith_swipe_stiffness', String(swipeStiffness)); }, [swipeStiffness]);
-  useEffect(() => { localStorage.setItem('zenith_swipe_damping', String(swipeDamping)); }, [swipeDamping]);
-  useEffect(() => { localStorage.setItem('zenith_sound_enabled', JSON.stringify(soundEnabled)); }, [soundEnabled]);
-  useEffect(() => { localStorage.setItem('zenith_sound_pitch', String(soundPitch)); }, [soundPitch]);
-  useEffect(() => { localStorage.setItem('zenith_sound_volume', String(soundVolume)); }, [soundVolume]);
-  useEffect(() => { localStorage.setItem('zenith_sidebar_collapsed', JSON.stringify(sidebarCollapsed)); }, [sidebarCollapsed]);
-  useEffect(() => { localStorage.setItem('zenith_timer_durations', JSON.stringify(timerDurations)); }, [timerDurations]);
-  useEffect(() => {
-      if (customBackground) {
-          try {
-              localStorage.setItem('zenith_custom_bg', customBackground);
-          } catch(e) {
-              console.error("Failed to save background image", e);
-          }
-      } else {
-          localStorage.removeItem('zenith_custom_bg');
-      }
-  }, [customBackground]);
-  useEffect(() => {
-      localStorage.setItem('zenith_custom_bg_enabled', JSON.stringify(customBackgroundEnabled));
-  }, [customBackgroundEnabled]);
-  useEffect(() => {
-      localStorage.setItem('zenith_custom_bg_align', customBackgroundAlign);
-  }, [customBackgroundAlign]);
-
-  const toggleCustomBackground = useCallback(() => {
-      setCustomBackgroundEnabled(prev => {
-          const next = !prev;
-          if (next) {
-              setShowAurora(false);
-              setParallaxEnabled(false);
-          }
-          return next;
-      });
-  }, []);
-
-  const toggleSidebar = useCallback(() => {
-      setSidebarCollapsed(prev => !prev);
-  }, []);
-
-  const startTutorial = () => {
-    setIsTutorialActive(true);
-    setTutorialStep(0);
-    setView('daily'); 
+  // Swipe Logic
+  const handleTouchStart = (e: React.TouchEvent) => {
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   };
 
-  const nextTutorialStep = () => {
-    const nextStep = tutorialStep + 1;
-    if (nextStep >= TOUR_STEPS.length) {
-      setIsTutorialActive(false);
-      setTutorialStep(0);
-      setView('daily');
-    } else {
-      setTutorialStep(nextStep);
-      if (TOUR_STEPS[nextStep].view) {
-        setView(TOUR_STEPS[nextStep].view as ViewType);
+  const handleTouchEnd = (e: React.TouchEvent) => {
+      if (!touchStartRef.current || !swipeAnimationEnabled) return;
+      const touchEnd = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+      const dx = touchStartRef.current.x - touchEnd.x;
+      const dy = touchStartRef.current.y - touchEnd.y;
+
+      // Ignore vertical scrolls
+      if (Math.abs(dy) > Math.abs(dx)) return;
+
+      if (Math.abs(dx) > minSwipeDistance) {
+          const currentIdx = TABS.findIndex(t => t.id === view);
+          if (dx > 0 && currentIdx < TABS.length - 1) { // Swipe Left -> Next Tab
+              changeView(TABS[currentIdx + 1].id as ViewType);
+          } else if (dx < 0 && currentIdx > 0) { // Swipe Right -> Prev Tab
+              changeView(TABS[currentIdx - 1].id as ViewType);
+          }
       }
-    }
+      touchStartRef.current = null;
   };
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    touchEndRef.current = null; 
-    touchStartRef.current = { x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY };
-  }
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    touchEndRef.current = { x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY };
-  }
-
-  const onTouchEnd = () => {
-    if (!touchStartRef.current || !touchEndRef.current) return;
-    const xDistance = touchStartRef.current.x - touchEndRef.current.x;
-    const yDistance = touchStartRef.current.y - touchEndRef.current.y;
-    if (Math.abs(yDistance) > Math.abs(xDistance)) return;
-
-    const isLeftSwipe = xDistance > minSwipeDistance;
-    const isRightSwipe = xDistance < -minSwipeDistance;
-
-    if (isLeftSwipe || isRightSwipe) {
-      const currentIndex = TABS.findIndex(t => t.id === view);
-      if (isLeftSwipe && currentIndex < TABS.length - 1) changeView(TABS[currentIndex + 1].id as ViewType);
-      if (isRightSwipe && currentIndex > 0) changeView(TABS[currentIndex - 1].id as ViewType);
-    }
-    touchStartRef.current = null;
-    touchEndRef.current = null;
-  }
-
-  if (isAuthLoading || !isFirebaseReady || isMigrating) {
-    return (
-        <div className={`min-h-screen flex items-center justify-center ${themeConfig.mode === 'dark' ? 'bg-[#020617]' : 'bg-slate-50'}`}>
-            <div className="flex flex-col items-center gap-4">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-                <span className="text-sm font-bold uppercase tracking-widest text-slate-500">
-                  {isMigrating ? 'Migrating Data...' : 'Connecting...'}
-                </span>
-            </div>
-        </div>
-    );
-  }
-
-  if (!user && !isGuest) {
-    // ... Login Screen (Same as before)
-    return (
-        <div className={`min-h-screen font-sans flex flex-col relative overflow-hidden transition-colors duration-500 ${themeConfig.mode === 'dark' ? 'dark text-slate-100' : 'text-slate-900'}`}>
-             <style>{dynamicStyles}</style>
-             <AnimatedBackground 
-                themeId={theme} 
-                showAurora={effectiveShowAurora}
-                parallaxEnabled={effectiveParallax}
-                showParticles={effectiveShowParticles}
-                graphicsEnabled={graphicsEnabled}
-                animationsEnabled={animationsEnabled}
-                customBackground={customBackgroundEnabled ? customBackground : null}
-                customBackgroundAlign={customBackgroundAlign}
-             />
-             <div className="flex-1 flex flex-col items-center justify-center relative z-10 p-6">
-                <TracklyLogo id="login-logo" />
-                <div className="mt-8 mb-4 text-center">
-                    <div className="text-6xl md:text-8xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-br from-indigo-300 via-white to-indigo-300 drop-shadow-2xl tracking-tighter">
-                        {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                    <div className="text-sm md:text-base font-bold uppercase tracking-[0.3em] text-indigo-200/60 mt-2">
-                        {currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </div>
-                </div>
-                <div className="bg-white/10 dark:bg-slate-900/30 backdrop-blur-xl p-8 rounded-3xl border border-white/10 text-center max-w-sm w-full shadow-2xl cv-auto mt-6">
-                    <h2 className="text-xl font-bold mb-2 text-white">Welcome Back</h2>
-                    <p className="text-xs text-slate-300 mb-6 leading-relaxed">
-                        Sign in to sync your progress across devices.
-                    </p>
-                    <div className="space-y-4">
-                        <button 
-                            onClick={handleLogin}
-                            className="w-full py-4 bg-white hover:bg-slate-100 text-slate-800 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 shadow-lg"
-                        >
-                            <GoogleIcon />
-                            <span>Sign in with Google</span>
-                        </button>
-                        <div className="flex items-center gap-4">
-                            <div className="flex-1 h-px bg-white/10"></div>
-                            <span className="text-xs font-bold text-slate-400 uppercase">Or</span>
-                            <div className="flex-1 h-px bg-white/10"></div>
-                        </div>
-                        <form onSubmit={(e) => { e.preventDefault(); handleGuestLogin(); }} className="space-y-3">
-                            <input
-                                type="text"
-                                placeholder="Enter your name to continue"
-                                value={guestNameInput}
-                                onChange={(e) => setGuestNameInput(e.target.value)}
-                                className="w-full p-3 bg-black/20 text-white rounded-xl border border-white/10 transition-all focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 outline-none placeholder:text-slate-400 text-center font-medium"
-                            />
-                            <button 
-                                type="submit"
-                                disabled={!guestNameInput.trim()}
-                                className="w-full py-3 bg-indigo-600/50 hover:bg-indigo-600 text-white rounded-xl font-bold uppercase tracking-widest border border-indigo-500/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-600/10"
-                            >
-                                <span>Continue Offline</span>
-                                <ArrowRight size={16} />
-                            </button>
-                        </form>
-                    </div>
-                </div>
-                <div className="mt-8 text-[10px] text-white/30 uppercase tracking-widest font-bold">
-                    Data syncs automatically when you sign in.
-                </div>
-             </div>
-        </div>
-    );
-  }
+  // --- WELCOME PAGE CHECK ---
+  const showWelcome = !isAuthLoading && !user && !isGuest;
 
   return (
-    <div 
-        className={`min-h-screen font-sans overflow-x-hidden relative flex flex-col transition-colors duration-500 ${themeConfig.mode === 'dark' ? 'dark text-slate-100' : 'text-slate-900'}`}
-    >
+    <>
       <style>{dynamicStyles}</style>
-
-      {/* Lag Monitor Toast */}
-      <PerformanceToast 
-        isVisible={isLagging} 
-        onSwitch={activateLiteMode}
-        onDismiss={dismissLag} 
-      />
-
-      {/* Smart Recommendation Toast */}
-      <SmartRecommendationToast
-        isVisible={showRecommendation}
-        data={recommendation}
-        onDismiss={handleDismissRecommendation}
-        onPractice={handlePracticeRecommendation}
-      />
-
-      {/* Network Status Toast */}
-      <AnimatePresence>
-        {showNetworkToast && (
-          <MotionDiv
-            initial={{ y: -50, opacity: 0, x: '-50%' }}
-            animate={{ y: 20, opacity: 1, x: '-50%' }}
-            exit={{ y: -50, opacity: 0, x: '-50%' }}
-            className="fixed top-0 left-1/2 z-[200] px-4 py-2 rounded-full shadow-lg border backdrop-blur-md flex items-center gap-2"
-            style={{
-              backgroundColor: isOnline ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-              borderColor: isOnline ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'
-            }}
-          >
-             {isOnline ? (
-               <>
-                 <Wifi size={14} className="text-emerald-500" />
-                 <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Back Online</span>
-               </>
-             ) : (
-               <>
-                 <WifiOff size={14} className="text-rose-500" />
-                 <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide">No Internet Connection</span>
-               </>
-             )}
-          </MotionDiv>
-        )}
-      </AnimatePresence>
-
-      <AnimatedBackground 
-        themeId={theme} 
-        showAurora={effectiveShowAurora}
-        parallaxEnabled={effectiveParallax}
-        showParticles={effectiveShowParticles}
-        graphicsEnabled={graphicsEnabled}
-        animationsEnabled={animationsEnabled}
-        customBackground={customBackgroundEnabled ? customBackground : null}
-        customBackgroundAlign={customBackgroundAlign}
-      />
-      
-      <Sidebar 
-          view={view} 
-          setView={changeView} 
-          onOpenSettings={() => setIsSettingsOpen(true)} 
-          isCollapsed={sidebarCollapsed}
-          toggleCollapsed={toggleSidebar}
-          user={user}
-          isGuest={isGuest}
-          onLogin={handleLogin}
-          onLogout={handleLogout}
-          isInstalled={isInstalled}
-          onInstall={handleInstallClick}
-          userName={userName}
-          isPro={hasProAccess}
-          onOpenUpgrade={() => setShowProModal(true)}
-      />
-
-      {/* Mobile Header - Fixed */}
-      <div className="md:hidden fixed top-0 left-0 w-full z-50 bg-white/80 dark:bg-[#020617]/80 backdrop-blur-xl border-b border-slate-200 dark:border-white/5 px-6 py-4 flex justify-between items-center transition-colors duration-500">
-        <TracklyLogo id="trackly-logo-mobile" />
-        <div className="flex items-center gap-3">
-            {!hasProAccess && (
-                <button 
-                    onClick={() => setShowProModal(true)}
-                    className="p-2 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-all shadow-sm shadow-amber-500/10 active:scale-95"
-                >
-                    <Crown size={20} fill="currentColor" />
-                </button>
-            )}
-            <button id="settings-btn" onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
-                <Settings size={24} className="text-slate-600 dark:text-slate-300" />
-            </button>
-        </div>
-      </div>
-
-      <main 
-          className={`relative z-10 flex-grow p-4 md:p-10 pt-24 md:pt-10 pb-24 md:pb-10 w-full md:w-auto transition-all duration-500 ease-in-out overflow-x-hidden ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-      >
-        <div className="max-w-7xl mx-auto w-full relative">
-           <AnimatePresence initial={false} mode='wait' custom={direction}>
-             <MotionDiv
-                key={view}
-                custom={direction}
-                variants={effectiveSwipe ? slideVariants : fadeVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={effectiveSwipe ? (
-                  animationsEnabled ? {
-                    x: { type: "spring", stiffness: swipeStiffness, damping: swipeDamping, mass: 0.8 },
-                    opacity: { duration: 0.15 }
-                  } : {
-                    x: { type: "tween", ease: "circOut", duration: 0.2 },
-                    opacity: { duration: 0.2 }
-                  }
-                ) : { duration: animationsEnabled ? 0.2 : 0 }}
-                className="w-full will-change-transform"
-             >
-                <ErrorBoundary viewKey={view}>
-                    <Suspense fallback={
-                        <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
-                            <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-500" />
-                            <span className="text-xs font-bold uppercase tracking-widest">Loading View...</span>
-                        </div>
-                    }>
-                    {view === 'daily' && (
-                        <Dashboard 
-                            sessions={sessions}
-                            targets={targets}
-                            quote={QUOTES[quoteIdx]}
-                            onDelete={handleDeleteSession}
-                            goals={goals}
-                            setGoals={setGoals}
-                            onSaveSession={handleSaveSession}
-                            userName={userName}
-                            onOpenPrivacy={() => setView('privacy')}
-                        />
-                    )}
-                    {view === 'planner' && (
-                        <Planner 
-                            targets={targets}
-                            onAdd={handleSaveTarget}
-                            onToggle={handleUpdateTarget}
-                            onDelete={handleDeleteTarget}
-                        />
-                    )}
-                    {view === 'focus' && (
-                        <div className="min-h-[80vh] flex flex-col justify-center">
-                            <FocusTimer 
-                                targets={targets} 
-                                sessions={sessions}
-                                mode={timerMode}
-                                timeLeft={timeLeft}
-                                timerState={timerState}
-                                durations={timerDurations}
-                                sessionLogs={sessionLogs}
-                                lastLogTime={lastLogTime}
-                                onToggleTimer={handleTimerToggle}
-                                onResetTimer={handleTimerReset}
-                                onSwitchMode={handleModeSwitch}
-                                onUpdateDurations={handleDurationUpdate}
-                                onAddLog={handleAddLog}
-                                onCompleteSession={handleCompleteSession}
-                                isPro={hasProAccess}
-                                sessionCount={sessions.length}
-                                onOpenUpgrade={() => setShowProModal(true)}
-                                userName={userName || 'User'}
-                                syllabus={JEE_SYLLABUS}
-                            />
-                        </div>
-                    )}
-                    {view === 'group-focus' && (
-                        <VirtualLibrary
-                            user={user}
-                            userName={userName}
-                            onLogin={handleLogin}
-                            isPro={hasProAccess}
-                            targets={targets}
-                            onCompleteTask={(id, completed) => handleUpdateTarget(id, completed)}
-                        />
-                    )}
-                    {view === 'tests' && (
-                        <TestLog 
-                            tests={tests}
-                            targets={targets} 
-                            onSave={handleSaveTest}
-                            onDelete={handleDeleteTest}
-                            isPro={hasProAccess}
-                            onOpenUpgrade={() => setShowProModal(true)}
-                        />
-                    )}
-                    {view === 'analytics' && (
-                        <Analytics 
-                            sessions={sessions} 
-                            tests={tests} 
-                            isPro={hasProAccess} 
-                            onOpenUpgrade={() => setShowProModal(true)}
-                        />
-                    )}
-                    {view === 'privacy' && (
-                        <PrivacyPolicy onBack={() => setView('daily')} />
-                    )}
-                    </Suspense>
-                </ErrorBoundary>
-             </MotionDiv>
-           </AnimatePresence>
-        </div>
-      </main>
-
-      {/* Test Log Reminder Toast */}
-      <AnimatePresence>
-        {showTestReminder && (
-            <MotionDiv 
-                initial={{ x: "-50%", y: 100, opacity: 0 }}
-                animate={{ x: "-50%", y: 0, opacity: 1 }}
-                exit={{ x: "-50%", y: 100, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="fixed bottom-24 md:bottom-10 left-1/2 z-[100] w-[90%] max-w-sm"
-            >
-                <div className="bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-500/30 rounded-2xl shadow-2xl p-4 flex items-center justify-between gap-4 backdrop-blur-xl">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-indigo-500 rounded-xl text-white shadow-lg shadow-indigo-500/20">
-                            <Trophy size={20} />
-                        </div>
-                        <div>
-                            <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Test Completed!</h4>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">{reminderMessage}</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => {
-                            changeView('tests');
-                            setShowTestReminder(false);
-                        }}
-                        className="flex-shrink-0 flex items-center gap-1 px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-theme-accent-on-light text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors"
-                    >
-                        Log Now <ArrowRight size={12} />
-                    </button>
-                </div>
-            </MotionDiv>
-        )}
-      </AnimatePresence>
-
-      {/* Pro Upgrade Modal */}
-      <ProUpgradeModal 
-        isOpen={showProModal} 
-        onClose={() => setShowProModal(false)}
-        onUpgrade={handleUpgrade}
-      />
-
-      {/* Nav and Modals ... */}
-      <nav 
-        className="fixed bottom-0 left-0 w-full z-50 bg-white/95 dark:bg-[#020617]/95 backdrop-blur-xl border-t border-slate-200 dark:border-white/5 px-6 py-3 md:hidden transition-colors duration-500 shadow-[0_-5px_10px_rgba(0,0,0,0.03)] dark:shadow-none"
-        style={{ 
-            paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-            backgroundColor: themeConfig.mode === 'dark' ? themeConfig.colors.bg + 'ee' : 'rgba(255,255,255,0.95)'
-        }}
-      >
-          <div className="flex justify-around items-center">
-            {TABS.map(tab => {
-              const isActive = view === tab.id;
-              return (
-                <button
-                    key={tab.id}
-                    onClick={() => changeView(tab.id as ViewType)}
-                    className={`flex flex-col items-center gap-1.5 transition-all duration-300 ${isActive ? 'text-indigo-600 dark:text-indigo-400 scale-105' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
-                >
-                    <div className={`p-1.5 rounded-xl transition-all duration-300 ${isActive ? 'bg-indigo-100 dark:bg-indigo-500/20' : 'bg-transparent'}`}>
-                        <tab.icon size={22} strokeWidth={isActive ? 2.5 : 2} className="transition-all" />
-                    </div>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider transition-opacity ${isActive ? 'opacity-100' : 'opacity-70'}`}>{tab.label}</span>
-                </button>
-            )})}
-          </div>
-      </nav>
-
-      {isTutorialActive && (
-        <TutorialOverlay 
-          steps={TOUR_STEPS}
-          currentStep={tutorialStep}
-          onNext={nextTutorialStep}
-          onClose={() => setIsTutorialActive(false)}
+      <div className={`min-h-screen transition-colors duration-300 ${themeConfig.mode} font-sans selection:bg-indigo-500/30`}>
+        <StreamTransition isTransitioning={isTransitioning} stream={transitionStream} />
+        <AnimatedBackground 
+            themeId={theme} 
+            showAurora={effectiveShowAurora} 
+            parallaxEnabled={effectiveParallax} 
+            showParticles={effectiveShowParticles} 
+            graphicsEnabled={graphicsEnabled}
+            animationsEnabled={animationsEnabled}
+            customBackground={customBackgroundEnabled ? customBackground : null}
+            customBackgroundAlign={customBackgroundAlign}
         />
-      )}
 
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)}
-        animationsEnabled={animationsEnabled}
-        toggleAnimations={() => setAnimationsEnabled(!animationsEnabled)}
-        graphicsEnabled={graphicsEnabled}
-        toggleGraphics={() => setGraphicsEnabled(!graphicsEnabled)}
-        lagDetectionEnabled={lagDetectionEnabled}
-        toggleLagDetection={() => setLagDetectionEnabled(!lagDetectionEnabled)}
-        theme={theme}
-        setTheme={setTheme}
-        onStartTutorial={startTutorial}
-        showAurora={showAurora}
-        toggleAurora={() => setShowAurora(!showAurora)}
-        parallaxEnabled={parallaxEnabled}
-        toggleParallax={() => setParallaxEnabled(!parallaxEnabled)}
-        showParticles={showParticles}
-        toggleParticles={() => setShowParticles(!showParticles)}
-        swipeAnimationEnabled={swipeAnimationEnabled}
-        toggleSwipeAnimation={() => setSwipeAnimationEnabled(!swipeAnimationEnabled)}
-        swipeStiffness={swipeStiffness}
-        setSwipeStiffness={setSwipeStiffness}
-        swipeDamping={swipeDamping}
-        setSwipeDamping={setSwipeDamping}
+        {showWelcome ? (
+            <WelcomePage 
+                onLogin={handleLogin}
+                onGuestLogin={handleGuestLogin}
+                stream={stream}
+                setStream={handleChangeStream}
+            />
+        ) : (
+            <div className="relative z-10 flex h-screen overflow-hidden">
+                <Sidebar 
+                    view={view} 
+                    setView={changeView} 
+                    onOpenSettings={toggleSettings}
+                    isCollapsed={sidebarCollapsed}
+                    toggleCollapsed={toggleCollapsed}
+                    user={user}
+                    isGuest={isGuest}
+                    onLogin={handleLogin}
+                    onLogout={handleLogout}
+                    isInstalled={isInstalled}
+                    onInstall={handleInstallClick}
+                    userName={userName}
+                    isPro={isPro}
+                    onOpenUpgrade={() => setShowUpgradeModal(true)}
+                />
+
+                <main 
+                    className={`flex-1 overflow-y-auto overflow-x-hidden relative transition-all duration-500 ${sidebarCollapsed ? 'ml-0 md:ml-20' : 'ml-0 md:ml-64'}`}
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                >
+                    <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen pb-24">
+                        <AnimatePresence mode="wait" custom={direction}>
+                            {view === 'daily' && (
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                    <MotionDiv
+                                        key="daily"
+                                        custom={direction}
+                                        variants={effectiveSwipe ? slideVariants : fadeVariants}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
+                                    >
+                                        <Dashboard 
+                                            sessions={sessions} 
+                                            targets={targets} 
+                                            quote={QUOTES[quoteIdx]} 
+                                            onDelete={handleDeleteSession} 
+                                            goals={goals} 
+                                            setGoals={setGoals} 
+                                            onSaveSession={handleSaveSession}
+                                            userName={userName}
+                                            onOpenPrivacy={() => changeView('privacy')}
+                                            subjects={currentSubjects}
+                                            syllabus={currentSyllabus}
+                                        />
+                                    </MotionDiv>
+                                </Suspense>
+                            )}
+                            {view === 'planner' && (
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                    <MotionDiv
+                                        key="planner"
+                                        custom={direction}
+                                        variants={effectiveSwipe ? slideVariants : fadeVariants}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
+                                    >
+                                        <Planner 
+                                            targets={targets} 
+                                            onAdd={handleSaveTarget} 
+                                            onToggle={handleUpdateTarget} 
+                                            onDelete={handleDeleteTarget} 
+                                        />
+                                    </MotionDiv>
+                                </Suspense>
+                            )}
+                            {view === 'focus' && (
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                    <MotionDiv
+                                        key="focus"
+                                        custom={direction}
+                                        variants={effectiveSwipe ? slideVariants : fadeVariants}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
+                                    >
+                                        <FocusTimer 
+                                            timerState={timerState}
+                                            sessions={sessions}
+                                            onToggleTimer={handleTimerToggle}
+                                            mode={timerMode}
+                                            timeLeft={timeLeft}
+                                            durations={timerDurations}
+                                            onResetTimer={handleTimerReset}
+                                            onCompleteSession={() => handleCompleteSession(timerDurations[timerMode] * 60)}
+                                            lastLogTime={lastLogTime}
+                                            sessionLogs={sessionLogs}
+                                            onAddLog={handleAddLog}
+                                            onSwitchMode={handleModeSwitch}
+                                            onUpdateDurations={handleDurationUpdate}
+                                            userName={userName || 'Guest'}
+                                            syllabus={currentSyllabus}
+                                            sessionCount={sessions.length}
+                                            targets={targets}
+                                        />
+                                    </MotionDiv>
+                                </Suspense>
+                            )}
+                            {view === 'group-focus' && (
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                    <MotionDiv
+                                        key="group-focus"
+                                        custom={direction}
+                                        variants={effectiveSwipe ? slideVariants : fadeVariants}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
+                                    >
+                                        <VirtualLibrary 
+                                            user={user}
+                                            userName={userName}
+                                            onLogin={handleLogin}
+                                            isPro={isPro}
+                                            targets={targets}
+                                            onCompleteTask={handleUpdateTarget}
+                                        />
+                                    </MotionDiv>
+                                </Suspense>
+                            )}
+                            {view === 'tests' && (
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                    <MotionDiv
+                                        key="tests"
+                                        custom={direction}
+                                        variants={effectiveSwipe ? slideVariants : fadeVariants}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
+                                    >
+                                        <TestLog 
+                                            tests={tests}
+                                            targets={targets}
+                                            onSave={handleSaveTest}
+                                            onDelete={handleDeleteTest}
+                                            isPro={isPro}
+                                            onOpenUpgrade={() => setShowUpgradeModal(true)}
+                                            subjects={currentSubjects}
+                                            syllabus={currentSyllabus}
+                                        />
+                                    </MotionDiv>
+                                </Suspense>
+                            )}
+                            {view === 'analytics' && (
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                    <MotionDiv
+                                        key="analytics"
+                                        custom={direction}
+                                        variants={effectiveSwipe ? slideVariants : fadeVariants}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
+                                    >
+                                        <Analytics 
+                                            sessions={sessions}
+                                            tests={tests}
+                                            isPro={isPro}
+                                            onOpenUpgrade={() => setShowUpgradeModal(true)}
+                                            stream={stream}
+                                            syllabus={currentSyllabus}
+                                        />
+                                    </MotionDiv>
+                                </Suspense>
+                            )}
+                            {view === 'privacy' && (
+                                <MotionDiv
+                                    key="privacy"
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -20 }}
+                                >
+                                    <PrivacyPolicy onBack={() => changeView('daily')} />
+                                </MotionDiv>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </main>
+            </div>
+        )}
+
+        <SettingsModal 
+            isOpen={isSettingsOpen} 
+            onClose={() => setIsSettingsOpen(false)}
+            animationsEnabled={animationsEnabled}
+            toggleAnimations={() => setAnimationsEnabled(!animationsEnabled)}
+            graphicsEnabled={graphicsEnabled}
+            toggleGraphics={() => setGraphicsEnabled(!graphicsEnabled)}
+            lagDetectionEnabled={lagDetectionEnabled}
+            toggleLagDetection={() => setLagDetectionEnabled(!lagDetectionEnabled)}
+            theme={theme}
+            setTheme={setTheme}
+            onStartTutorial={toggleTutorial}
+            showAurora={showAurora}
+            toggleAurora={() => setShowAurora(!showAurora)}
+            parallaxEnabled={parallaxEnabled}
+            toggleParallax={() => setParallaxEnabled(!parallaxEnabled)}
+            showParticles={showParticles}
+            toggleParticles={() => setShowParticles(!showParticles)}
+            swipeAnimationEnabled={swipeAnimationEnabled}
+            toggleSwipeAnimation={() => setSwipeAnimationEnabled(!swipeAnimationEnabled)}
+            swipeStiffness={swipeStiffness}
+            setSwipeStiffness={setSwipeStiffness}
+            swipeDamping={swipeDamping}
+            setSwipeDamping={setSwipeDamping}
+            soundEnabled={soundEnabled}
+            toggleSound={() => setSoundEnabled(!soundEnabled)}
+            soundPitch={soundPitch}
+            setSoundPitch={setSoundPitch}
+            soundVolume={soundVolume}
+            setSoundVolume={setSoundVolume}
+            customBackground={customBackground}
+            setCustomBackground={setCustomBackground}
+            customBackgroundEnabled={customBackgroundEnabled}
+            toggleCustomBackground={() => setCustomBackgroundEnabled(!customBackgroundEnabled)}
+            customBackgroundAlign={customBackgroundAlign}
+            setCustomBackgroundAlign={setCustomBackgroundAlign}
+            user={user}
+            isGuest={isGuest}
+            onLogout={handleLogout}
+            onForceSync={handleForceSync}
+            syncStatus={syncStatus}
+            syncError={syncError}
+            onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }}
+            stream={stream}
+            setStream={handleChangeStream}
+        />
+
+        {isTutorialActive && (
+            <TutorialOverlay 
+                steps={TOUR_STEPS} 
+                currentStep={tutorialStep} 
+                onNext={() => {
+                    if (tutorialStep < TOUR_STEPS.length - 1) setTutorialStep(s => s + 1);
+                    else setIsTutorialActive(false);
+                }} 
+                onClose={() => setIsTutorialActive(false)} 
+            />
+        )}
+
+        <ProUpgradeModal 
+            isOpen={showUpgradeModal} 
+            onClose={() => setShowUpgradeModal(false)} 
+            onUpgrade={handleUpgrade} 
+        />
+
+        <OverdueTasksModal
+            isOpen={showOverdueModal}
+            tasks={overdueTasks}
+            onClose={() => setShowOverdueModal(false)}
+            onComplete={(id) => handleUpdateTarget(id, true)}
+            onDelete={handleDeleteTarget}
+        />
+
+        <PerformanceToast 
+            isVisible={isLagging} 
+            onSwitch={activateLiteMode} 
+            onDismiss={dismissLag} 
+        />
+
+        <SmartRecommendationToast
+            isVisible={showRecommendation}
+            data={recommendation}
+            onDismiss={handleDismissRecommendation}
+            onPractice={handlePracticeRecommendation}
+        />
         
-        soundEnabled={soundEnabled}
-        toggleSound={() => setSoundEnabled(!soundEnabled)}
-        soundPitch={soundPitch}
-        setSoundPitch={setSoundPitch}
-        soundVolume={soundVolume}
-        setSoundVolume={setSoundVolume}
-
-        customBackground={customBackground}
-        setCustomBackground={setCustomBackground}
-        customBackgroundEnabled={customBackgroundEnabled}
-        toggleCustomBackground={toggleCustomBackground}
-        customBackgroundAlign={customBackgroundAlign}
-        setCustomBackgroundAlign={setCustomBackgroundAlign}
-        isPro={hasProAccess}
-        onOpenUpgrade={() => setShowProModal(true)}
-        user={user}
-        isGuest={isGuest}
-        onLogout={() => {
-            handleLogout();
-            setIsSettingsOpen(false);
-        }}
-        onForceSync={handleForceSync}
-        syncStatus={syncStatus}
-        syncError={syncError}
-        onOpenPrivacy={() => setView('privacy')}
-      />
-      <OverdueTasksModal
-        isOpen={showOverdueModal}
-        tasks={overdueTasks}
-        onClose={() => setShowOverdueModal(false)}
-        onComplete={(id) => {
-          handleUpdateTarget(id, true);
-          setOverdueTasks(prev => prev.filter(t => t.id !== id));
-        }}
-        onDelete={(id) => {
-          handleDeleteTarget(id);
-          setOverdueTasks(prev => prev.filter(t => t.id !== id));
-        }}
-      />
-    </div>
+        {showNetworkToast && (
+             <div className={`fixed top-4 right-4 z-[200] px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-xl transition-all duration-500 ${isOnline ? 'bg-emerald-500 text-white translate-y-0' : 'bg-rose-500 text-white translate-y-0'}`}>
+                 {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+                 {isOnline ? 'Online' : 'Offline'}
+             </div>
+        )}
+      </div>
+    </>
   );
 };
-
-export default App;

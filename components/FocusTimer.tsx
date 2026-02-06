@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, memo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -34,7 +33,8 @@ import {
   Coffee,
   Brain,
   Armchair,
-  X
+  X,
+  Dna
 } from 'lucide-react';
 import { MISTAKE_TYPES } from '../constants';
 import { Target as TargetType, QuestionLog, Session, SyllabusData } from '../types';
@@ -58,9 +58,7 @@ interface FocusTimerProps {
   onUpdateDurations: (newDuration: number, mode: 'focus' | 'short' | 'long') => void;
   onAddLog: (log: QuestionLog, subject: string) => void;
   onCompleteSession: () => void;
-  isPro: boolean;
   sessionCount: number;
-  onOpenUpgrade: () => void;
   userName: string;
   syllabus: SyllabusData;
 }
@@ -466,7 +464,13 @@ const TimerSettingsModal = ({
                                 min="1" 
                                 max={mode === 'focus' ? 180 : 60} 
                                 value={durations[mode]} 
-                                onChange={(e) => onUpdate(parseInt(e.target.value), mode)}
+                                // FIX: Add a NaN check to the parseInt call to ensure a valid number is passed to onUpdate.
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    if (!isNaN(val)) {
+                                        onUpdate(val, mode);
+                                    }
+                                }}
                                 className={`w-full h-2 rounded-full appearance-none cursor-pointer ${
                                     mode === 'focus' ? 'bg-indigo-100 dark:bg-indigo-500/20 accent-indigo-500' :
                                     mode === 'short' ? 'bg-emerald-100 dark:bg-emerald-500/20 accent-emerald-500' :
@@ -498,14 +502,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     timerState, 
     sessions, 
     onToggleTimer, 
-    isPro, 
-    onOpenUpgrade, 
     mode, 
     timeLeft, 
     durations,
     onResetTimer,
     onCompleteSession,
-    onAddLog,
     lastLogTime,
     onSwitchMode,
     onUpdateDurations,
@@ -516,9 +517,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
   const subjectKeys = useMemo(() => Object.keys(syllabus), [syllabus]);
   
   const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
-  const [sessionIntent, setSessionIntent] = useState<'questions' | 'theory'>('questions');
-  const [showTagger, setShowTagger] = useState(false);
-  const [currentQDuration, setCurrentQDuration] = useState(0); 
   const [selectedSubject, setSelectedSubject] = useState<string>(subjectKeys[0] || '');
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [isEditingTime, setIsEditingTime] = useState(false);
@@ -579,9 +577,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
       }
 
       // Streak & Consistency Calculation
-      // Logic: A day is "Active" ONLY if the user studied for at least 1 hour (3600 seconds) that day.
-      
-      // 1. Group all sessions by date to calculate daily totals
       const dailyDurations: Record<string, number> = {};
       sessions.forEach(s => {
           const d = new Date(s.timestamp);
@@ -590,13 +585,11 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
           dailyDurations[dateKey] = (dailyDurations[dateKey] || 0) + (s.duration || 0); // duration is in seconds
       });
 
-      // 2. Identify Valid Days (>= 1 hour)
       const validDates = Object.entries(dailyDurations)
           .filter(([_, seconds]) => seconds >= 3600)
           .map(([ts]) => parseInt(ts))
           .sort((a, b) => b - a); // Descending order
 
-      // 3. Calculate Streak
       let currentStreak = 0;
       if (validDates.length > 0) {
           const today = new Date();
@@ -604,13 +597,10 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
           const todayTime = today.getTime();
           const yesterdayTime = todayTime - 86400000;
           
-          // Streak is active if the last valid day was today or yesterday
           if (validDates[0] === todayTime || validDates[0] === yesterdayTime) {
               currentStreak = 1;
               for (let i = 0; i < validDates.length - 1; i++) {
-                  // Check if previous date is exactly 1 day before current date in the sorted array
                   const diff = validDates[i] - validDates[i+1];
-                  // Allow small tolerance for DST changes if any, roughly 24h
                   if (diff >= 86400000 - 3600000 && diff <= 86400000 + 3600000) { 
                       currentStreak++;
                   } else {
@@ -620,7 +610,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
           }
       }
 
-      // 4. Calculate Consistency based on TimeRange
       let consistency = 0;
       const startOfRange = getStartOfRange(timeRange).getTime();
       let endOfRange = 0;
@@ -635,14 +624,12 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
           endOfRange = nextMonth.getTime();
           totalDays = Math.round((endOfRange - startOfRange) / 86400000);
       } else {
-          // yearly
           const d = new Date(startOfRange);
           const nextYear = new Date(d.getFullYear() + 1, 0, 1);
           endOfRange = nextYear.getTime();
           totalDays = Math.round((endOfRange - startOfRange) / 86400000);
       }
 
-      // Count valid days that fall within the selected range
       const validDaysInRange = validDates.filter(t => t >= startOfRange && t < endOfRange).length;
       consistency = Math.round((validDaysInRange / totalDays) * 100);
 
@@ -656,6 +643,27 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
           consistency
       };
   }, [sessions, timeRange, subjectKeys, syllabus]);
+  
+  const subjectColorMap: Record<string, string> = useMemo(() => {
+    const colors: Record<string, string> = {
+        Physics: '#3b82f6',   // blue
+        Chemistry: '#f97316', // orange
+        Maths: '#f43f5e',     // rose
+        Biology: '#10b981'    // emerald
+    };
+    return subjectKeys.reduce((acc, key) => {
+        acc[key] = colors[key] || '#64748b'; // default slate
+        return acc;
+    }, {} as Record<string, string>);
+  }, [subjectKeys]);
+
+  const donutData = useMemo(() => {
+    return Object.entries(analyticsData.subjectDist).map(([subj, val]) => ({
+        label: subj,
+        value: val,
+        color: subjectColorMap[subj] || '#64748b'
+    }));
+  }, [analyticsData.subjectDist, subjectColorMap]);
 
   // --- HANDLERS ---
   const adjustDuration = (deltaMinutes: number) => {
@@ -699,14 +707,13 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
   // --- RENDER ---
   return (
     <>
-      <div className="pb-20 animate-in fade-in duration-500 space-y-6">
+      <div id="timer-container" className="pb-20 animate-in fade-in duration-500 space-y-6">
           
           {/* 1. Header & Time Range Filter */}
           <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-2">
               <div>
                   <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
                       Focus & Analytics
-                      {!isPro && <Lock size={16} className="text-amber-500" />}
                   </h2>
                   
                   {/* Clock Display */}
@@ -751,7 +758,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                               </div>
                               <p className="text-slate-500 dark:text-slate-400 font-medium mt-1 text-sm">
                                   {mode === 'focus' ? (
-                                      <>{sessionIntent === 'questions' ? 'Solving' : 'Reading'} <span className="text-indigo-500 font-bold">{selectedSubject}</span></>
+                                      <>Focusing on <span className="text-indigo-500 font-bold">{selectedSubject}</span></>
                                   ) : (
                                       <span className="text-slate-400">Rest & Recharge</span>
                                   )}
@@ -759,18 +766,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                           </div>
 
                           <div className="flex items-center gap-3 w-full md:w-auto">
-                               {sessionIntent === 'questions' && mode === 'focus' && isActive && (
-                                  <button onClick={(e) => {
-                                      e.stopPropagation();
-                                      const now = Date.now();
-                                      const duration = Math.ceil((now - lastLogTime) / 1000);
-                                      setCurrentQDuration(duration);
-                                      setShowTagger(true);
-                                  }} className="h-14 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 transition-all active:scale-95 flex-1 md:flex-initial">
-                                      <Plus size={20} strokeWidth={3} />
-                                      <span>Log Q</span>
-                                  </button>
-                               )}
                                <button onClick={onToggleTimer} className="h-14 w-14 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-all flex items-center justify-center">
                                    {isActive ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
                                </button>
@@ -856,10 +851,10 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                               {mode === 'focus' ? (
                                   <>
                                     <div className="hidden md:block w-px h-24 bg-slate-200 dark:bg-white/5" />
-                                    <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="flex-1 w-full flex flex-col gap-4 justify-center">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Subject</label>
-                                            <div className="flex flex-wrap gap-1.5">
+                                            <div className="flex flex-wrap gap-1.5 justify-center md:justify-start">
                                                 {subjectKeys.map(sub => (
                                                     <button
                                                         key={sub}
@@ -874,20 +869,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                                     </button>
                                                 ))}
                                             </div>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Activity</label>
-                                            <button 
-                                                onClick={() => setSessionIntent(prev => prev === 'questions' ? 'theory' : 'questions')}
-                                                className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-200 dark:hover:bg-white/10 transition-all border border-transparent hover:border-slate-300 dark:hover:border-white/20"
-                                            >
-                                                <span className="flex items-center gap-2">
-                                                    {sessionIntent === 'questions' ? <PenTool size={16} /> : <BookOpen size={16} />}
-                                                    {sessionIntent === 'questions' ? 'Solving Problems' : 'Reading Theory'}
-                                                </span>
-                                                <RotateCcw size={14} className="text-slate-400" />
-                                            </button>
                                         </div>
                                     </div>
                                   </>
@@ -952,21 +933,15 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                       </h3>
                   </div>
                   <div className="flex items-center gap-8">
-                      <DonutChart 
-                          data={[
-                              { label: 'Physics', value: analyticsData.subjectDist.Physics, color: '#3b82f6' },
-                              { label: 'Chemistry', value: analyticsData.subjectDist.Chemistry, color: '#f97316' },
-                              { label: 'Maths', value: analyticsData.subjectDist.Maths, color: '#f43f5e' }
-                          ]} 
-                      />
+                      <DonutChart data={donutData} />
                       <div className="space-y-3 flex-1">
-                          {Object.entries(analyticsData.subjectDist).map(([subj, val]) => (
-                              <div key={subj} className="flex justify-between items-center text-xs">
+                          {donutData.map((item) => (
+                              <div key={item.label} className="flex justify-between items-center text-xs">
                                   <div className="flex items-center gap-2">
-                                      <div className={`w-2 h-2 rounded-full ${subj === 'Physics' ? 'bg-blue-500' : subj === 'Chemistry' ? 'bg-orange-500' : 'bg-rose-500'}`} />
-                                      <span className="font-bold text-slate-700 dark:text-slate-300">{subj}</span>
+                                      <div className={`w-2 h-2 rounded-full`} style={{backgroundColor: item.color}} />
+                                      <span className="font-bold text-slate-700 dark:text-slate-300">{item.label}</span>
                                   </div>
-                                  <span className="font-mono text-slate-500">{formatDuration(val)}</span>
+                                  <span className="font-mono text-slate-500">{formatDuration(item.value)}</span>
                               </div>
                           ))}
                       </div>
@@ -1039,21 +1014,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
               </div>
               <Heatmap sessions={sessions} range={timeRange} />
           </div>
-
-          {/* Tagger Modal (for +1 button) */}
-          {showTagger && (
-              <div className="fixed inset-0 z-[210] bg-black/60 backdrop-blur-sm flex items-end justify-center pb-24 md:pb-32" onClick={() => setShowTagger(false)}>
-                  <div className="bg-[#0f172a] border border-white/10 p-6 rounded-3xl w-[90%] max-w-md animate-in slide-in-from-bottom-10 duration-200" onClick={e => e.stopPropagation()}>
-                      <h3 className="text-white font-bold mb-4">Log Result</h3>
-                      <div className="grid grid-cols-2 gap-3">
-                          <button onClick={() => { onAddLog({ timestamp: Date.now(), duration: currentQDuration, result: 'correct', subject: selectedSubject }, selectedSubject); setShowTagger(false); }} className="col-span-2 py-4 bg-emerald-600 rounded-xl text-white font-bold uppercase tracking-wider hover:bg-emerald-500 transition-colors">Correct</button>
-                          {MISTAKE_TYPES.slice(0,4).map(m => (
-                              <button key={m.id} onClick={() => { onAddLog({ timestamp: Date.now(), duration: currentQDuration, result: m.id as any, subject: selectedSubject }, selectedSubject); setShowTagger(false); }} className="py-3 bg-white/5 border border-white/5 hover:bg-white/10 rounded-xl text-slate-300 text-xs font-bold uppercase transition-colors">{m.label}</button>
-                          ))}
-                      </div>
-                  </div>
-              </div>
-          )}
 
           {/* Confirmation Modal */}
           <ConfirmationModal
