@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
-import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, ShieldCheck, Dna } from 'lucide-react';
+import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, ShieldCheck, Dna, Clock, Timer } from 'lucide-react';
 import { Session, Target, MistakeCounts, SyllabusData } from '../types';
 import { Card } from './Card';
 import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
@@ -18,6 +18,11 @@ const getLocalDate = (d = new Date()) => {
 // Helper to convert timestamp to local YYYY-MM-DD
 const getLocalDateFromTimestamp = (ts: number) => {
     return getLocalDate(new Date(ts));
+};
+
+const formatDurationSimple = (seconds: number) => {
+    const m = Math.round(seconds / 60);
+    return `${m}m`;
 };
 
 interface DashboardProps {
@@ -270,7 +275,7 @@ const SubjectPod = memo(({
   );
 });
 
-// SubjectDetailModal Component
+// SubjectDetailModal Component (Unchanged)
 const SubjectDetailModal = memo(({ 
   subject, 
   sessions, 
@@ -818,21 +823,36 @@ export const Dashboard = memo(({
                       <p className="text-xs uppercase font-bold tracking-widest text-slate-500 dark:text-white">No activity yet</p>
                     </div>
                   ) : (
-                    todaysSessions.slice(0, 5).map((s, idx) => (
+                    todaysSessions.slice(0, 5).map((s, idx) => {
+                      const isFocusSession = s.topic === 'Focus Session' || (s.duration && s.attempted === 0);
+                      return (
                       <div key={s.id} className="bg-white/70 dark:bg-slate-900/60 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex justify-between items-center group hover:bg-white dark:hover:bg-white/5 transition-colors active:scale-95">
                         <div className="flex items-center gap-4 overflow-hidden">
-                          <div className={`w-2.5 h-2.5 rounded-full shadow-[0_0_8px_currentColor] shrink-0 ${s.subject === 'Physics' ? 'text-blue-500 bg-blue-500 dark:text-blue-400 dark:bg-blue-400' : s.subject === 'Chemistry' ? 'text-orange-500 bg-orange-500 dark:text-orange-400 dark:bg-orange-400' : 'text-rose-500 bg-rose-500 dark:text-rose-400 dark:bg-rose-400'}`} />
+                          <div className={`flex items-center justify-center w-8 h-8 rounded-full shadow-[0_0_8px_currentColor] shrink-0 ${isFocusSession ? 'text-indigo-500 bg-indigo-100 dark:bg-indigo-500/20' : s.subject === 'Physics' ? 'text-blue-500 bg-blue-100 dark:bg-blue-500/20' : s.subject === 'Chemistry' ? 'text-orange-500 bg-orange-100 dark:bg-orange-500/20' : 'text-rose-500 bg-rose-100 dark:bg-rose-500/20'}`}>
+                             {isFocusSession ? <Timer size={14} /> : <div className="w-2.5 h-2.5 rounded-full bg-current" />}
+                          </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{s.topic}</p>
-                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">{s.attempted} Qs</p>
+                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{isFocusSession ? 'Focus Session' : s.topic}</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">
+                                {isFocusSession ? (s.duration ? formatDurationSimple(s.duration) : '0m') : `${s.attempted} Qs`}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4 shrink-0">
-                          <span className="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-300">{s.attempted > 0 ? Math.round((s.correct / s.attempted) * 100) : 0}%</span>
+                          {isFocusSession ? (
+                              <div className="flex items-center gap-1 text-indigo-500 dark:text-indigo-400 opacity-80">
+                                  <Clock size={12} />
+                                  <span className="text-[10px] font-bold uppercase tracking-wider">{s.duration ? formatDurationSimple(s.duration) : '0m'}</span>
+                              </div>
+                          ) : (
+                              <span className="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-300">
+                                  {s.attempted > 0 ? Math.round((s.correct / s.attempted) * 100) : 0}%
+                              </span>
+                          )}
                           <button onClick={() => onDelete(s.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 hover:bg-rose-500/10 p-2 rounded-lg transition-all"><Trash2 size={14} /></button>
                         </div>
                       </div>
-                    ))
+                    )})
                   )}
                 </div>
              </div>

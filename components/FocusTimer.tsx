@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, memo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -34,11 +35,10 @@ import {
   Brain,
   Armchair,
   X,
-  Dna
+  Dna,
+  AlertCircle
 } from 'lucide-react';
-import { MISTAKE_TYPES } from '../constants';
-import { Target as TargetType, QuestionLog, Session, SyllabusData } from '../types';
-import { logAnalyticsEvent } from '../firebase';
+import { Target as TargetType, Session, SyllabusData } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 
 // --- Types & Interfaces ---
@@ -50,17 +50,17 @@ interface FocusTimerProps {
   timeLeft: number;
   timerState: 'idle' | 'running' | 'paused'; 
   durations: { focus: number; short: number; long: number };
-  sessionLogs: QuestionLog[];
   lastLogTime: number;
   onToggleTimer: () => void;
   onResetTimer: () => void;
   onSwitchMode: (mode: 'focus' | 'short' | 'long') => void;
   onUpdateDurations: (newDuration: number, mode: 'focus' | 'short' | 'long') => void;
-  onAddLog: (log: QuestionLog, subject: string) => void;
-  onCompleteSession: () => void;
+  onCompleteSession: (elapsedTime?: number) => void;
   sessionCount: number;
   userName: string;
   syllabus: SyllabusData;
+  selectedSubject: string;
+  onSelectSubject: (subject: string) => void;
 }
 
 type TimeRange = 'weekly' | 'monthly' | 'yearly';
@@ -257,10 +257,11 @@ const Heatmap = ({ sessions, range }: { sessions: Session[], range: TimeRange })
         const duration = daysSessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 60; // in minutes
         
         let level = 0;
-        if (duration > 0) level = 1;
-        if (duration >= 30) level = 2;
-        if (duration >= 60) level = 3;
-        if (duration >= 120) level = 4;
+        // Updated Thresholds: 1h, 3h, 5h, 6h+
+        if (duration > 0) level = 1;   // > 0 min (Lightest)
+        if (duration >= 180) level = 2; // >= 3 hours
+        if (duration >= 300) level = 3; // >= 5 hours
+        if (duration >= 360) level = 4; // >= 6 hours (Darkest)
 
         return { level, duration, count: daysSessions.length };
     };
@@ -268,12 +269,17 @@ const Heatmap = ({ sessions, range }: { sessions: Session[], range: TimeRange })
     const getTileStyle = (level: number, isCurrentMonth: boolean) => {
         const baseOpacity = isCurrentMonth ? 'opacity-100' : 'opacity-30 grayscale';
         
+        // Updated Color Scale: Lightest Green -> Dark Green
         switch(level) {
             case 0: return `bg-slate-800/40 border-slate-800 ${baseOpacity}`;
-            case 1: return `bg-emerald-900/60 border-emerald-800/50 ${baseOpacity}`;
-            case 2: return `bg-emerald-700/80 border-emerald-600/50 ${baseOpacity}`;
-            case 3: return `bg-emerald-500 border-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.4)] ${baseOpacity}`;
-            case 4: return `bg-emerald-400 border-emerald-300/50 shadow-[0_0_20px_rgba(52,211,153,0.6)] ${baseOpacity}`;
+            // 1h: Lightest Green (Pale/Bright)
+            case 1: return `bg-emerald-300/40 border-emerald-300/30 text-emerald-100 ${baseOpacity}`;
+            // 3h: Medium Green
+            case 2: return `bg-emerald-500/60 border-emerald-500/40 ${baseOpacity}`;
+            // 5h: Rich Green
+            case 3: return `bg-emerald-600 border-emerald-600/50 shadow-[0_0_12px_rgba(5,150,105,0.4)] ${baseOpacity}`;
+            // 6h+: Darkest Green (Deep Saturated)
+            case 4: return `bg-emerald-700 border-emerald-600 shadow-[0_0_15px_rgba(4,120,87,0.6)] ${baseOpacity}`;
             default: return `bg-slate-800/40 border-slate-800 ${baseOpacity}`;
         }
     };
@@ -305,8 +311,8 @@ const Heatmap = ({ sessions, range }: { sessions: Session[], range: TimeRange })
                     
                     const tileColorClass = getTileStyle(stats.level, isCurrentMonth);
                     
-                    // Text Color: Darker for bright tiles, lighter for dark tiles
-                    const textColor = stats.level >= 3 ? 'text-slate-900/90' : 'text-white/50';
+                    // Text Color: Make sure text is visible on darker tiles
+                    const textColor = stats.level >= 3 ? 'text-white' : 'text-slate-400';
 
                     return (
                         <div 
@@ -464,7 +470,6 @@ const TimerSettingsModal = ({
                                 min="1" 
                                 max={mode === 'focus' ? 180 : 60} 
                                 value={durations[mode]} 
-                                // FIX: Add a NaN check to the parseInt call to ensure a valid number is passed to onUpdate.
                                 onChange={(e) => {
                                     const val = parseInt(e.target.value, 10);
                                     if (!isNaN(val)) {
@@ -507,17 +512,16 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     durations,
     onResetTimer,
     onCompleteSession,
-    lastLogTime,
     onSwitchMode,
     onUpdateDurations,
-    userName,
-    syllabus
+    syllabus,
+    selectedSubject,
+    onSelectSubject
   } = props;
 
   const subjectKeys = useMemo(() => Object.keys(syllabus), [syllabus]);
   
   const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
-  const [selectedSubject, setSelectedSubject] = useState<string>(subjectKeys[0] || '');
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [isEditingTime, setIsEditingTime] = useState(false);
   const [customTimeInput, setCustomTimeInput] = useState(durations.focus.toString());
@@ -529,9 +533,9 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
   useEffect(() => {
       // Ensure selected subject is valid
       if (!subjectKeys.includes(selectedSubject) && subjectKeys.length > 0) {
-          setSelectedSubject(subjectKeys[0]);
+          onSelectSubject(subjectKeys[0]);
       }
-  }, [subjectKeys, selectedSubject]);
+  }, [subjectKeys, selectedSubject, onSelectSubject]);
 
   // Clock state for the header
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -555,8 +559,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
               subjectDist[s.subject] += (s.duration ? s.duration / 60 : 0);
           }
       });
-      
-      const reviews = filtered.reduce((acc, s) => acc + (s.attempted || 0), 0);
       
       // Calculate Subject Balance Insight
       let balanceMessage = "No data recorded for this period yet.";
@@ -666,12 +668,6 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
   }, [analyticsData.subjectDist, subjectColorMap]);
 
   // --- HANDLERS ---
-  const adjustDuration = (deltaMinutes: number) => {
-      const current = durations[mode];
-      const next = Math.max(1, Math.min(1440, current + deltaMinutes)); // Cap at 24h
-      onUpdateDurations(next, mode);
-  };
-
   const handleTimeBlur = () => {
       setIsEditingTime(false);
       let val = parseInt(customTimeInput);
@@ -686,7 +682,9 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
   };
 
   const handleConfirmStop = () => {
-      onCompleteSession();
+      const totalSeconds = durations[mode] * 60;
+      const elapsed = totalSeconds - timeLeft;
+      onCompleteSession(elapsed); 
       setShowStopConfirm(false);
   };
 
@@ -739,7 +737,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
               </div>
           </div>
 
-          {/* --- NEW COMPACT TIMER HERO --- */}
+          {/* --- COMPACT TIMER HERO --- */}
           <div className="w-full bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-white/10 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden group">
               {/* Background Glow */}
               <div className={`absolute top-0 right-0 w-[300px] h-[300px] rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none transition-all duration-1000 ${isActive ? 'opacity-100' : 'opacity-50'} bg-${themeColor}-500/10`} />
@@ -747,30 +745,30 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
               <div className="relative z-10">
                   {isSessionInProgress ? (
                       // ACTIVE VIEW
-                      <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                          <div className="flex-1 text-center md:text-left">
-                              <div className={`inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 border ${isActive ? `bg-${themeColor}-500/10 text-${themeColor}-500 border-${themeColor}-500/20` : `bg-slate-500/10 text-slate-500 border-slate-500/20`}`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${isActive ? `bg-${themeColor}-500 animate-pulse` : `bg-slate-500`}`} />
-                                  {isActive ? 'Active' : 'Paused'}
+                      <div className="flex flex-col items-center justify-center gap-8 py-8">
+                          <div className="text-center">
+                              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 border ${isActive ? `bg-${themeColor}-500/10 text-${themeColor}-500 border-${themeColor}-500/20` : `bg-slate-500/10 text-slate-500 border-slate-500/20`}`}>
+                                  <span className={`w-2 h-2 rounded-full ${isActive ? `bg-${themeColor}-500 animate-pulse` : `bg-slate-500`}`} />
+                                  {isActive ? 'Focusing' : 'Paused'}
                               </div>
-                              <div className="text-6xl md:text-8xl font-display font-bold text-slate-900 dark:text-white leading-none tracking-tighter tabular-nums">
+                              <div className="text-7xl md:text-9xl font-display font-bold text-slate-900 dark:text-white leading-none tracking-tighter tabular-nums mb-2">
                                   {formatDigitalTime(timeLeft)}
                               </div>
-                              <p className="text-slate-500 dark:text-slate-400 font-medium mt-1 text-sm">
+                              <p className="text-slate-500 dark:text-slate-400 font-medium text-base">
                                   {mode === 'focus' ? (
-                                      <>Focusing on <span className="text-indigo-500 font-bold">{selectedSubject}</span></>
+                                      <>On <span className={`font-bold text-${themeColor}-500`}>{selectedSubject}</span></>
                                   ) : (
-                                      <span className="text-slate-400">Rest & Recharge</span>
+                                      <span className="text-slate-400">Break Time</span>
                                   )}
                               </p>
                           </div>
 
-                          <div className="flex items-center gap-3 w-full md:w-auto">
-                               <button onClick={onToggleTimer} className="h-14 w-14 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-all flex items-center justify-center">
-                                   {isActive ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+                          <div className="flex items-center gap-4">
+                               <button onClick={onToggleTimer} className="h-20 w-20 rounded-2xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-all flex items-center justify-center shadow-lg active:scale-95">
+                                   {isActive ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                                </button>
-                               <button onClick={handleStopClick} className="h-14 w-14 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-rose-500/20">
-                                   <Square size={20} fill="currentColor" />
+                               <button onClick={handleStopClick} className="h-20 w-20 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-rose-500/20 shadow-lg active:scale-95">
+                                   <Square size={32} fill="currentColor" />
                                </button>
                           </div>
                       </div>
@@ -858,7 +856,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                                 {subjectKeys.map(sub => (
                                                     <button
                                                         key={sub}
-                                                        onClick={() => setSelectedSubject(sub)}
+                                                        onClick={() => onSelectSubject(sub)}
                                                         className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
                                                             selectedSubject === sub 
                                                             ? 'border-indigo-500 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400' 
@@ -1001,15 +999,23 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                           </span>
                       </div>
                   </div>
-                  <div className="flex gap-1 text-[9px] font-bold uppercase text-slate-500 items-center">
-                      <span>Less</span>
-                      <div className="flex gap-1 mx-2">
-                          <div className="w-2 h-2 rounded-sm bg-slate-800/40 border border-slate-800" />
-                          <div className="w-2 h-2 rounded-sm bg-emerald-900/60 border border-emerald-800/50" />
-                          <div className="w-2 h-2 rounded-sm bg-emerald-700/80 border border-emerald-600/50" />
-                          <div className="w-2 h-2 rounded-sm bg-emerald-500 border border-emerald-400/50" />
+                  <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-300/40 border border-emerald-300/30" />
+                          <span className="text-[9px] font-bold text-slate-500 uppercase">1h</span>
                       </div>
-                      <span>More</span>
+                      <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500/60 border border-emerald-500/40" />
+                          <span className="text-[9px] font-bold text-slate-500 uppercase">3h</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-600 border border-emerald-600/50 shadow-[0_0_8px_rgba(5,150,105,0.4)]" />
+                          <span className="text-[9px] font-bold text-slate-500 uppercase">5h</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-700 border border-emerald-600 shadow-[0_0_15px_rgba(4,120,87,0.6)]" />
+                          <span className="text-[9px] font-bold text-slate-500 uppercase">6h+</span>
+                      </div>
                   </div>
               </div>
               <Heatmap sessions={sessions} range={timeRange} />

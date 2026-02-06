@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus, Search, ArrowDownWideNarrow, ArrowUpNarrowWide, Hammer } from 'lucide-react';
+import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus, Search, ArrowDownWideNarrow, ArrowUpNarrowWide, Hammer, Save } from 'lucide-react';
 import { TestResult, Target as TargetType, SubjectBreakdown, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES, JEE_SYLLABUS } from '../constants';
@@ -874,6 +874,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* ... Basic Inputs ... */}
               <div className="space-y-2">
                 <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Test Name</label>
                 <input 
@@ -1219,5 +1220,204 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
             </div>
 
             {/* File Upload Section */}
-            <div className="space-y-2">
-               <label className="text-[1
+             <div className="space-y-2">
+               <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Attachment (Paper / Solution)</label>
+               {previewFile ? (
+                 <div className="relative group rounded-xl overflow-hidden border border-slate-700">
+                   {previewFile.type === 'image' ? (
+                     <img src={previewFile.thumbnail} alt="Preview" className="w-full h-48 object-cover" />
+                   ) : (
+                     <div className="flex items-center justify-center h-24 bg-slate-800 text-slate-400 gap-2">
+                       <FileText size={24} />
+                       <span className="text-sm font-bold">{previewFile.name}</span>
+                     </div>
+                   )}
+                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                     <button type="button" onClick={removeAttachment} className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-rose-500 transition-colors">
+                       <Trash2 size={16} /> Remove
+                     </button>
+                   </div>
+                 </div>
+               ) : (
+                 <div
+                   onClick={() => fileInputRef.current?.click()}
+                   className="border-2 border-dashed border-slate-700 rounded-xl p-8 flex flex-col items-center justify-center text-slate-500 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all cursor-pointer group"
+                 >
+                   <UploadCloud size={32} className="mb-2 group-hover:scale-110 transition-transform" />
+                   <p className="text-xs font-bold uppercase tracking-wider">Click to Upload</p>
+                   <p className="text-[10px] opacity-60 mt-1">Image or PDF (Max 4MB)</p>
+                 </div>
+               )}
+               <input
+                 type="file"
+                 ref={fileInputRef}
+                 className="hidden"
+                 accept="image/*,application/pdf"
+                 onChange={handleFileChange}
+               />
+             </div>
+
+             {/* Submit Button */}
+             <div className="flex gap-4 pt-4 border-t border-slate-800">
+               <button
+                 type="button"
+                 onClick={() => setIsAdding(false)}
+                 className="flex-1 py-4 rounded-xl bg-slate-800 text-slate-400 font-bold uppercase text-xs tracking-wider hover:bg-slate-700 hover:text-white transition-all"
+               >
+                 Cancel
+               </button>
+               <button
+                 type="submit"
+                 disabled={isProcessingAttachment || isProcessingThumbnail}
+                 className="flex-[2] py-4 rounded-xl bg-indigo-600 text-white font-bold uppercase text-xs tracking-wider hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+               >
+                 {(isProcessingAttachment || isProcessingThumbnail) ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                 Save Test Log
+               </button>
+             </div>
+          </form>
+        </Card>
+      )}
+
+      {/* List of Tests */}
+      <div className="space-y-4">
+        {processedTests.map((test) => (
+          <div key={test.id} className="group relative bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-white/5 hover:border-indigo-400 dark:hover:border-indigo-500/50 p-5 rounded-2xl transition-all hover:shadow-lg active:scale-[0.99] flex flex-col md:flex-row items-start md:items-center gap-4">
+            {/* Score Circle */}
+            <div className="relative shrink-0">
+               <svg className="w-16 h-16 transform -rotate-90">
+                  <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-200 dark:text-slate-800" />
+                  <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={175} strokeDashoffset={175 - (175 * (safeDiv(test.marks, test.total || 300)))} className="text-indigo-500 transition-all duration-1000" />
+               </svg>
+               <div className="absolute inset-0 flex items-center justify-center flex-col">
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">{Math.round(safeDiv(test.marks, test.total || 300) * 100)}%</span>
+               </div>
+            </div>
+
+            <div className="flex-1 min-w-0">
+               <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{test.name}</h3>
+                  {test.attachment && (
+                      <button 
+                        onClick={() => setViewingAttachment(test)}
+                        className="p-1 rounded bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 transition-colors"
+                        title="View Attachment"
+                      >
+                          {test.attachmentType === 'pdf' ? <FileText size={12} /> : <ImageIcon size={12} />}
+                      </button>
+                  )}
+               </div>
+               <div className="flex flex-wrap gap-y-1 gap-x-3 text-[10px] uppercase font-bold text-slate-500">
+                  <span className="flex items-center gap-1"><Calendar size={12} /> {test.date}</span>
+                  <span className="flex items-center gap-1"><Trophy size={12} /> {test.marks}/{test.total}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300">{getTestSubtitle(test)}</span>
+               </div>
+            </div>
+
+            {/* Quick Stats (Mini Bar) */}
+            <div className="flex gap-1 h-12 items-end w-full md:w-32 shrink-0">
+                {/* Physics */}
+                <div className="flex-1 bg-slate-200 dark:bg-white/5 rounded-t-sm relative group/bar h-full">
+                    <div 
+                        className="absolute bottom-0 w-full bg-blue-500 rounded-t-sm transition-all" 
+                        style={{ height: `${Math.min(100, (safeDiv(test.breakdown?.Physics.correct || 0, (test.breakdown?.Physics.correct || 0) + (test.breakdown?.Physics.incorrect || 0) + (test.breakdown?.Physics.unattempted || 0))) * 100)}%` }} 
+                    />
+                </div>
+                {/* Chemistry */}
+                <div className="flex-1 bg-slate-200 dark:bg-white/5 rounded-t-sm relative group/bar h-full">
+                    <div 
+                        className="absolute bottom-0 w-full bg-orange-500 rounded-t-sm transition-all" 
+                        style={{ height: `${Math.min(100, (safeDiv(test.breakdown?.Chemistry.correct || 0, (test.breakdown?.Chemistry.correct || 0) + (test.breakdown?.Chemistry.incorrect || 0) + (test.breakdown?.Chemistry.unattempted || 0))) * 100)}%` }} 
+                    />
+                </div>
+                {/* Maths */}
+                <div className="flex-1 bg-slate-200 dark:bg-white/5 rounded-t-sm relative group/bar h-full">
+                    <div 
+                        className="absolute bottom-0 w-full bg-rose-500 rounded-t-sm transition-all" 
+                        style={{ height: `${Math.min(100, (safeDiv(test.breakdown?.Maths.correct || 0, (test.breakdown?.Maths.correct || 0) + (test.breakdown?.Maths.incorrect || 0) + (test.breakdown?.Maths.unattempted || 0))) * 100)}%` }} 
+                    />
+                </div>
+            </div>
+
+            <button 
+                onClick={() => setDeletingTestId(test.id)}
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+            >
+                <Trash2 size={16} />
+            </button>
+          </div>
+        ))}
+
+        {processedTests.length === 0 && (
+            <div className="text-center py-12 opacity-40 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-3xl">
+                <FileText size={48} className="mx-auto mb-4 text-slate-400" />
+                <p className="text-sm font-bold uppercase tracking-widest text-slate-500">No tests found</p>
+            </div>
+        )}
+      </div>
+
+      <ConfirmationModal
+          isOpen={!!deletingTestId}
+          onClose={() => setDeletingTestId(null)}
+          onConfirm={handleConfirmDelete}
+          title="Delete Test?"
+          message="This action cannot be undone. All data for this test will be lost."
+      />
+
+      {/* Attachment Viewer */}
+      {viewingAttachment && createPortal(
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
+              <div className="w-full max-w-5xl h-[90vh] bg-slate-900 rounded-2xl overflow-hidden flex flex-col border border-white/10 shadow-2xl relative">
+                  <div className="absolute top-4 right-4 z-50 flex gap-2">
+                      <a 
+                        href={viewingAttachment.attachment!} 
+                        download={viewingAttachment.fileName || "test-attachment"}
+                        className="p-2 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors"
+                      >
+                          <Download size={20} />
+                      </a>
+                      <button 
+                        onClick={() => setViewingAttachment(null)}
+                        className="p-2 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors"
+                      >
+                          <X size={20} />
+                      </button>
+                  </div>
+                  
+                  <div className="flex-1 flex items-center justify-center p-4 bg-black/20">
+                      {viewingAttachment.attachmentType === 'image' ? (
+                          <img 
+                            src={viewingAttachment.attachment!} 
+                            alt="Attachment" 
+                            className="max-w-full max-h-full object-contain rounded shadow-lg" 
+                          />
+                      ) : (
+                          <div className="w-full h-full bg-white rounded-lg shadow-lg overflow-hidden">
+                              {pdfBlobUrl ? (
+                                  <iframe 
+                                      src={pdfBlobUrl} 
+                                      className="w-full h-full border-0" 
+                                      title="PDF Viewer"
+                                  />
+                              ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                                      <Loader2 size={32} className="animate-spin mb-2" />
+                                      <p className="text-xs uppercase font-bold">Loading PDF...</p>
+                                  </div>
+                              )}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>,
+          document.body
+      )}
+      
+      <AdUnit 
+          client="ca-pub-YOUR_PUBLISHER_ID_HERE" 
+          slot="1234567890" 
+          label="Sponsored"
+      />
+    </div>
+  );
+});

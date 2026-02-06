@@ -430,7 +430,7 @@ const TOUR_STEPS: TutorialStep[] = [
     view: 'focus', 
     targetId: 'timer-container', 
     title: 'Active Recall Timer', 
-    description: 'The heart of Trackly. Select a goal, and use the "+1 Solved" button to log questions and tag errors immediately.', 
+    description: 'The heart of Trackly. Select a goal and start a focused session.', 
     icon: Timer 
   },
   { 
@@ -456,6 +456,7 @@ const TOUR_STEPS: TutorialStep[] = [
   }
 ];
 
+// ... Sidebar Component (Unchanged) ...
 const Sidebar = React.memo(({ 
     view, 
     setView, 
@@ -600,7 +601,7 @@ const Sidebar = React.memo(({
   );
 });
 
-// Optimized slide variants
+// ... Slide Variants and OverdueTasksModal (Unchanged) ...
 const slideVariants = {
   enter: (direction: number) => ({
     x: direction > 0 ? 30 : -30,
@@ -780,9 +781,7 @@ export const App: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   // NEW TIMER STATE
   const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
-  const [sessionLogs, setSessionLogs] = useState<QuestionLog[]>([]);
   const [lastLogTime, setLastLogTime] = useState<number>(Date.now()); 
-  const [todayStats, setTodayStats] = useState({ Physics: 0, Chemistry: 0, Maths: 0 });
   const timerRef = useRef<any>(null);
   const endTimeRef = useRef<number>(0);
   const { isLagging, dismiss: dismissLag } = usePerformanceMonitor(graphicsEnabled && lagDetectionEnabled);
@@ -1069,61 +1068,28 @@ export const App: React.FC = () => {
     }
   }, [user]);
 
+  const handleTimerReset = useCallback(() => {
+      setTimerState('idle');
+      setTimeLeft(timerDurations[timerMode] * 60);
+  }, [timerMode, timerDurations]);
+
   const handleCompleteSession = useCallback((elapsedTime?: number) => {
-      // Logic: If user logged questions (sessionLogs > 0), use that data.
-      // If user didn't log questions but time elapsed > 1 minute, create a "time-only" session.
+      // Default to timer duration if elapsed not provided
+      const effectiveDuration = elapsedTime !== undefined ? elapsedTime : (timerDurations[timerMode] * 60);
       
-      if (sessionLogs.length === 0) {
-          // Check if time-only session applies
-          const effectiveDuration = elapsedTime || 0;
-          if (effectiveDuration > 60) { // Minimum 1 minute
-             handleSaveSession({
-                 subject: selectedSubject,
-                 topic: 'Focus Session', 
-                 attempted: 0,
-                 correct: 0,
-                 mistakes: {},
-                 duration: effectiveDuration
-             });
-          }
-          handleTimerReset();
-          return;
+      // Only save significant sessions (> 1 min) to avoid accidental starts/stops cluttering history
+      if (effectiveDuration > 60) {
+         handleSaveSession({
+             subject: selectedSubject,
+             topic: 'Focus Session', 
+             attempted: 0,
+             correct: 0,
+             mistakes: {},
+             duration: effectiveDuration
+         });
       }
-
-      const subjectGroups: Record<string, QuestionLog[]> = {};
-      sessionLogs.forEach(log => {
-          if (!subjectGroups[log.subject]) subjectGroups[log.subject] = [];
-          subjectGroups[log.subject].push(log);
-      });
-
-      Object.entries(subjectGroups).forEach(([subject, logs]) => {
-          const attempted = logs.length;
-          const correct = logs.filter(l => l.result === 'correct').length;
-          const mistakes: MistakeCounts = {};
-          
-          logs.forEach(l => {
-              if (l.result !== 'correct') {
-                  mistakes[l.result] = (mistakes[l.result] || 0) + 1;
-              }
-          });
-
-          // Calculate duration for this subject based on logs
-          // Note: This sums individual question times. 
-          const totalDuration = logs.reduce((acc, log) => acc + (log.duration || 0), 0);
-
-          handleSaveSession({
-              subject,
-              topic: 'Focus Session', 
-              attempted,
-              correct,
-              mistakes,
-              duration: totalDuration
-          });
-      });
-
-      setSessionLogs([]);
       handleTimerReset();
-  }, [sessionLogs, handleSaveSession, selectedSubject, timerMode, timeLeft, timerDurations]);
+  }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset]);
 
   // Persistent Timer Logic
   useEffect(() => {
@@ -1159,12 +1125,6 @@ export const App: React.FC = () => {
       }
   }, [timerState, timeLeft]);
 
-  const handleTimerReset = useCallback(() => {
-      setTimerState('idle');
-      setTimeLeft(timerDurations[timerMode] * 60);
-      setSessionLogs([]); 
-  }, [timerMode, timerDurations]);
-
   const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => {
       setTimerMode(mode);
       setTimerState('idle');
@@ -1178,12 +1138,6 @@ export const App: React.FC = () => {
           setTimeLeft(newDuration * 60);
       }
   }, [timerMode, timerState]);
-
-  const handleAddLog = useCallback((log: QuestionLog, subject: string) => {
-      setSessionLogs(prev => [log, ...prev]);
-      setTodayStats(prev => ({ ...prev, [subject]: (prev as any)[subject] + 1 }));
-      setLastLogTime(Date.now());
-  }, []);
 
   // Check Installation Status
   useEffect(() => {
@@ -1752,16 +1706,16 @@ export const App: React.FC = () => {
                                             timeLeft={timeLeft}
                                             durations={timerDurations}
                                             onResetTimer={handleTimerReset}
-                                            onCompleteSession={() => handleCompleteSession(timerDurations[timerMode] * 60)}
+                                            onCompleteSession={handleCompleteSession}
                                             lastLogTime={lastLogTime}
-                                            sessionLogs={sessionLogs}
-                                            onAddLog={handleAddLog}
                                             onSwitchMode={handleModeSwitch}
                                             onUpdateDurations={handleDurationUpdate}
                                             userName={userName || 'Guest'}
                                             syllabus={currentSyllabus}
                                             sessionCount={sessions.length}
                                             targets={targets}
+                                            selectedSubject={selectedSubject}
+                                            onSelectSubject={setSelectedSubject}
                                         />
                                     </MotionDiv>
                                 </Suspense>
@@ -1804,8 +1758,6 @@ export const App: React.FC = () => {
                                             targets={targets}
                                             onSave={handleSaveTest}
                                             onDelete={handleDeleteTest}
-                                            isPro={isPro}
-                                            onOpenUpgrade={() => setShowUpgradeModal(true)}
                                             subjects={currentSubjects}
                                             syllabus={currentSyllabus}
                                         />
