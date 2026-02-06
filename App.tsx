@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -34,7 +35,7 @@ import {
   X
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder } from './types';
-import { QUOTES, THEME_CONFIG } from './constants';
+import { QUOTES, THEME_CONFIG, JEE_SYLLABUS } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
 import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
@@ -46,6 +47,7 @@ import { getProStatus, PAYWALL_CONFIG } from './components/proController';
 import { GoogleIcon } from './components/GoogleIcon';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { Card } from './components/Card';
+import { BuyMeCoffee } from './components/BuyMeCoffee';
 
 // Firebase Imports
 import { auth, db, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
@@ -58,8 +60,6 @@ const FocusTimer = lazy(() => import('./components/FocusTimer').then(module => (
 const Planner = lazy(() => import('./components/Planner').then(module => ({ default: module.Planner })));
 const TestLog = lazy(() => import('./components/TestLog').then(module => ({ default: module.TestLog })));
 const Analytics = lazy(() => import('./components/Analytics').then(module => ({ default: module.Analytics })));
-const Resources = lazy(() => import('./components/Resources').then(module => ({ default: module.Resources })));
-const Library = lazy(() => import('./components/Library').then(module => ({ default: module.Library })));
 const VirtualLibrary = lazy(() => import('./components/VirtualLibrary').then(module => ({ default: module.VirtualLibrary })));
 
 const MotionDiv = motion.div as any;
@@ -390,36 +390,21 @@ const AnimatedBackground = React.memo(({
                             willChange: 'transform'
                         }}
                     >
-                        {item.shape === 'leaf' && (
-                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
-                                <path d="M12 2C12 2 20 8 20 16C20 20.4 16.4 24 12 24C7.6 24 4 20.4 4 16C4 8 12 2 12 2Z" fill="currentColor" />
-                            </svg>
+                        {item.shape === 'star-point' && <div className="w-1 h-1 bg-white rounded-full shadow-[0_0_8px_2px_rgba(255,255,255,0.8)]" />}
+                        {item.shape === 'shooting-star' && (
+                            <div className="w-20 h-0.5 bg-gradient-to-r from-transparent to-white/80 rounded-full" />
                         )}
-                        {item.shape === 'star-point' && <div className="w-full h-full rounded-full bg-white" />}
-                        {item.shape === 'shooting-star' && <div className="w-[100px] h-[2px] bg-gradient-to-r from-transparent via-indigo-200 to-transparent rotate-[-35deg] opacity-20" />}
-                        {item.shape === 'circle' && <div className="w-full h-full rounded-full bg-current" style={{ opacity: themeId === 'midnight' ? 1 : 0.4 }} />}
-                        {item.shape === 'ring' && <div className="w-full h-full rounded-full border-[3px] border-current opacity-50" />}
-                        {item.shape === 'squircle' && <div className="w-full h-full rounded-[2rem] border-[3px] border-current opacity-40" />}
-                        {item.shape === 'triangle' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full opacity-40"><path d="M12 2L2 22h20L12 2z" /></svg>}
-                        {item.shape === 'grid' && (
-                            <div className="w-full h-full grid grid-cols-3 gap-2 opacity-40 p-1">
-                                {[...Array(9)].map((_, k) => <div key={k} className="bg-current rounded-full w-full h-full" />)}
-                            </div>
-                        )}
+                        {item.shape === 'leaf' && <div className="w-full h-full bg-current rounded-tr-[100%] rounded-bl-[100%]" />}
+                        {item.shape === 'ring' && <div className="w-full h-full border-2 border-current rounded-full" />}
+                        {item.shape === 'squircle' && <div className="w-full h-full border-2 border-current rounded-[30%]" />}
+                        {item.shape === 'circle' && <div className="w-full h-full bg-current rounded-full opacity-50" />}
+                        {item.shape === 'triangle' && <div className="w-0 h-0 border-l-[50%] border-r-[50%] border-b-[100%] border-l-transparent border-r-transparent border-b-current" />}
+                        {item.shape === 'grid' && <div className="w-full h-full border border-current opacity-20" />}
                     </div>
                 </div>
             ))}
         </div>
       )}
-
-      <div 
-        className="absolute inset-0 z-[4] pointer-events-none transition-colors duration-500 transform-gpu"
-        style={{
-            background: config.mode === 'dark' 
-                ? 'radial-gradient(circle at center, transparent 20%, rgba(0, 0, 0, 0.4) 100%)' 
-                : 'radial-gradient(circle at center, transparent 40%, rgba(255,255,255,0.4) 100%)'
-        }}
-      />
     </div>
   );
 });
@@ -468,13 +453,6 @@ const TOUR_STEPS: TutorialStep[] = [
     title: 'Test Gallery', 
     description: 'Log mock tests here. You can attach your question paper (PDF) and upload a custom cover image to create a visual archive.', 
     icon: PenTool 
-  },
-  { 
-    view: 'planner', 
-    targetId: 'library-container', 
-    title: 'Resource Vault', 
-    description: 'Access your Library within the Plan tab. Upload notes and cheatsheets here.', 
-    icon: Book 
   },
   { 
     view: 'analytics', 
@@ -768,7 +746,7 @@ const OverdueTasksModal = ({
 };
 
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   const [view, setView] = useState<ViewType>('daily');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [tests, setTests] = useState<TestResult[]>([]);
@@ -836,7 +814,8 @@ const App: React.FC = () => {
   const [timerMode, setTimerMode] = useState<'focus' | 'short' | 'long'>('focus');
   const [timerDurations, setTimerDurations] = useState({ focus: 25, short: 5, long: 15 });
   const [timeLeft, setTimeLeft] = useState(25 * 60);
-  const [isTimerActive, setIsTimerActive] = useState(false);
+  // NEW TIMER STATE
+  const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
   const [sessionLogs, setSessionLogs] = useState<QuestionLog[]>([]);
   const [lastLogTime, setLastLogTime] = useState<number>(Date.now()); 
   const [todayStats, setTodayStats] = useState({ Physics: 0, Chemistry: 0, Maths: 0 });
@@ -1074,13 +1053,13 @@ const App: React.FC = () => {
 
   // Persistent Timer Logic
   useEffect(() => {
-      if (isTimerActive) {
+      if (timerState === 'running') {
           timerRef.current = setInterval(() => {
               const now = Date.now();
               const diff = Math.ceil((endTimeRef.current - now) / 1000);
               if (diff <= 0) {
                   setTimeLeft(0);
-                  setIsTimerActive(false);
+                  setTimerState('idle'); // Automatically stop when time is up
                   clearInterval(timerRef.current);
                   playTimerEndSound(); 
               } else {
@@ -1089,37 +1068,38 @@ const App: React.FC = () => {
           }, 1000);
       }
       return () => clearInterval(timerRef.current);
-  }, [isTimerActive, playTimerEndSound]);
+  }, [timerState, playTimerEndSound]);
 
   const handleTimerToggle = useCallback(() => {
-      if (!isTimerActive) {
-          setIsTimerActive(true);
+      if (timerState === 'idle' || timerState === 'paused') {
+          setTimerState('running');
           endTimeRef.current = Date.now() + timeLeft * 1000;
           setLastLogTime(Date.now()); 
       } else {
-          setIsTimerActive(false);
+          setTimerState('paused');
           clearInterval(timerRef.current);
       }
-  }, [isTimerActive, timeLeft]);
+  }, [timerState, timeLeft]);
 
   const handleTimerReset = useCallback(() => {
-      setIsTimerActive(false);
+      setTimerState('idle');
       setTimeLeft(timerDurations[timerMode] * 60);
       setSessionLogs([]); 
   }, [timerMode, timerDurations]);
 
   const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => {
       setTimerMode(mode);
-      setIsTimerActive(false);
+      setTimerState('idle');
       setTimeLeft(timerDurations[mode] * 60);
   }, [timerDurations]);
 
   const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus'|'short'|'long') => {
       setTimerDurations(prev => ({ ...prev, [modeKey]: newDuration }));
-      if (timerMode === modeKey && !isTimerActive) {
+      // Only update time left if we are currently idle and in that mode
+      if (timerMode === modeKey && timerState === 'idle') {
           setTimeLeft(newDuration * 60);
       }
-  }, [timerMode, isTimerActive]);
+  }, [timerMode, timerState]);
 
   const handleAddLog = useCallback((log: QuestionLog, subject: string) => {
       setSessionLogs(prev => [log, ...prev]);
@@ -1145,7 +1125,10 @@ const App: React.FC = () => {
   }, [user]);
 
   const handleCompleteSession = useCallback(() => {
-      if (sessionLogs.length === 0) return;
+      if (sessionLogs.length === 0) {
+        handleTimerReset();
+        return;
+      }
 
       const subjectGroups: Record<string, QuestionLog[]> = {};
       sessionLogs.forEach(log => {
@@ -1960,12 +1943,6 @@ const App: React.FC = () => {
                             onAdd={handleSaveTarget}
                             onToggle={handleUpdateTarget}
                             onDelete={handleDeleteTarget}
-                            notes={notes}
-                            folders={folders}
-                            onSaveNote={handleSaveNote}
-                            onDeleteNote={handleDeleteNote}
-                            onSaveFolder={handleSaveFolder}
-                            onDeleteFolder={handleDeleteFolder}
                         />
                     )}
                     {view === 'focus' && (
@@ -1975,7 +1952,7 @@ const App: React.FC = () => {
                                 sessions={sessions}
                                 mode={timerMode}
                                 timeLeft={timeLeft}
-                                isActive={isTimerActive}
+                                timerState={timerState}
                                 durations={timerDurations}
                                 sessionLogs={sessionLogs}
                                 lastLogTime={lastLogTime}
@@ -1988,19 +1965,20 @@ const App: React.FC = () => {
                                 isPro={hasProAccess}
                                 sessionCount={sessions.length}
                                 onOpenUpgrade={() => setShowProModal(true)}
+                                userName={userName || 'User'}
+                                syllabus={JEE_SYLLABUS}
                             />
                         </div>
                     )}
                     {view === 'group-focus' && (
-                        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in fade-in zoom-in duration-300">
-                            <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 rounded-full mb-4">
-                                <Hammer size={32} className="text-indigo-500" />
-                            </div>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Upgrade in Progress</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
-                                The Focus Lounge is being rebuilt with a more reliable and efficient presence system. It'll be back online soon!
-                            </p>
-                        </div>
+                        <VirtualLibrary
+                            user={user}
+                            userName={userName}
+                            onLogin={handleLogin}
+                            isPro={hasProAccess}
+                            targets={targets}
+                            onCompleteTask={(id, completed) => handleUpdateTarget(id, completed)}
+                        />
                     )}
                     {view === 'tests' && (
                         <TestLog 
@@ -2019,20 +1997,6 @@ const App: React.FC = () => {
                             isPro={hasProAccess} 
                             onOpenUpgrade={() => setShowProModal(true)}
                         />
-                    )}
-                    {view === 'resources' && (
-                        <Resources />
-                    )}
-                    {view === 'library' && (
-                        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-in fade-in zoom-in duration-300">
-                            <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 rounded-full mb-4">
-                                <Hammer size={32} className="text-indigo-500" />
-                            </div>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Under Maintenance</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
-                                We are rebuilding the Library to be faster and smarter. Check back soon for the upgrade!
-                            </p>
-                        </div>
                     )}
                     {view === 'privacy' && (
                         <PrivacyPolicy onBack={() => setView('daily')} />
@@ -2122,7 +2086,7 @@ const App: React.FC = () => {
 
       <SettingsModal 
         isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(true)}
+        onClose={() => setIsSettingsOpen(false)}
         animationsEnabled={animationsEnabled}
         toggleAnimations={() => setAnimationsEnabled(!animationsEnabled)}
         graphicsEnabled={graphicsEnabled}

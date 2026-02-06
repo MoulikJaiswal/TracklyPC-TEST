@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, memo, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -239,7 +240,12 @@ const Leaderboard = memo(({ roomId, myId }: { roomId: string, myId: string | und
                                         <p className={`text-xs font-bold truncate ${isMe ? 'text-indigo-400' : 'text-slate-700 dark:text-slate-200'}`}>
                                             {p.displayName}
                                         </p>
-                                        {minutes > 60 && <Flame size={12} className="text-orange-500" title="On fire! (60+ mins)" />}
+                                        {/* Fix: Wrapped Flame icon in span for tooltip to avoid type error on 'title' prop */}
+                                        {minutes > 60 && (
+                                            <span title="On fire! (60+ mins)">
+                                                <Flame size={12} className="text-orange-500" />
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <Clock size={12} className="text-slate-400" />
@@ -701,86 +707,72 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
     }
   };
 
-  // --- RENDER ---
-  if (!activeRoom) {
-      return (
-          <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                  <div>
-                      <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Focus Lounge</h2>
-                      <p className="text-xs text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mt-1 font-bold">Join others for accountability</p>
-                      
-                      <div className="flex items-center gap-3 mt-4 bg-white/50 dark:bg-slate-800/50 p-2 pr-4 rounded-xl border border-slate-200 dark:border-white/5 w-fit backdrop-blur-sm shadow-sm">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shadow-sm relative group cursor-pointer overflow-hidden" onClick={() => avatarInputRef.current?.click()}>
-                              {customAvatar ? <img src={customAvatar} alt="Avatar" className="w-full h-full object-cover" /> : (displayName || 'G').charAt(0).toUpperCase()}
-                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera size={14} className="text-white" /></div>
-                          </div>
-                          <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if(file){ const reader = new FileReader(); reader.onload = (ev) => { const res = ev.target?.result as string; setCustomAvatar(res); localStorage.setItem('trackly_guest_avatar', res); }; reader.readAsDataURL(file); } }} />
-                          <div className="flex flex-col">
-                              <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Joining as</span>
-                              <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="bg-transparent outline-none font-bold text-sm text-slate-900 dark:text-white w-32 focus:w-48 transition-all placeholder:text-slate-500" placeholder="Enter Name" />
-                          </div>
-                          <Pencil size={12} className="text-slate-400 opacity-50" />
-                      </div>
-                  </div>
-                  <div className="flex gap-2">
-                      <button onClick={() => setShowJoinCodeModal(true)} className="flex items-center gap-2 px-5 py-3 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-xl font-bold uppercase text-xs tracking-wider transition-all active:scale-95"><LinkIcon size={16} /> Have Code?</button>
-                      <button onClick={() => user ? setShowCreateModal(true) : onLogin()} className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase text-xs tracking-wider shadow-lg shadow-indigo-600/20 transition-all active:scale-95"><Plus size={16} /> Create Lounge</button>
-                  </div>
-              </div>
-
-              {rooms.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-slate-200 dark:border-white/5 rounded-3xl text-center opacity-60">
-                      <Users size={48} className="text-slate-400 mb-4" />
-                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">No active lounges</p>
-                  </div>
-              ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {rooms.map(room => {
-                          const isHost = room.createdBy === user?.uid;
-                          const canEnter = !room.isPrivate || isHost;
-                          return (
-                              <Card key={room.id} className={`group hover:border-indigo-500/30 cursor-pointer transition-all active:scale-[0.98] p-6 relative overflow-hidden flex flex-col justify-between min-h-[180px] ${!canEnter ? 'opacity-80' : ''}`} onClick={() => { if(!canEnter) setShowJoinCodeModal(true); else handleJoin(room); }}>
-                                  <div className={`absolute top-0 right-0 p-16 rounded-bl-full opacity-5 bg-${room.color}-500 transition-transform group-hover:scale-150`} />
-                                  <div className="relative z-10">
-                                      <div className="flex justify-between items-start mb-4">
-                                          <div className={`p-3 rounded-2xl bg-${room.color}-500/10 text-${room.color}-500`}>{room.isPrivate ? <Lock size={24} /> : room.isSystem ? <Star size={24}/> : <Users size={24} />}</div>
-                                          <div className="flex items-center gap-2">
-                                              {isHost && <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-[9px] font-bold uppercase tracking-wider text-slate-500">Mine</span>}
-                                              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{room.activeCount || 0} Online</span>
-                                          </div>
-                                      </div>
-                                      <h3 className="font-bold text-xl text-slate-900 dark:text-white mb-1 flex items-center gap-2">{room.name}{room.isPrivate && <span className="text-[9px] bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">Private</span>}</h3>
-                                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{room.topic}</p>
-                                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">{room.description || 'No description provided.'}</p>
-                                  </div>
-                                  <div className="relative z-10 mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex justify-between items-center">
-                                      <div className={`flex items-center gap-2 text-xs font-bold transition-transform ${!canEnter ? 'text-slate-400' : 'text-indigo-500 group-hover:translate-x-1'}`}><span>{!canEnter ? 'Requires Code' : 'Enter Room'}</span>{!canEnter ? <Lock size={14} /> : <ArrowLeft size={14} className="rotate-180" />}</div>
-                                  </div>
-                              </Card>
-                          );
-                      })}
-                  </div>
-              )}
-
-              {showJoinCodeModal && createPortal(<div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200"><div className="bg-white dark:bg-[#0f172a] w-full max-w-sm rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-slate-900 dark:text-white">Join by Link</h3><button onClick={() => setShowJoinCodeModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors"><X size={18} className="text-slate-500" /></button></div><form onSubmit={handleJoinByCode} className="space-y-4"><p className="text-xs text-slate-500 dark:text-slate-400">Enter a Room ID or paste an invite link below.</p><input type="text" required placeholder="Paste Room ID or Link" className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors" value={joinCode} onChange={e => setJoinCode(e.target.value)} autoFocus /><button type="submit" disabled={isJoiningByCode || !joinCode} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50">{isJoiningByCode ? 'Locating Room...' : 'Join Room'}</button></form></div></div>, document.body)}
-
-              {showCreateModal && createPortal(<div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200"><div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-slate-900 dark:text-white">Create Focus Lounge</h3><button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors"><X size={18} className="text-slate-500" /></button></div>{createError && (<div className="p-3 mb-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-2 text-xs text-rose-500"><AlertTriangle size={14} /><span>{createError}</span></div>)}<form onSubmit={handleCreateRoom} className="space-y-4"><div><label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 block">Room Name</label><input type="text" required placeholder="e.g., Late Night Grind" className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors" value={newRoomData.name} onChange={e => setNewRoomData({...newRoomData, name: e.target.value})} /></div><div><label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 block">Subject / Topic</label><input type="text" required placeholder="e.g., Physics Mechanics" className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors" value={newRoomData.topic} onChange={e => setNewRoomData({...newRoomData, topic: e.target.value})} /></div><div><label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 block">Description</label><textarea placeholder="What are we studying?" className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors h-24 resize-none" value={newRoomData.description} onChange={e => setNewRoomData({...newRoomData, description: e.target.value})} /></div><div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-white/10 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors" onClick={() => setNewRoomData(p => ({...p, isPrivate: !p.isPrivate}))}><div className={`w-5 h-5 rounded border flex items-center justify-center ${newRoomData.isPrivate ? 'bg-indigo-500 border-indigo-500' : 'border-slate-400'}`}>{newRoomData.isPrivate && <CheckCircle2 size={12} className="text-white" />}</div><div><span className="text-xs font-bold text-slate-900 dark:text-white block">Private Room (Invite Only)</span><span className="text-[10px] text-slate-500 block">Hidden from lobby. Share link to join.</span></div><Lock size={16} className="ml-auto text-slate-400" /></div><div><label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2 block flex items-center gap-2"><Palette size={12}/> Color Theme</label><div className="flex gap-2">{['indigo', 'emerald', 'rose', 'orange', 'blue', 'purple'].map(c => (<button key={c} type="button" onClick={() => setNewRoomData({...newRoomData, color: c})} className={`w-8 h-8 rounded-full border-2 transition-all ${newRoomData.color === c ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-50 hover:opacity-100'}`} style={{ backgroundColor: `var(--color-${c}-500, ${c})` }}><div className={`w-full h-full rounded-full bg-${c}-500`} /></button>))}</div></div><button type="submit" disabled={isCreating} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 mt-4 disabled:opacity-50">{isCreating ? 'Creating...' : 'Launch Lounge'}</button></form></div></div>, document.body)}
-          </div>
-      );
-  }
-
   // --- RENDER: ACTIVE ROOM ---
   return (
     <>
       <div className={`h-[calc(100vh-100px)] flex flex-col animate-in fade-in zoom-in-95 duration-300 ${zenMode ? 'fixed inset-0 z-[150] bg-black h-screen p-6' : ''}`}>
-          {!zenMode && (<div className="flex justify-between items-center mb-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 rounded-2xl border border-slate-200 dark:border-white/5 shrink-0"><div className="flex items-center gap-3"><div className={`p-2 rounded-xl bg-${activeRoom.color}-500/10 text-${activeRoom.color}-500`}>{activeRoom.isPrivate ? <Lock size={20} /> : activeRoom.isSystem ? <Star size={20}/> : <Users size={20} />}</div><div><h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">{activeRoom.name}{activeRoom.isPrivate && <span className="text-[9px] bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">Private</span>}</h3><div className="flex items-center gap-2"><p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{participants.length} Online</p><span className="text-[10px] text-slate-400">•</span><p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{activeRoom.topic}</p></div></div></div><div className="flex items-center gap-2"><button onClick={() => setShowShareModal(true)} className="flex items-center gap-2 px-3 py-2 text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-xl transition-all relative overflow-hidden" title="Invite Link"><Share2 size={16} /><span className="text-[10px] font-bold uppercase tracking-wide hidden md:inline">Invite</span></button><button onClick={() => setShowMobileLeaderboard(true)} className="lg:hidden p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-xl transition-colors relative"><Trophy size={20} />{participants.some(p => (p.accumulatedFocusTime || 0) > 0) && (<span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border border-white dark:border-slate-900" />)}</button>{isAmHost && !activeRoom.isSystem && (<button onClick={handleShutdown} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors" title="Shutdown Room"><Power size={20} /></button>)}<button onClick={handleLeave} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-colors" title="Leave Room"><LogOut size={20} /></button></div></div>)}
+          {!zenMode && (
+            <div className="flex justify-between items-center mb-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 rounded-2xl border border-slate-200 dark:border-white/5 shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl bg-${activeRoom.color}-500/10 text-${activeRoom.color}-500`}>
+                        {activeRoom.isPrivate ? <Lock size={20} /> : activeRoom.isSystem ? <Star size={20}/> : <Users size={20} />}
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            {activeRoom.name}
+                            {activeRoom.isPrivate && <span className="text-[9px] bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">Private</span>}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                {participants.length} Online
+                            </p>
+                            <span className="text-[10px] text-slate-400">•</span>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{activeRoom.topic}</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => setShowShareModal(true)} className="flex items-center gap-2 px-3 py-2 text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-xl transition-all relative overflow-hidden" title="Invite Link">
+                        <Share2 size={16} />
+                        <span className="text-[10px] font-bold uppercase tracking-wide hidden md:inline">Invite</span>
+                    </button>
+                    <button onClick={() => setShowMobileLeaderboard(true)} className="lg:hidden p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-xl transition-colors relative">
+                        <Trophy size={20} />
+                        {participants.some(p => (p.accumulatedFocusTime || 0) > 0) && (<span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border border-white dark:border-slate-900" />)}
+                    </button>
+                    {isAmHost && !activeRoom.isSystem && (
+                        <button onClick={handleShutdown} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors" title="Shutdown Room">
+                            <Power size={20} />
+                        </button>
+                    )}
+                    <button onClick={handleLeave} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-colors" title="Leave Room">
+                        <LogOut size={20} />
+                    </button>
+                </div>
+            </div>
+          )}
 
           <div className="flex flex-1 overflow-hidden gap-6 mb-6">
               <div className="flex-1 overflow-y-auto custom-scrollbar pb-32">
-                  {participants.length === 0 ? (<div className="h-full flex flex-col items-center justify-center opacity-40"><Users size={32} className="text-slate-400 mb-2" /><p className="text-xs font-bold uppercase tracking-widest text-slate-500">Room is empty</p></div>) : (<div className={`grid gap-3 transition-all ${zenMode ? 'grid-cols-2 md:grid-cols-4 opacity-50 hover:opacity-100' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'}`}>{participants.map(p => (<ParticipantCard key={p.uid} participant={p} isMe={user?.uid === p.uid} isHost={activeRoom.createdBy === p.uid} canKick={isAmHost && p.uid !== user?.uid} onKick={() => handleKick(p.uid)} />))}</div>)}
+                  {participants.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center opacity-40">
+                          <Users size={32} className="text-slate-400 mb-2" />
+                          <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Room is empty</p>
+                      </div>
+                  ) : (
+                      <div className={`grid gap-3 transition-all ${zenMode ? 'grid-cols-2 md:grid-cols-4 opacity-50 hover:opacity-100' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'}`}>
+                          {participants.map(p => (
+                              <ParticipantCard key={p.uid} participant={p} isMe={user?.uid === p.uid} isHost={activeRoom.createdBy === p.uid} canKick={isAmHost && p.uid !== user?.uid} onKick={() => handleKick(p.uid)} />
+                          ))}
+                      </div>
+                  )}
               </div>
-              {!zenMode && (<div className="hidden lg:block w-72 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 rounded-3xl overflow-hidden shadow-sm shrink-0"><Leaderboard roomId={activeRoom.id} myId={user?.uid} /></div>)}
+              {!zenMode && (
+                  <div className="hidden lg:block w-72 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 rounded-3xl overflow-hidden shadow-sm shrink-0">
+                      <Leaderboard roomId={activeRoom.id} myId={user?.uid} />
+                  </div>
+              )}
           </div>
 
           <div className={`${zenMode ? 'fixed bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl' : 'absolute bottom-4 left-4 right-4'} bg-white/90 dark:bg-black/80 backdrop-blur-2xl border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden transition-all duration-500 z-50`}>
@@ -834,10 +826,157 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userName, 
               </div>
           </div>
 
-          {showShareModal && createPortal(<div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200"><div className="bg-white dark:bg-[#0f172a] w-full max-w-sm rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-slate-900 dark:text-white">Invite Others</h3><button onClick={() => setShowShareModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors"><X size={18} className="text-slate-500" /></button></div><div className="p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-200 dark:border-white/10 mb-4"><p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Room Link</p><div className="flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-white/10 overflow-hidden"><span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate flex-1">{window.location.origin}{window.location.pathname}?room={activeRoom.id}</span></div></div><div className="p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-200 dark:border-white/10 mb-6"><p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Room Code</p><p className="text-xl font-mono font-bold text-slate-900 dark:text-white text-center tracking-widest">{activeRoom.id}</p></div><button onClick={handleCopyLink} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">{shareCopied ? <CheckCircle2 size={16} /> : <Copy size={16} />}{shareCopied ? 'Link Copied!' : 'Copy Link'}</button></div></div>, document.body)}
-          {showMobileLeaderboard && createPortal(<div className="fixed inset-0 z-[200] flex items-end justify-center p-4"><div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMobileLeaderboard(false)} /><div className="relative bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300 max-h-[60vh] flex flex-col"><div className="flex justify-between items-center mb-4 shrink-0"><h3 className="text-lg font-bold text-white">Leaderboard</h3><button onClick={() => setShowMobileLeaderboard(false)} className="p-2 bg-white/5 rounded-full text-slate-400"><X size={16}/></button></div><div className="flex-1 overflow-hidden min-h-0"><Leaderboard roomId={activeRoom.id} myId={user?.uid} /></div></div></div>, document.body)}
-          {showMiniPlanner && createPortal(<div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-4"><div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMiniPlanner(false)} /><div className="relative bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300"><div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-white">Select Task</h3><button onClick={() => setShowMiniPlanner(false)} className="p-2 bg-white/5 rounded-full text-slate-400"><X size={16}/></button></div><div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">{targets.filter(t => !t.completed).length === 0 ? (<p className="text-center text-slate-500 text-xs py-8">No pending tasks found.</p>) : (targets.filter(t => !t.completed).map(task => (<button key={task.id} onClick={() => handleLinkTask(task)} className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors flex items-center gap-3 group"><div className={`w-3 h-3 rounded-full border-2 border-slate-500 group-hover:border-indigo-500`} /><span className="text-sm text-slate-300 group-hover:text-white truncate">{task.text}</span></button>)))}</div></div></div>, document.body)}
+          {showShareModal && createPortal(
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+                <div className="bg-white dark:bg-[#0f172a] w-full max-w-sm rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Invite Others</h3>
+                        <button onClick={() => setShowShareModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors">
+                            <X size={18} className="text-slate-500" />
+                        </button>
+                    </div>
+                    <div className="p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-200 dark:border-white/10 mb-4">
+                        <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Room Link</p>
+                        <div className="flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-white/10 overflow-hidden">
+                            <span className="text-xs font-mono text-slate-600 dark:text-slate-400 truncate flex-1">{window.location.origin}{window.location.pathname}?room={activeRoom.id}</span>
+                        </div>
+                    </div>
+                    <div className="p-4 bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-200 dark:border-white/10 mb-6">
+                        <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Room Code</p>
+                        <p className="text-xl font-mono font-bold text-slate-900 dark:text-white text-center tracking-widest">{activeRoom.id}</p>
+                    </div>
+                    <button onClick={handleCopyLink} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">
+                        {shareCopied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                        {shareCopied ? 'Link Copied!' : 'Copy Link'}
+                    </button>
+                </div>
+            </div>, 
+            document.body
+          )}
+          
+          {showMobileLeaderboard && createPortal(
+            <div className="fixed inset-0 z-[200] flex items-end justify-center p-4">
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMobileLeaderboard(false)} />
+                <div className="relative bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300 max-h-[60vh] flex flex-col">
+                    <div className="flex justify-between items-center mb-4 shrink-0">
+                        <h3 className="text-lg font-bold text-white">Leaderboard</h3>
+                        <button onClick={() => setShowMobileLeaderboard(false)} className="p-2 bg-white/5 rounded-full text-slate-400">
+                            <X size={16}/>
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-hidden min-h-0">
+                        <Leaderboard roomId={activeRoom.id} myId={user?.uid} />
+                    </div>
+                </div>
+            </div>, 
+            document.body
+          )}
+          
+          {showMiniPlanner && createPortal(
+            <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-4">
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMiniPlanner(false)} />
+                <div className="relative bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-white">Select Task</h3>
+                        <button onClick={() => setShowMiniPlanner(false)} className="p-2 bg-white/5 rounded-full text-slate-400">
+                            <X size={16}/>
+                        </button>
+                    </div>
+                    <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                        {targets.filter(t => !t.completed).length === 0 ? (
+                            <p className="text-center text-slate-500 text-xs py-8">No pending tasks found.</p>
+                        ) : (
+                            targets.filter(t => !t.completed).map(task => (
+                                <button key={task.id} onClick={() => handleLinkTask(task)} className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors flex items-center gap-3 group">
+                                    <div className={`w-3 h-3 rounded-full border-2 border-slate-500 group-hover:border-indigo-500`} />
+                                    <span className="text-sm text-slate-300 group-hover:text-white truncate">{task.text}</span>
+                                </button>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>, 
+            document.body
+          )}
+          
           <ReflectionModal isOpen={showReflection} onClose={() => setShowReflection(false)} onConfirm={handleReflectionConfirm} duration={lastSessionDuration} />
+          
+          {showCreateModal && createPortal(
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+                <div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Create Focus Lounge</h3>
+                        <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors">
+                            <X size={18} className="text-slate-500" />
+                        </button>
+                    </div>
+                    {createError && (
+                        <div className="p-3 mb-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-2 text-xs text-rose-500">
+                            <AlertTriangle size={14} /><span>{createError}</span>
+                        </div>
+                    )}
+                    <form onSubmit={handleCreateRoom} className="space-y-4">
+                        <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 block">Room Name</label>
+                            <input type="text" required placeholder="e.g., Late Night Grind" className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors" value={newRoomData.name} onChange={e => setNewRoomData({...newRoomData, name: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 block">Subject / Topic</label>
+                            <input type="text" required placeholder="e.g., Physics Mechanics" className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors" value={newRoomData.topic} onChange={e => setNewRoomData({...newRoomData, topic: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 block">Description</label>
+                            <textarea placeholder="What are we studying?" className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors h-24 resize-none" value={newRoomData.description} onChange={e => setNewRoomData({...newRoomData, description: e.target.value})} />
+                        </div>
+                        <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-white/10 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors" onClick={() => setNewRoomData(p => ({...p, isPrivate: !p.isPrivate}))}>
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${newRoomData.isPrivate ? 'bg-indigo-500 border-indigo-500' : 'border-slate-400'}`}>
+                                {newRoomData.isPrivate && <CheckCircle2 size={12} className="text-white" />}
+                            </div>
+                            <div>
+                                <span className="text-xs font-bold text-slate-900 dark:text-white block">Private Room (Invite Only)</span>
+                                <span className="text-[10px] text-slate-500 block">Hidden from lobby. Share link to join.</span>
+                            </div>
+                            <Lock size={16} className="ml-auto text-slate-400" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2 block flex items-center gap-2"><Palette size={12}/> Color Theme</label>
+                            <div className="flex gap-2">
+                                {['indigo', 'emerald', 'rose', 'orange', 'blue', 'purple'].map(c => (
+                                    <button key={c} type="button" onClick={() => setNewRoomData({...newRoomData, color: c})} className={`w-8 h-8 rounded-full border-2 transition-all ${newRoomData.color === c ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-50 hover:opacity-100'}`} style={{ backgroundColor: `var(--color-${c}-500, ${c})` }}>
+                                        <div className={`w-full h-full rounded-full bg-${c}-500`} />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <button type="submit" disabled={isCreating} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 mt-4 disabled:opacity-50">
+                            {isCreating ? 'Creating...' : 'Launch Lounge'}
+                        </button>
+                    </form>
+                </div>
+            </div>, 
+            document.body
+          )}
+          
+          {showJoinCodeModal && createPortal(
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+                <div className="bg-white dark:bg-[#0f172a] w-full max-w-sm rounded-3xl shadow-2xl p-6 border border-white/10 animate-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Join by Link</h3>
+                        <button onClick={() => setShowJoinCodeModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors">
+                            <X size={18} className="text-slate-500" />
+                        </button>
+                    </div>
+                    <form onSubmit={handleJoinByCode} className="space-y-4">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Enter a Room ID or paste an invite link below.</p>
+                        <input type="text" required placeholder="Paste Room ID or Link" className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors" value={joinCode} onChange={e => setJoinCode(e.target.value)} autoFocus />
+                        <button type="submit" disabled={isJoiningByCode || !joinCode} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50">
+                            {isJoiningByCode ? 'Locating Room...' : 'Join Room'}
+                        </button>
+                    </form>
+                </div>
+            </div>, 
+            document.body
+          )}
       </div>
     </>
   );

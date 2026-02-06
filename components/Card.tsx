@@ -6,9 +6,10 @@ interface CardProps {
   className?: string;
   delay?: number;
   onClick?: () => void;
+  style?: React.CSSProperties;
 }
 
-export const Card: React.FC<CardProps> = React.memo(({ children, className = '', delay = 0, onClick }) => (
+export const Card: React.FC<CardProps> = React.memo(({ children, className = '', delay = 0, onClick, style }) => (
   <div 
     onClick={onClick}
     className={`
@@ -30,7 +31,8 @@ export const Card: React.FC<CardProps> = React.memo(({ children, className = '',
       transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
       willChange: onClick ? 'transform' : 'auto',
       backgroundColor: 'rgba(var(--theme-card-rgb), 0.6)',
-      borderColor: 'rgba(var(--theme-text-main), 0.1)'
+      borderColor: 'rgba(var(--theme-text-main), 0.1)',
+      ...style
     }}
   >
     {/* Hover State Layer - Simulates hover effect without repainting the blur */}
@@ -42,7 +44,7 @@ export const Card: React.FC<CardProps> = React.memo(({ children, className = '',
   </div>
 ));
 
-export const FloatingCard: React.FC<CardProps> = React.memo(({ children, className = '', delay = 0 }) => (
+export const FloatingCard: React.FC<CardProps> = React.memo(({ children, className = '', delay = 0, style }) => (
   <div 
     className={`
       backdrop-blur-lg md:backdrop-blur-2xl 
@@ -58,7 +60,8 @@ export const FloatingCard: React.FC<CardProps> = React.memo(({ children, classNa
       transitionProperty: 'transform, opacity',
       transitionDuration: '300ms',
       backgroundColor: 'rgba(var(--theme-card-rgb), 0.7)',
-      borderColor: 'rgba(var(--theme-text-main), 0.1)'
+      borderColor: 'rgba(var(--theme-text-main), 0.1)',
+      ...style
     }}
   >
     {children}

@@ -1,42 +1,54 @@
 
-import React, { useState, useMemo, memo, useEffect } from 'react';
+import React, { useState, useMemo, memo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, 
   Pause, 
   RotateCcw, 
-  Settings2, 
-  X, 
   Zap, 
   Atom, 
   Calculator, 
-  CheckCircle2, 
-  ListTodo, 
   ChevronDown, 
-  Brain, 
-  Coffee, 
-  Armchair, 
   Plus, 
   Timer as TimerIcon, 
   Clock, 
   Minus,
   Maximize2,
   Minimize2,
-  History,
   Lock,
   BookOpen,
-  PenTool
+  PenTool,
+  Calendar,
+  Flame,
+  Target,
+  PieChart,
+  Activity,
+  Layers,
+  ChevronUp,
+  Check,
+  Square,
+  TrendingDown,
+  Scale,
+  Settings2,
+  Coffee,
+  Brain,
+  Armchair,
+  X
 } from 'lucide-react';
-import { JEE_SYLLABUS, MISTAKE_TYPES } from '../constants';
-import { Target, QuestionLog, Session } from '../types';
-import { AdUnit } from './AdUnit';
+import { MISTAKE_TYPES } from '../constants';
+import { Target as TargetType, QuestionLog, Session, SyllabusData } from '../types';
 import { logAnalyticsEvent } from '../firebase';
+import { ConfirmationModal } from './ConfirmationModal';
+
+// --- Types & Interfaces ---
 
 interface FocusTimerProps {
-  targets?: Target[];
+  targets?: TargetType[];
+  sessions: Session[];
   mode: 'focus' | 'short' | 'long';
   timeLeft: number;
-  isActive: boolean;
+  timerState: 'idle' | 'running' | 'paused'; 
   durations: { focus: number; short: number; long: number };
   sessionLogs: QuestionLog[];
   lastLogTime: number;
@@ -49,841 +61,1016 @@ interface FocusTimerProps {
   isPro: boolean;
   sessionCount: number;
   onOpenUpgrade: () => void;
-  sessions: Session[];
+  userName: string;
+  syllabus: SyllabusData;
 }
 
-const DurationControl = ({ 
-    label, 
-    value, 
-    onChange, 
-    min, 
-    max, 
-    step = 1,
-    colorHex,
-    disabled = false
-}: { 
-    label: string, 
-    value: number, 
-    onChange: (val: number) => void, 
-    min: number, 
-    max: number, 
-    step?: number,
-    colorHex: string,
-    disabled?: boolean
-}) => {
-    return (
-        <div 
-            className={`p-4 rounded-2xl border transition-opacity duration-300 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            style={{
-                backgroundColor: 'rgba(var(--theme-text-main), 0.03)',
-                borderColor: 'rgba(var(--theme-text-main), 0.1)'
-            }}
-        >
-            <div className="flex justify-between items-center mb-3">
-                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--theme-text-sub)' }}>{label}</span>
-                <span className="text-sm font-mono font-bold" style={{ color: colorHex }}>{value}m</span>
-            </div>
-            <div className="flex items-center gap-3">
-                <button 
-                    onClick={(e) => { e.stopPropagation(); if(!disabled) onChange(Math.max(min, value - step)); }}
-                    disabled={disabled}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border transition-all active:scale-95 disabled:active:scale-100 disabled:cursor-not-allowed"
-                    style={{
-                        backgroundColor: 'var(--theme-card-bg)',
-                        borderColor: 'rgba(var(--theme-text-main), 0.1)',
-                        color: 'var(--theme-text-main)'
-                    }}
-                >
-                    <Minus size={14} />
-                </button>
-                <div className="flex-1 relative h-6 flex items-center">
-                    <input 
-                        type="range" min={min} max={max} step={step}
-                        value={value}
-                        disabled={disabled}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => onChange(parseFloat(e.target.value))}
-                        className={`w-full h-1.5 rounded-full appearance-none ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                        style={{ 
-                            accentColor: colorHex,
-                            backgroundColor: 'rgba(var(--theme-text-main), 0.1)'
-                        }}
-                    />
-                </div>
-                <button 
-                    onClick={(e) => { e.stopPropagation(); if(!disabled) onChange(Math.min(max, value + step)); }}
-                    disabled={disabled}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg shadow-sm border transition-all active:scale-95 disabled:active:scale-100 disabled:cursor-not-allowed"
-                    style={{
-                        backgroundColor: 'var(--theme-card-bg)',
-                        borderColor: 'rgba(var(--theme-text-main), 0.1)',
-                        color: 'var(--theme-text-main)'
-                    }}
-                >
-                    <Plus size={14} />
-                </button>
-            </div>
-        </div>
-    )
+type TimeRange = 'weekly' | 'monthly' | 'yearly';
+
+// --- Helper Functions ---
+
+const getStartOfRange = (range: TimeRange): Date => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Start of day normalization
+    
+    if (range === 'weekly') {
+        const d = new Date(now);
+        const day = d.getDay(); // 0 is Sunday
+        const diff = d.getDate() - day; // Start on Sunday
+        return new Date(d.setDate(diff));
+    }
+    if (range === 'monthly') return new Date(now.getFullYear(), now.getMonth(), 1);
+    return new Date(now.getFullYear(), 0, 1);
 };
 
-export const FocusTimer: React.FC<FocusTimerProps> = memo(({ 
-    targets = [], 
-    mode, 
-    timeLeft, 
-    isActive, 
-    durations, 
-    sessionLogs, 
-    lastLogTime,
-    onToggleTimer,
-    onResetTimer,
-    onSwitchMode,
-    onUpdateDurations,
-    onAddLog,
-    onCompleteSession,
-    isPro,
-    sessionCount,
-    onOpenUpgrade,
-    sessions
-}) => {
-  const [selectedSubject, setSelectedSubject] = useState<keyof typeof JEE_SYLLABUS>('Physics');
-  const [showSettings, setShowSettings] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<string>('');
-  const [zenMode, setZenMode] = useState(false);
-  
-  // --- Feature States ---
-  const [showTagger, setShowTagger] = useState(false);
-  const [showReport, setShowReport] = useState(false);
-  const [currentQDuration, setCurrentQDuration] = useState(0); 
-  
-  // --- Session Intent State ---
-  const [showIntentModal, setShowIntentModal] = useState(false);
-  const [sessionIntent, setSessionIntent] = useState<'questions' | 'theory'>('questions');
+const filterSessions = (sessions: Session[], range: TimeRange) => {
+    const start = getStartOfRange(range).getTime();
+    const end = range === 'weekly' 
+        ? start + 7 * 24 * 60 * 60 * 1000 // End of week
+        : range === 'monthly' 
+            ? new Date(new Date(start).setMonth(new Date(start).getMonth() + 1)).getTime() // End of month
+            : new Date(new Date(start).setFullYear(new Date(start).getFullYear() + 1)).getTime(); // End of year
+            
+    return sessions.filter(s => s.timestamp >= start && s.timestamp < end);
+};
 
-  // Track Timer Activity
-  useEffect(() => {
-      if (isActive) {
-          logAnalyticsEvent('timer_start', { mode, intent: sessionIntent });
-      } else if (!isActive && timeLeft > 0 && timeLeft < durations[mode] * 60) {
-          // Log pause only if session was in progress
-          logAnalyticsEvent('timer_pause', { mode });
-      }
-  }, [isActive]);
+const formatDuration = (totalMinutes: number) => {
+    if (isNaN(totalMinutes)) return "0h 0m";
+    const roundedMinutes = Math.round(totalMinutes);
+    const h = Math.floor(roundedMinutes / 60);
+    const m = roundedMinutes % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+};
 
-  // Automatically show report card when time runs out in Focus Mode (only if logs exist)
-  useEffect(() => {
-      if (mode === 'focus' && timeLeft === 0 && sessionLogs.length > 0 && !isActive) {
-          setShowReport(true);
-          logAnalyticsEvent('timer_finish_auto', { mode });
-      }
-  }, [timeLeft, mode, sessionLogs.length, isActive]);
+const formatDigitalTime = (totalSeconds: number) => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
 
-  const handleModeSwitch = (newMode: 'focus' | 'short' | 'long') => {
-      if (isActive && mode === 'focus' && newMode !== 'focus') {
-          const confirmed = window.confirm("You are currently in a Focus Session. Are you sure you want to take a break?");
-          if (!confirmed) return;
-      }
-      logAnalyticsEvent('timer_mode_switch', { from: mode, to: newMode });
-      onSwitchMode(newMode);
-  };
+// --- SUB-COMPONENTS ---
 
-  const handlePlayClick = () => {
-      if (isActive) {
-          // If already active, just toggle (pause)
-          onToggleTimer();
-      } else {
-          // If starting from paused/stopped state, ask for intent IF in focus mode
-          if (mode === 'focus') {
-              setShowIntentModal(true);
-          } else {
-              // Just start for breaks
-              onToggleTimer();
-          }
-      }
-  };
+const StatCard = ({ 
+    label, 
+    value, 
+    subtext, 
+    icon: Icon, 
+    colorClass = "text-white", 
+    bgClass = "bg-slate-800" 
+}: { 
+    label: string, 
+    value: string | number, 
+    subtext?: string, 
+    icon: any, 
+    colorClass?: string, 
+    bgClass?: string 
+}) => (
+    <div className={`p-5 rounded-3xl border border-white/5 flex flex-col justify-between h-full ${bgClass}`}>
+        <div className="flex justify-between items-start mb-2">
+            <div className={`p-2.5 rounded-2xl bg-white/10 ${colorClass}`}>
+                <Icon size={20} />
+            </div>
+            {subtext && <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">{subtext}</span>}
+        </div>
+        <div>
+            <div className="text-3xl font-display font-bold tracking-tight mb-1">{value}</div>
+            <div className="text-xs font-bold uppercase tracking-widest opacity-50">{label}</div>
+        </div>
+    </div>
+);
 
-  const confirmSessionStart = (intent: 'questions' | 'theory') => {
-      setSessionIntent(intent);
-      setShowIntentModal(false);
-      onToggleTimer();
-  };
+const DonutChart = ({ data }: { data: { label: string, value: number, color: string }[] }) => {
+    const total = data.reduce((a, b) => a + b.value, 0);
+    let cumulative = 0;
 
-  const handlePlusOne = (e?: React.MouseEvent) => {
-      e?.stopPropagation();
-      if (!isPro && sessionCount >= 3) {
-          logAnalyticsEvent('paywall_hit', { feature: 'timer_plus_one' });
-          onOpenUpgrade();
-          return;
-      }
-      const now = Date.now();
-      const duration = Math.ceil((now - lastLogTime) / 1000);
-      setCurrentQDuration(duration);
-      setShowTagger(true);
-  };
+    if (total === 0) {
+        return (
+            <div className="relative w-32 h-32 flex items-center justify-center">
+                <div className="w-full h-full rounded-full border-4 border-slate-800 opacity-20" />
+                <span className="absolute text-[10px] uppercase font-bold text-slate-600">No Data</span>
+            </div>
+        );
+    }
 
-  const handleTagResult = (result: 'correct' | string) => {
-      const now = Date.now();
-      const newLog: QuestionLog = {
-          timestamp: now,
-          duration: currentQDuration,
-          result: result as any,
-          subject: selectedSubject
-      };
-      onAddLog(newLog, String(selectedSubject));
-      setShowTagger(false);
-      logAnalyticsEvent('timer_log_question', { result, subject: selectedSubject });
-  };
+    return (
+        <div className="relative w-32 h-32">
+            <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                {data.map((item, i) => {
+                    const percent = item.value / total;
+                    const dashArray = percent * 314; 
+                    const offset = cumulative * 314;
+                    cumulative += percent;
+                    
+                    return (
+                        <circle
+                            key={i}
+                            cx="50" cy="50" r="40"
+                            fill="transparent"
+                            stroke={item.color}
+                            strokeWidth="12"
+                            strokeDasharray={`${dashArray} 314`}
+                            strokeDashoffset={-offset}
+                            className="transition-all duration-1000 ease-out"
+                        />
+                    );
+                })}
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center flex-col">
+                <span className="text-xs font-bold">{formatDuration(total)}</span>
+                <span className="text-[8px] uppercase tracking-widest opacity-60">Total</span>
+            </div>
+        </div>
+    );
+};
 
-  const handleCloseTagger = () => {
-      setShowTagger(false);
-  };
+const Heatmap = ({ sessions, range }: { sessions: Session[], range: TimeRange }) => {
+    const [hoveredData, setHoveredData] = useState<{
+        date: Date;
+        stats: { level: number; count: number; duration: number };
+        pos: { x: number; y: number };
+    } | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleOpenSettings = (e?: React.MouseEvent) => {
-      e?.stopPropagation();
-      setShowSettings(true);
-  };
+    const generateDays = () => {
+        const today = new Date();
+        const days = [];
 
-  const handleCloseSettings = () => {
-      setShowSettings(false);
-  };
+        if (range === 'weekly') {
+            const day = today.getDay(); // 0 is Sunday
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - day); // Start on Sunday
+            
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(startOfWeek);
+                d.setDate(startOfWeek.getDate() + i);
+                days.push(d);
+            }
+        } else if (range === 'monthly') {
+            const year = today.getFullYear();
+            const month = today.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            
+            // Pad start to align with week (Sunday start)
+            const startPadding = firstDay.getDay(); 
+            for (let i = startPadding; i > 0; i--) {
+                const d = new Date(firstDay);
+                d.setDate(d.getDate() - i);
+                days.push(d);
+            }
+            
+            // Current month days
+            for (let i = 1; i <= lastDay.getDate(); i++) {
+                days.push(new Date(year, month, i));
+            }
+            
+            // Pad end to complete the grid (optional, but looks better)
+            const totalSlots = Math.ceil(days.length / 7) * 7;
+            const currentLen = days.length;
+            for (let i = 1; i <= totalSlots - currentLen; i++) {
+                const d = new Date(lastDay);
+                d.setDate(d.getDate() + i);
+                days.push(d);
+            }
+        } else {
+            // Yearly (Jan 1 to Dec 31)
+            const year = today.getFullYear();
+            const d = new Date(year, 0, 1); // Jan 1
+            const end = new Date(year, 11, 31); // Dec 31
 
-  const handleSaveAndClose = () => {
-      onCompleteSession();
-      setShowReport(false);
-      logAnalyticsEvent('timer_session_complete', { 
-          mode, 
-          questionsLogged: sessionLogs.length,
-          duration: durations[mode] // approximate duration planned
-      });
-  };
+            while (d <= end) {
+                days.push(new Date(d));
+                d.setDate(d.getDate() + 1);
+            }
+        }
+        return days;
+    };
 
-  const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return h > 0 
-      ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-      : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
+    const days = useMemo(() => generateDays(), [range]);
 
-  // Subject Configs
-  const subjects = useMemo(() => [
-    { id: 'Physics', icon: Atom, color: 'text-blue-500', bg: 'bg-blue-500', border: 'border-blue-500', gradient: 'from-blue-500 to-indigo-600', ring: 'ring-blue-500', shadow: 'shadow-blue-500/20' },
-    { id: 'Chemistry', icon: Zap, color: 'text-amber-500', bg: 'bg-amber-500', border: 'border-amber-500', gradient: 'from-amber-500 to-orange-600', ring: 'ring-amber-500', shadow: 'shadow-amber-500/20' },
-    { id: 'Maths', icon: Calculator, color: 'text-rose-500', bg: 'bg-rose-500', border: 'border-rose-500', gradient: 'from-rose-500 to-pink-600', ring: 'ring-rose-500', shadow: 'shadow-rose-500/20' },
-  ], []);
+    const getDayStats = (date: Date) => {
+        const dateStr = date.toDateString();
+        const daysSessions = sessions.filter(s => new Date(s.timestamp).toDateString() === dateStr);
+        const duration = daysSessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 60; // in minutes
+        
+        let level = 0;
+        if (duration > 0) level = 1;
+        if (duration >= 30) level = 2;
+        if (duration >= 60) level = 3;
+        if (duration >= 120) level = 4;
 
-  const currentSubject = subjects.find(s => s.id === selectedSubject)!;
-  const pendingTasks = useMemo(() => targets ? targets.filter(t => !t.completed) : [], [targets]);
-  const activeTaskObj = useMemo(() => targets ? targets.find(t => t.id === selectedTask) : undefined, [targets, selectedTask]);
+        return { level, duration, count: daysSessions.length };
+    };
 
-  // Theme Logic
-  const getTheme = () => {
-    if (mode === 'focus') return currentSubject;
-    if (mode === 'short') return { color: 'text-emerald-500', bg: 'bg-emerald-500', border: 'border-emerald-500', gradient: 'from-emerald-400 to-teal-500', ring: 'ring-emerald-500', shadow: 'shadow-emerald-500/20' };
-    return { color: 'text-indigo-500', bg: 'bg-indigo-500', border: 'border-indigo-500', gradient: 'from-indigo-500 to-violet-600', ring: 'ring-indigo-500', shadow: 'shadow-indigo-500/20' };
-  };
-  const theme = getTheme();
+    const getTileStyle = (level: number, isCurrentMonth: boolean) => {
+        const baseOpacity = isCurrentMonth ? 'opacity-100' : 'opacity-30 grayscale';
+        
+        switch(level) {
+            case 0: return `bg-slate-800/40 border-slate-800 ${baseOpacity}`;
+            case 1: return `bg-emerald-900/60 border-emerald-800/50 ${baseOpacity}`;
+            case 2: return `bg-emerald-700/80 border-emerald-600/50 ${baseOpacity}`;
+            case 3: return `bg-emerald-500 border-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.4)] ${baseOpacity}`;
+            case 4: return `bg-emerald-400 border-emerald-300/50 shadow-[0_0_20px_rgba(52,211,153,0.6)] ${baseOpacity}`;
+            default: return `bg-slate-800/40 border-slate-800 ${baseOpacity}`;
+        }
+    };
 
-  // Circle Math - Using SVG ViewBox 0 0 100 100
-  const radius = 45; 
-  const circumference = 2 * Math.PI * radius;
-  const progressPercentage = timeLeft / (durations[mode] * 60);
-  
-  const modeSelector = (
-      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 p-2 rounded-3xl shadow-sm">
-          <div className="flex bg-slate-100 dark:bg-black/40 p-1.5 rounded-2xl">
-              {[
-                  { id: 'focus', label: 'Focus', icon: Brain },
-                  { id: 'short', label: 'Short', icon: Coffee },
-                  { id: 'long', label: 'Long', icon: Armchair }
-              ].map((m) => (
-                  <button
-                      key={m.id}
-                      onClick={() => handleModeSwitch(m.id as any)}
-                      className={`
-                          flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all duration-300
-                          ${mode === m.id 
-                              ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' 
-                              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-white/50 dark:hover:bg-white/5'
-                          }
-                      `}
-                  >
-                      <m.icon size={16} className={mode === m.id && mode === 'focus' ? theme.color : ''} />
-                      <span>{m.label}</span>
-                  </button>
-              ))}
-          </div>
-      </div>
-  );
+    // Responsive grid classes based on range
+    const getGridClass = () => {
+        if (range === 'weekly') return 'grid grid-cols-7 h-20 gap-3 w-full';
+        if (range === 'monthly') return 'grid grid-cols-7 gap-2 w-full';
+        return 'flex flex-wrap gap-1 justify-start w-full'; // Dense flex layout for year
+    };
 
-  return (
-    <div 
-        id="focus-timer-container"
-        className={`
-        transition-all duration-700 ease-in-out w-full
-        ${zenMode ? 'fixed inset-0 z-[100] bg-[#020617] text-white flex flex-col' : 'min-h-[80vh] flex flex-col md:grid md:grid-cols-12 gap-8 relative'}
-    `}>
-      
-      {/* MOBILE ONLY: Mode Selector at the top */}
-      {!zenMode && (
-          <div className="md:hidden order-first w-full animate-in slide-in-from-top-4 duration-500">
-              {modeSelector}
-          </div>
-      )}
+    return (
+        <div className="relative" ref={containerRef} onMouseLeave={() => setHoveredData(null)}>
+            {/* Weekday Labels for Monthly View */}
+            {range === 'monthly' && (
+                <div className="grid grid-cols-7 gap-2 mb-2">
+                    {['S','M','T','W','T','F','S'].map((d, i) => (
+                        <div key={i} className="text-center text-[10px] font-bold text-slate-500 uppercase">{d}</div>
+                    ))}
+                </div>
+            )}
 
-      {/* --- LEFT / MAIN COLUMN (THE TIMER) --- */}
-      <div className={`
-          flex flex-col items-center justify-center relative transition-all duration-500
-          ${zenMode ? 'flex-1 w-full scale-110' : 'md:col-span-7 lg:col-span-8 order-1'}
-      `}>
-          
-          {/* Zen Mode Toggle (Desktop Overlay) */}
-          {!zenMode && (
-              <button 
-                onClick={() => { setZenMode(true); logAnalyticsEvent('zen_mode_enter'); }}
-                className="absolute top-0 right-0 p-3 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors z-20 md:block hidden"
-                title="Enter Zen Mode"
-              >
-                  <Maximize2 size={20} />
-              </button>
-          )}
+            <div className={`transition-opacity ${getGridClass()}`}>
+                {days.map((d, i) => {
+                    const stats = getDayStats(d);
+                    const isToday = d.toDateString() === new Date().toDateString();
+                    // Check if day belongs to current month (for Monthly view opacity)
+                    const isCurrentMonth = range !== 'monthly' || d.getMonth() === new Date().getMonth();
+                    
+                    const tileColorClass = getTileStyle(stats.level, isCurrentMonth);
+                    
+                    // Text Color: Darker for bright tiles, lighter for dark tiles
+                    const textColor = stats.level >= 3 ? 'text-slate-900/90' : 'text-white/50';
 
-          {/* Close Zen Mode Button */}
-          {zenMode && (
-              <button 
-                onClick={() => { setZenMode(false); logAnalyticsEvent('zen_mode_exit'); }}
-                className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white/50 hover:text-white transition-all z-50 backdrop-blur-md"
-              >
-                  <Minimize2 size={24} />
-              </button>
-          )}
-
-          {/* The Interactive Timer Visualization */}
-          <div 
-            onClick={handlePlayClick}
-            className="relative w-[300px] h-[300px] md:w-[450px] md:h-[450px] flex items-center justify-center cursor-pointer group select-none mx-auto"
-          >
-              <svg className="w-full h-full transform -rotate-90 relative z-10 overflow-visible" viewBox="0 0 100 100">
-                  {/* Track - Simple Thin White Outline */}
-                  <circle 
-                    cx="50" cy="50" r={radius} 
-                    className="stroke-slate-200 dark:stroke-white/20 fill-transparent" 
-                    strokeWidth="1.5" 
-                    vectorEffect="non-scaling-stroke" 
-                  />
-                  
-                  {/* Knob - Moving Dot */}
-                  {isActive && (
-                      <circle 
-                          cx="50" cy="50" r="3" 
-                          className="fill-white"
-                          style={{
-                              transformOrigin: '50px 50px',
-                              transform: `rotate(${progressPercentage * 360}deg) translate(${radius}px)`,
-                              transition: 'transform 1s linear',
-                              filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.5))'
-                          }}
-                      />
-                  )}
-              </svg>
-
-              {/* Digital Time */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none">
-                  <div 
-                    className={`
-                        text-6xl md:text-8xl font-display font-black tracking-tighter tabular-nums leading-none transition-colors duration-300
-                        ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'}
-                    `}
-                    style={{ transform: 'translateY(-2%)' }}
-                  >
-                      {formatTime(timeLeft)}
-                  </div>
-                  <div className={`flex items-center gap-2 mt-4 px-4 py-1.5 rounded-full border border-current transition-all duration-500 ${isActive ? 'bg-opacity-10 bg-white dark:bg-white/5' : 'text-slate-400 border-transparent'}`} style={isActive ? { color: 'var(--theme-accent)' } : {}}>
-                      {isActive ? (
-                          <>
-                            <div className="w-2 h-2 rounded-full bg-current animate-pulse" />
-                            <span className="text-xs md:text-sm font-bold uppercase tracking-[0.2em]">
-                                {mode === 'focus' ? (sessionIntent === 'theory' ? 'Reading' : 'Solving') : 'Recharging'}
-                            </span>
-                          </>
-                      ) : (
-                          <span className="text-xs md:text-sm font-bold uppercase tracking-[0.2em] flex items-center gap-2">
-                              <Play size={12} fill="currentColor" /> Tap to Start
-                          </span>
-                      )}
-                  </div>
-              </div>
-
-              {/* Settings Trigger */}
-              <button 
-                  onClick={(e) => { e.stopPropagation(); handleOpenSettings(e); }}
-                  className="absolute top-0 right-0 m-4 p-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-full text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 shadow-lg border border-slate-200 dark:border-white/10 transition-all z-30 hover:scale-110 active:scale-95"
-                  title="Timer Configuration"
-              >
-                  <Settings2 size={18} />
-              </button>
-          </div>
-
-          {/* Primary Action Button (Below Timer) */}
-          <div className="mt-12 md:mt-16 flex flex-col items-center gap-6 relative z-30">
-              {isActive ? (
-                  <div className="flex flex-col items-center gap-6 animate-in slide-in-from-bottom-4 fade-in duration-500">
-                      {mode === 'focus' && sessionIntent === 'questions' && (
-                          <button
-                              onClick={handlePlusOne}
-                              className={`
-                                  group relative flex items-center justify-center gap-4 px-10 py-5 rounded-[2rem]
-                                  bg-gradient-to-r ${theme.gradient} shadow-2xl ${theme.shadow}
-                                  transform transition-all duration-150 active:scale-95 hover:scale-[1.02] hover:-translate-y-1
-                              `}
-                          >
-                              <div className="absolute inset-0 rounded-[2rem] bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
-                              <Plus size={32} className="text-white" strokeWidth={3} />
-                              <div className="text-left text-white">
-                                  <span className="block text-xl font-bold leading-none uppercase tracking-wide">Log Solved</span>
-                                  <span className="block text-[10px] font-bold opacity-80 uppercase tracking-widest mt-1">Capture Progress</span>
-                              </div>
-                          </button>
-                      )}
-
-                      {/* Theory Mode Visual Indicator */}
-                      {mode === 'focus' && sessionIntent === 'theory' && (
-                          <div className="flex items-center gap-2 px-6 py-3 rounded-full bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400">
-                              <BookOpen size={16} />
-                              <span className="text-xs font-bold uppercase tracking-widest">Theory Session Active</span>
-                          </div>
-                      )}
-
-                      <div className="flex items-center gap-6">
-                          <button 
-                              onClick={onToggleTimer}
-                              className="flex items-center gap-2 px-8 py-3 rounded-full bg-white dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/20 text-slate-900 dark:text-white text-xs font-bold uppercase tracking-widest transition-all shadow-lg backdrop-blur-md"
-                          >
-                              <Pause size={16} fill="currentColor" /> Pause
-                          </button>
-                          <button 
-                              onClick={onResetTimer}
-                              className="p-3 rounded-full text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/20 transition-all"
-                              title="Reset Session"
-                          >
-                              <RotateCcw size={20} />
-                          </button>
-                      </div>
-                  </div>
-              ) : (
-                  <button
-                      onClick={handlePlayClick}
-                      className={`
-                          group relative w-24 h-24 md:w-28 md:h-28 rounded-full flex items-center justify-center 
-                          bg-gradient-to-br ${theme.gradient} text-white shadow-2xl ${theme.shadow}
-                          transition-all duration-300 hover:scale-110 active:scale-95
-                      `}
-                  >
-                      <Play size={40} fill="currentColor" className="ml-2 relative z-10" />
-                      <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity animate-pulse" />
-                  </button>
-              )}
-          </div>
-      </div>
-
-      {/* --- RIGHT COLUMN (HUD / CONTROLS) --- */}
-      {!zenMode && (
-          <div className="md:col-span-5 lg:col-span-4 order-2 flex flex-col gap-6 md:h-full md:overflow-y-auto no-scrollbar md:pr-2">
-              
-              {/* 1. Mode Selector Card (Desktop Only) */}
-              <div className="hidden md:block">
-                  {modeSelector}
-              </div>
-
-              {/* 2. Session Context Card */}
-              <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 p-6 rounded-3xl shadow-sm space-y-6">
-                  
-                  {/* Subject Picker (Only in Focus Mode) */}
-                  {mode === 'focus' && !isActive && (
-                      <div className="space-y-3">
-                          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                              <Atom size={14} /> Subject
-                          </label>
-                          <div className="flex flex-wrap gap-2">
-                              {subjects.map(s => (
-                                  <button
-                                      key={s.id}
-                                      onClick={() => setSelectedSubject(s.id as any)}
-                                      className={`
-                                          flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border
-                                          ${selectedSubject === s.id 
-                                              ? `${s.bg} text-white border-transparent shadow-md` 
-                                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-white/20'
-                                          }
-                                      `}
-                                  >
-                                      {selectedSubject === s.id && <CheckCircle2 size={12} />}
-                                      {s.id}
-                                  </button>
-                              ))}
-                          </div>
-                      </div>
-                  )}
-
-                  {/* Task Selector */}
-                  <div className="space-y-3">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                          <ListTodo size={14} /> Objective
-                      </label>
-                      <div className="relative">
-                          <select 
-                              value={selectedTask}
-                              onChange={(e) => setSelectedTask(e.target.value)}
-                              className="w-full appearance-none bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-sm font-medium rounded-xl p-3 pr-10 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all truncate"
-                          >
-                              <option value="">No specific task</option>
-                              {pendingTasks.map(t => <option key={t.id} value={t.id}>{t.text}</option>)}
-                          </select>
-                          <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-                  </div>
-              </div>
-
-              {/* 3. Live Session Stats (Show only if Questions Mode or Logs Exist) */}
-              {(sessionIntent === 'questions' || sessionLogs.length > 0) && (
-                  <div className="flex-1 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/5 p-6 rounded-3xl shadow-sm flex flex-col min-h-[200px]">
-                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                          <History size={14} /> Session Log
-                      </h3>
-                      
-                      {sessionLogs.length === 0 ? (
-                          <div className="flex-1 flex flex-col items-center justify-center opacity-40 py-8">
-                              <div className="p-3 bg-slate-100 dark:bg-white/5 rounded-full mb-3">
-                                  <Clock size={24} />
-                              </div>
-                              <p className="text-xs font-bold uppercase tracking-widest text-center">Ready to Log</p>
-                          </div>
-                      ) : (
-                          <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-1 -mr-2">
-                              {sessionLogs.map((log, i) => {
-                                  const isCorrect = log.result === 'correct';
-                                  const mistake = !isCorrect ? MISTAKE_TYPES.find(m => m.id === log.result) : null;
-                                  return (
-                                      <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5">
-                                          <div className="flex items-center gap-3">
-                                              <span className="text-[10px] font-mono text-slate-400 w-4">#{sessionLogs.length - i}</span>
-                                              <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isCorrect ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400'}`}>
-                                                  {isCorrect ? 'Solved' : mistake?.label || 'Miss'}
-                                              </div>
-                                          </div>
-                                          <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
-                                              {formatTime(log.duration)}
-                                          </span>
-                                      </div>
-                                  );
-                              })}
-                          </div>
-                      )}
-
-                      {sessionLogs.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/5 grid grid-cols-2 gap-4">
-                              <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Qs</p>
-                                  <p className="text-2xl font-mono font-bold text-slate-900 dark:text-white">{sessionLogs.length}</p>
-                              </div>
-                              <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Avg Pace</p>
-                                  <p className="text-2xl font-mono font-bold text-slate-900 dark:text-white">
-                                      {sessionLogs.length > 0 ? Math.round(sessionLogs.reduce((a,b) => a+b.duration, 0) / sessionLogs.length / 60) : 0}
-                                      <span className="text-sm ml-1 text-slate-500">min</span>
-                                  </p>
-                              </div>
-                          </div>
-                      )}
-                  </div>
-              )}
-          </div>
-      )}
-
-      {/* Ad Unit at the bottom of the grid */}
-      {!zenMode && (
-          <div className="md:col-span-12 mt-8">
-              <AdUnit 
-                  client="ca-pub-YOUR_PUBLISHER_ID_HERE" 
-                  slot="1234567890" 
-                  label="Sponsored"
-              />
-          </div>
-      )}
-
-      {/* --- SESSION INTENT MODAL (PORTAL) --- */}
-      {showIntentModal && createPortal(
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200 backdrop-blur-sm">
-              <div 
-                className="w-full max-w-sm rounded-[2rem] overflow-hidden animate-in zoom-in-95 duration-200 p-6 flex flex-col items-center text-center gap-6"
-                style={{ 
-                    backgroundColor: 'rgba(var(--theme-card-rgb), 0.95)',
-                    border: '1px solid rgba(var(--theme-accent-rgb), 0.2)',
-                    boxShadow: '0 25px 50px -12px rgba(var(--theme-accent-rgb), 0.3)'
-                }}
-              >
-                  <div>
-                      <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--theme-text-main)' }}>Session Goal</h3>
-                      <p className="text-sm" style={{ color: 'var(--theme-text-sub)' }}>What are you focusing on right now?</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 w-full gap-3">
-                      <button 
-                          onClick={() => confirmSessionStart('questions')}
-                          className="group relative flex items-center gap-4 p-4 rounded-2xl border border-white/10 bg-black/20 hover:bg-black/40 transition-all hover:scale-[1.02] active:scale-95"
-                      >
-                          <div className="p-3 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-xl">
-                              <PenTool size={24} />
-                          </div>
-                          <div className="text-left">
-                              <span className="block text-sm font-bold text-white">Solving Questions</span>
-                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-60 text-slate-400">Enables Logging & Stats</span>
-                          </div>
-                          <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500">
-                              <Play size={16} fill="currentColor" />
-                          </div>
-                      </button>
-
-                      <button 
-                          onClick={() => confirmSessionStart('theory')}
-                          className="group relative flex items-center gap-4 p-4 rounded-2xl border border-white/10 bg-black/20 hover:bg-black/40 transition-all hover:scale-[1.02] active:scale-95"
-                      >
-                          <div className="p-3 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                              <BookOpen size={24} />
-                          </div>
-                          <div className="text-left">
-                              <span className="block text-sm font-bold text-white">Reading Theory</span>
-                              <span className="block text-[10px] uppercase font-bold tracking-wider opacity-60 text-slate-400">Timer Only • No Distractions</span>
-                          </div>
-                          <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-500">
-                              <Play size={16} fill="currentColor" />
-                          </div>
-                      </button>
-                  </div>
-
-                  <button onClick={() => setShowIntentModal(false)} className="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
-                      Cancel
-                  </button>
-              </div>
-          </div>,
-          document.body
-      )}
-
-      {/* --- SETTINGS MODAL (PORTAL) --- */}
-      {showSettings && createPortal(
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200 backdrop-blur-sm" onClick={handleCloseSettings}>
-            <div 
-                className="w-full max-w-sm rounded-[2rem] overflow-hidden animate-in zoom-in-95 duration-200" 
-                onClick={(e) => e.stopPropagation()}
-                style={{ 
-                    backgroundColor: 'rgba(var(--theme-card-rgb), 0.85)',
-                    backgroundImage: `
-                        radial-gradient(circle at top left, rgba(var(--theme-accent-rgb), 0.25), transparent 70%),
-                        radial-gradient(circle at bottom right, rgba(var(--theme-accent-rgb), 0.15), transparent 70%)
-                    `,
-                    borderColor: 'rgba(var(--theme-accent-rgb), 0.3)',
-                    borderWidth: '1px',
-                    boxShadow: '0 25px 50px -12px rgba(var(--theme-accent-rgb), 0.3), 0 0 15px rgba(var(--theme-accent-rgb), 0.1)',
-                    backdropFilter: 'blur(24px)'
-                }}
-            >
-                <div className="p-6">
-                    <div className="flex justify-between items-center mb-6">
-                        <h4 className="text-sm font-bold uppercase tracking-widest" style={{ color: 'var(--theme-text-main)' }}>Timer Config</h4>
-                        <button onClick={handleCloseSettings} className="p-2 -mr-2 transition-colors" style={{ color: 'var(--theme-text-sub)' }}><X size={18} /></button>
-                    </div>
-                    {isActive && (
-                        <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-bold uppercase tracking-wide flex items-center gap-2">
-                            <Lock size={12} /> Pause timer to change durations
+                    return (
+                        <div 
+                            key={i} 
+                            onMouseEnter={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const parent = containerRef.current?.getBoundingClientRect();
+                                if(parent) {
+                                    setHoveredData({
+                                        date: d,
+                                        stats,
+                                        pos: { 
+                                            x: rect.left - parent.left + rect.width/2,
+                                            y: rect.top - parent.top
+                                        }
+                                    })
+                                }
+                            }}
+                            className={`
+                                relative rounded-md border flex items-center justify-center transition-all duration-300 cursor-pointer
+                                ${tileColorClass}
+                                ${isToday ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900 z-10 scale-105' : 'hover:scale-110 hover:z-20 hover:border-white/30'}
+                                ${range === 'weekly' ? 'h-full flex-col rounded-xl' : range === 'monthly' ? 'aspect-square rounded-xl' : 'w-3 h-3 md:w-3.5 md:h-3.5 rounded-sm'}
+                            `}
+                        >
+                            {range === 'weekly' && (
+                                <>
+                                    <span className={`text-[10px] font-bold uppercase ${textColor} opacity-60 mb-1`}>
+                                        {d.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}
+                                    </span>
+                                    {stats.duration > 0 && (
+                                        <span className={`text-xs font-mono font-bold ${textColor}`}>
+                                            {Math.round(stats.duration)}m
+                                        </span>
+                                    )}
+                                </>
+                            )}
+                            {range === 'monthly' && (
+                                <span className={`text-[10px] font-bold ${textColor} ${isToday ? 'text-white' : ''}`}>
+                                    {d.getDate()}
+                                </span>
+                            )}
                         </div>
-                    )}
-                    <div className="space-y-4">
-                        <DurationControl label="Focus Duration" value={durations.focus} onChange={(val) => onUpdateDurations(val, 'focus')} min={1} max={360} step={1} colorHex="#6366f1" disabled={isActive} />
-                        <DurationControl label="Short Break" value={durations.short} onChange={(val) => onUpdateDurations(val, 'short')} min={1} max={30} step={1} colorHex="#10b981" disabled={isActive} />
-                        <DurationControl label="Long Break" value={durations.long} onChange={(val) => onUpdateDurations(val, 'long')} min={5} max={60} step={5} colorHex="#3b82f6" disabled={isActive} />
-                    </div>
+                    )
+                })}
+            </div>
+
+            {/* Custom Tooltip */}
+            <AnimatePresence>
+                {hoveredData && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: -12, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute z-50 pointer-events-none"
+                        style={{ 
+                            left: hoveredData.pos.x, 
+                            top: hoveredData.pos.y,
+                            transform: 'translateX(-50%)' 
+                        }}
+                    >
+                        <div className="bg-slate-800/95 text-white p-3 rounded-xl shadow-2xl border border-white/10 whitespace-nowrap flex flex-col items-center -translate-x-1/2 -translate-y-full mb-2 backdrop-blur-md">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+                                {hoveredData.date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                            </span>
+                            <div className="flex items-baseline gap-1.5">
+                                <span className="text-xl font-mono font-bold text-emerald-400 leading-none">
+                                    {formatDuration(hoveredData.stats.duration)}
+                                </span>
+                            </div>
+                            <span className="text-[9px] font-medium text-slate-500 mt-1 uppercase tracking-wide">
+                                {hoveredData.stats.count} {hoveredData.stats.count === 1 ? 'Session' : 'Sessions'}
+                            </span>
+                            
+                            {/* Arrow */}
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45 w-2.5 h-2.5 bg-slate-800 border-r border-b border-white/10" />
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+// --- SETTINGS MODAL ---
+const TimerSettingsModal = ({ 
+    isOpen, 
+    onClose, 
+    durations, 
+    onUpdate 
+}: { 
+    isOpen: boolean;
+    onClose: () => void;
+    durations: { focus: number; short: number; long: number };
+    onUpdate: (val: number, mode: 'focus' | 'short' | 'long') => void;
+}) => {
+    if (!isOpen) return null;
+
+    const formatTimeDisplay = (mins: number) => {
+        if (mins < 60) return null;
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    };
+
+    return createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-white/10 animate-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Settings2 size={18} /> Timer Settings
+                    </h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors">
+                        <X size={20} className="text-slate-400" />
+                    </button>
+                </div>
+                
+                <div className="space-y-6">
+                    {(['focus', 'short', 'long'] as const).map(mode => (
+                        <div key={mode} className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                    {mode === 'focus' && <Brain size={14} className="text-indigo-500" />}
+                                    {mode === 'short' && <Coffee size={14} className="text-emerald-500" />}
+                                    {mode === 'long' && <Armchair size={14} className="text-blue-500" />}
+                                    {mode === 'focus' ? 'Focus Duration' : mode === 'short' ? 'Short Break' : 'Long Break'}
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    {durations[mode] >= 60 && (
+                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-md hidden sm:block">
+                                            {formatTimeDisplay(durations[mode])}
+                                        </span>
+                                    )}
+                                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/10 px-2 py-1 rounded-lg border border-slate-200 dark:border-white/5 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500/50 transition-all">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="1440"
+                                            value={durations[mode]}
+                                            onChange={(e) => {
+                                                let val = parseInt(e.target.value);
+                                                if (isNaN(val)) val = 0; // Allow typing
+                                                if (val > 1440) val = 1440; // Max 24 hours
+                                                onUpdate(val, mode);
+                                            }}
+                                            className="w-12 bg-transparent text-right font-mono font-bold text-slate-900 dark:text-white outline-none p-0 text-sm appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        />
+                                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">min</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <input 
+                                type="range" 
+                                min="1" 
+                                max={mode === 'focus' ? 180 : 60} 
+                                value={durations[mode]} 
+                                onChange={(e) => onUpdate(parseInt(e.target.value), mode)}
+                                className={`w-full h-2 rounded-full appearance-none cursor-pointer ${
+                                    mode === 'focus' ? 'bg-indigo-100 dark:bg-indigo-500/20 accent-indigo-500' :
+                                    mode === 'short' ? 'bg-emerald-100 dark:bg-emerald-500/20 accent-emerald-500' :
+                                    'bg-blue-100 dark:bg-blue-500/20 accent-blue-500'
+                                }`}
+                            />
+                        </div>
+                    ))}
+                </div>
+
+                <div className="mt-8">
+                    <button 
+                        onClick={onClose}
+                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                    >
+                        Done
+                    </button>
                 </div>
             </div>
         </div>,
         document.body
-      )}
+    );
+};
 
-      {/* --- REAL-TIME TAGGING OVERLAY (PORTAL) --- */}
-      {showTagger && !showReport && createPortal(
-          <div className="fixed inset-0 z-[150] flex items-end justify-center pb-8 animate-in slide-in-from-bottom-10 fade-in duration-300">
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseTagger} />
-              
-              <div 
-                className="relative w-[90%] max-w-md rounded-3xl p-6 flex flex-col gap-4 mb-safe"
-                style={{ 
-                    backgroundColor: 'rgba(var(--theme-card-rgb), 0.85)',
-                    backgroundImage: `
-                        radial-gradient(circle at top left, rgba(var(--theme-accent-rgb), 0.25), transparent 70%),
-                        radial-gradient(circle at bottom right, rgba(var(--theme-accent-rgb), 0.15), transparent 70%)
-                    `,
-                    borderColor: 'rgba(var(--theme-accent-rgb), 0.3)',
-                    borderWidth: '1px',
-                    boxShadow: '0 25px 50px -12px rgba(var(--theme-accent-rgb), 0.3), 0 0 15px rgba(var(--theme-accent-rgb), 0.1)',
-                    backdropFilter: 'blur(24px)'
-                }}
-              >
-                  <div className="flex justify-between items-center border-b pb-4" style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)' }}>
-                      <div>
-                          <h3 className="text-lg font-bold" style={{ color: 'var(--theme-text-main)' }}>Log Question #{sessionLogs.length + 1}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                              <TimerIcon size={12} style={{ color: 'var(--theme-text-sub)' }} />
-                              <span className="text-xs font-mono font-medium" style={{ color: 'var(--theme-text-sub)' }}>
-                                  Time taken: <span className="font-bold" style={{ color: 'var(--theme-accent)' }}>{formatTime(currentQDuration)}</span>
-                              </span>
-                          </div>
-                      </div>
-                      <button onClick={handleCloseTagger} className="p-2 rounded-full hover:bg-white/10 transition-colors" style={{ color: 'var(--theme-text-sub)' }}>
-                          <X size={20} />
-                      </button>
-                  </div>
+// --- MAIN COMPONENT ---
 
-                  <div className="grid grid-cols-2 gap-3">
-                      <button 
-                          onClick={() => handleTagResult('correct')}
-                          className="col-span-2 py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-bold uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
-                      >
-                          <CheckCircle2 size={20} /> Solved / Correct
-                      </button>
-                      
-                      <div className="col-span-2 text-center my-1 relative">
-                          <span 
-                            className="text-[9px] font-bold uppercase tracking-widest rounded px-2 relative z-10"
-                            style={{ color: 'var(--theme-text-sub)', backgroundColor: 'var(--theme-card-bg)' }}
-                          >
-                              or mark issue
-                          </span>
-                          <div className="h-px w-full absolute top-1/2 left-0 -z-0" style={{ backgroundColor: 'rgba(var(--theme-text-main), 0.1)' }}></div>
-                      </div>
+export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
+  const { 
+    timerState, 
+    sessions, 
+    onToggleTimer, 
+    isPro, 
+    onOpenUpgrade, 
+    mode, 
+    timeLeft, 
+    durations,
+    onResetTimer,
+    onCompleteSession,
+    onAddLog,
+    lastLogTime,
+    onSwitchMode,
+    onUpdateDurations,
+    userName,
+    syllabus
+  } = props;
 
-                      {MISTAKE_TYPES.slice(0, 4).map(type => (
-                          <button
-                              key={type.id}
-                              onClick={() => handleTagResult(type.id)}
-                              className={`
-                                  flex items-center gap-2 p-3 rounded-xl border hover:bg-white/5 transition-all active:scale-95
-                                  ${type.color.replace('text-', 'text-')}
-                              `}
-                              style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)' }}
-                          >
-                              <span className="shrink-0">{type.icon}</span>
-                              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--theme-text-main)' }}>{type.label}</span>
-                          </button>
-                      ))}
-                  </div>
-              </div>
-          </div>,
-          document.body
-      )}
+  const subjectKeys = useMemo(() => Object.keys(syllabus), [syllabus]);
+  
+  const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
+  const [sessionIntent, setSessionIntent] = useState<'questions' | 'theory'>('questions');
+  const [showTagger, setShowTagger] = useState(false);
+  const [currentQDuration, setCurrentQDuration] = useState(0); 
+  const [selectedSubject, setSelectedSubject] = useState<string>(subjectKeys[0] || '');
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [isEditingTime, setIsEditingTime] = useState(false);
+  const [customTimeInput, setCustomTimeInput] = useState(durations.focus.toString());
+  const [showSettings, setShowSettings] = useState(false);
+  
+  const isActive = timerState === 'running';
+  const isSessionInProgress = timerState !== 'idle';
 
-      {/* --- REPORT CARD OVERLAY (PORTAL) --- */}
-      {showReport && createPortal(
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 animate-in fade-in duration-300">
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
-              <div 
-                className="relative w-full max-w-md rounded-[2rem] overflow-hidden flex flex-col max-h-[80vh]"
-                style={{ 
-                    backgroundColor: 'rgba(var(--theme-card-rgb), 0.85)',
-                    backgroundImage: `
-                        radial-gradient(circle at top left, rgba(var(--theme-accent-rgb), 0.25), transparent 70%),
-                        radial-gradient(circle at bottom right, rgba(var(--theme-accent-rgb), 0.15), transparent 70%)
-                    `,
-                    borderColor: 'rgba(var(--theme-accent-rgb), 0.3)',
-                    borderWidth: '1px',
-                    boxShadow: '0 25px 50px -12px rgba(var(--theme-accent-rgb), 0.3), 0 0 15px rgba(var(--theme-accent-rgb), 0.1)',
-                    backdropFilter: 'blur(24px)'
-                }}
-              >
+  useEffect(() => {
+      // Ensure selected subject is valid
+      if (!subjectKeys.includes(selectedSubject) && subjectKeys.length > 0) {
+          setSelectedSubject(subjectKeys[0]);
+      }
+  }, [subjectKeys, selectedSubject]);
+
+  // Clock state for the header
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+      const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+      return () => clearInterval(timer);
+  }, []);
+
+  // --- ANALYTICS LOGIC ---
+  const analyticsData = useMemo(() => {
+      const filtered = filterSessions(sessions, timeRange);
+      const totalMinutes = filtered.reduce((acc, s) => acc + (s.duration ? s.duration / 60 : 0), 0); 
+      const sessionCount = filtered.length;
+      
+      const subjectDist: Record<string, number> = {};
+      subjectKeys.forEach(key => subjectDist[key] = 0);
+      
+      filtered.forEach(s => {
+          if (subjectDist[s.subject] !== undefined) {
+              subjectDist[s.subject] += (s.duration ? s.duration / 60 : 0);
+          }
+      });
+      
+      const reviews = filtered.reduce((acc, s) => acc + (s.attempted || 0), 0);
+      
+      // Calculate Subject Balance Insight
+      let balanceMessage = "No data recorded for this period yet.";
+      let balanceAction = "Start a session to see insights.";
+      
+      if (totalMinutes > 0 && subjectKeys.length >= 2) {
+          const sorted = Object.entries(subjectDist).sort(([,a], [,b]) => b - a);
+          const maxSub = sorted[0][0];
+          const maxPct = Math.round((sorted[0][1] / totalMinutes) * 100);
+          
+          if (maxPct > 60) {
+              balanceMessage = `Heavy focus on ${maxSub} (${maxPct}%).`;
+              balanceAction = "Try rotating subjects to avoid burnout.";
+          } else {
+              balanceMessage = "Great balance across subjects!";
+              balanceAction = "Keep maintaining this variety.";
+          }
+      }
+
+      // Streak & Consistency Calculation
+      // Logic: A day is "Active" ONLY if the user studied for at least 1 hour (3600 seconds) that day.
+      
+      // 1. Group all sessions by date to calculate daily totals
+      const dailyDurations: Record<string, number> = {};
+      sessions.forEach(s => {
+          const d = new Date(s.timestamp);
+          d.setHours(0,0,0,0);
+          const dateKey = d.getTime().toString();
+          dailyDurations[dateKey] = (dailyDurations[dateKey] || 0) + (s.duration || 0); // duration is in seconds
+      });
+
+      // 2. Identify Valid Days (>= 1 hour)
+      const validDates = Object.entries(dailyDurations)
+          .filter(([_, seconds]) => seconds >= 3600)
+          .map(([ts]) => parseInt(ts))
+          .sort((a, b) => b - a); // Descending order
+
+      // 3. Calculate Streak
+      let currentStreak = 0;
+      if (validDates.length > 0) {
+          const today = new Date();
+          today.setHours(0,0,0,0);
+          const todayTime = today.getTime();
+          const yesterdayTime = todayTime - 86400000;
+          
+          // Streak is active if the last valid day was today or yesterday
+          if (validDates[0] === todayTime || validDates[0] === yesterdayTime) {
+              currentStreak = 1;
+              for (let i = 0; i < validDates.length - 1; i++) {
+                  // Check if previous date is exactly 1 day before current date in the sorted array
+                  const diff = validDates[i] - validDates[i+1];
+                  // Allow small tolerance for DST changes if any, roughly 24h
+                  if (diff >= 86400000 - 3600000 && diff <= 86400000 + 3600000) { 
+                      currentStreak++;
+                  } else {
+                      break;
+                  }
+              }
+          }
+      }
+
+      // 4. Calculate Consistency based on TimeRange
+      let consistency = 0;
+      const startOfRange = getStartOfRange(timeRange).getTime();
+      let endOfRange = 0;
+      let totalDays = 1;
+
+      if (timeRange === 'weekly') {
+          totalDays = 7;
+          endOfRange = startOfRange + 7 * 86400000;
+      } else if (timeRange === 'monthly') {
+          const d = new Date(startOfRange);
+          const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+          endOfRange = nextMonth.getTime();
+          totalDays = Math.round((endOfRange - startOfRange) / 86400000);
+      } else {
+          // yearly
+          const d = new Date(startOfRange);
+          const nextYear = new Date(d.getFullYear() + 1, 0, 1);
+          endOfRange = nextYear.getTime();
+          totalDays = Math.round((endOfRange - startOfRange) / 86400000);
+      }
+
+      // Count valid days that fall within the selected range
+      const validDaysInRange = validDates.filter(t => t >= startOfRange && t < endOfRange).length;
+      consistency = Math.round((validDaysInRange / totalDays) * 100);
+
+      return {
+          totalMinutes,
+          sessionCount,
+          subjectDist,
+          balanceMessage,
+          balanceAction,
+          currentStreak,
+          consistency
+      };
+  }, [sessions, timeRange, subjectKeys, syllabus]);
+
+  // --- HANDLERS ---
+  const adjustDuration = (deltaMinutes: number) => {
+      const current = durations[mode];
+      const next = Math.max(1, Math.min(1440, current + deltaMinutes)); // Cap at 24h
+      onUpdateDurations(next, mode);
+  };
+
+  const handleTimeBlur = () => {
+      setIsEditingTime(false);
+      let val = parseInt(customTimeInput);
+      if (isNaN(val) || val < 1) val = 25;
+      if (val > 1440) val = 1440; // Cap at 24 hours
+      onUpdateDurations(val, mode);
+      setCustomTimeInput(val.toString());
+  };
+
+  const handleStopClick = () => {
+      setShowStopConfirm(true);
+  };
+
+  const handleConfirmStop = () => {
+      onCompleteSession();
+      setShowStopConfirm(false);
+  };
+
+  const getQuickDurations = () => {
+      if (mode === 'short') return [5, 10, 15];
+      if (mode === 'long') return [15, 20, 30];
+      return [25, 45, 60];
+  };
+
+  const getThemeColor = () => {
+      if (mode === 'short') return 'emerald';
+      if (mode === 'long') return 'blue';
+      return 'indigo';
+  };
+
+  const themeColor = getThemeColor();
+
+  // --- RENDER ---
+  return (
+    <>
+      <div className="pb-20 animate-in fade-in duration-500 space-y-6">
+          
+          {/* 1. Header & Time Range Filter */}
+          <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-2">
+              <div>
+                  <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+                      Focus & Analytics
+                      {!isPro && <Lock size={16} className="text-amber-500" />}
+                  </h2>
                   
-                  <div 
-                    className="p-6 border-b"
-                    style={{ 
-                        background: 'linear-gradient(to bottom right, rgba(var(--theme-accent-rgb), 0.15), transparent)',
-                        borderColor: 'rgba(var(--theme-text-main), 0.1)'
-                    }}
-                  >
-                      <div className="flex justify-between items-start">
-                          <div>
-                              <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--theme-text-main)' }}>
-                                  <CheckCircle2 className="text-emerald-500" /> Session Complete
-                              </h2>
-                              <p className="text-xs font-medium mt-1" style={{ color: 'var(--theme-text-sub)' }}>Great job! Here's your performance breakdown.</p>
+                  {/* Clock Display */}
+                  <div className="mt-2 flex flex-col md:flex-row md:items-baseline md:gap-3">
+                        <p className="text-4xl md:text-5xl font-display font-bold text-indigo-500 dark:text-indigo-400 tracking-tighter leading-none mb-1 md:mb-0">
+                            {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest font-bold">
+                            {currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </p>
+                   </div>
+              </div>
+              <div className="flex bg-slate-200 dark:bg-white/5 p-1 rounded-xl">
+                  {(['weekly', 'monthly', 'yearly'] as const).map(range => (
+                      <button
+                          key={range}
+                          onClick={() => setTimeRange(range)}
+                          className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${timeRange === range ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                      >
+                          {range}
+                      </button>
+                  ))}
+              </div>
+          </div>
+
+          {/* --- NEW COMPACT TIMER HERO --- */}
+          <div className="w-full bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-white/10 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden group">
+              {/* Background Glow */}
+              <div className={`absolute top-0 right-0 w-[300px] h-[300px] rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none transition-all duration-1000 ${isActive ? 'opacity-100' : 'opacity-50'} bg-${themeColor}-500/10`} />
+              
+              <div className="relative z-10">
+                  {isSessionInProgress ? (
+                      // ACTIVE VIEW
+                      <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                          <div className="flex-1 text-center md:text-left">
+                              <div className={`inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 border ${isActive ? `bg-${themeColor}-500/10 text-${themeColor}-500 border-${themeColor}-500/20` : `bg-slate-500/10 text-slate-500 border-slate-500/20`}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isActive ? `bg-${themeColor}-500 animate-pulse` : `bg-slate-500`}`} />
+                                  {isActive ? 'Active' : 'Paused'}
+                              </div>
+                              <div className="text-6xl md:text-8xl font-display font-bold text-slate-900 dark:text-white leading-none tracking-tighter tabular-nums">
+                                  {formatDigitalTime(timeLeft)}
+                              </div>
+                              <p className="text-slate-500 dark:text-slate-400 font-medium mt-1 text-sm">
+                                  {mode === 'focus' ? (
+                                      <>{sessionIntent === 'questions' ? 'Solving' : 'Reading'} <span className="text-indigo-500 font-bold">{selectedSubject}</span></>
+                                  ) : (
+                                      <span className="text-slate-400">Rest & Recharge</span>
+                                  )}
+                              </p>
+                          </div>
+
+                          <div className="flex items-center gap-3 w-full md:w-auto">
+                               {sessionIntent === 'questions' && mode === 'focus' && isActive && (
+                                  <button onClick={(e) => {
+                                      e.stopPropagation();
+                                      const now = Date.now();
+                                      const duration = Math.ceil((now - lastLogTime) / 1000);
+                                      setCurrentQDuration(duration);
+                                      setShowTagger(true);
+                                  }} className="h-14 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 transition-all active:scale-95 flex-1 md:flex-initial">
+                                      <Plus size={20} strokeWidth={3} />
+                                      <span>Log Q</span>
+                                  </button>
+                               )}
+                               <button onClick={onToggleTimer} className="h-14 w-14 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-all flex items-center justify-center">
+                                   {isActive ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+                               </button>
+                               <button onClick={handleStopClick} className="h-14 w-14 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-rose-500/20">
+                                   <Square size={20} fill="currentColor" />
+                               </button>
                           </div>
                       </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 mt-6">
-                          <div className="p-3 rounded-xl border" style={{ backgroundColor: 'rgba(var(--theme-text-main), 0.03)', borderColor: 'rgba(var(--theme-text-main), 0.1)' }}>
-                              <span className="text-[10px] uppercase font-bold tracking-widest block mb-1" style={{ color: 'var(--theme-text-sub)' }}>Accuracy</span>
-                              <span className="text-2xl font-mono font-bold" style={{ color: 'var(--theme-accent)' }}>
-                                  {sessionLogs.length > 0 
-                                    ? Math.round((sessionLogs.filter(l => l.result === 'correct').length / sessionLogs.length) * 100) 
-                                    : 0}%
-                              </span>
+                  ) : (
+                      // SETUP VIEW
+                      <div className="flex flex-col gap-6">
+                          
+                          {/* Header with Mode Switcher & Settings */}
+                          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                              <div className="flex p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-full sm:w-auto">
+                                  {(['focus', 'short', 'long'] as const).map(m => (
+                                      <button 
+                                        key={m}
+                                        onClick={() => onSwitchMode(m)}
+                                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
+                                            mode === m 
+                                            ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                        }`}
+                                      >
+                                          {m === 'focus' ? 'Focus' : m === 'short' ? 'Short Break' : 'Long Break'}
+                                      </button>
+                                  ))}
+                              </div>
+                              <button 
+                                onClick={() => setShowSettings(true)} 
+                                className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                              >
+                                 <Settings2 size={18} />
+                              </button>
                           </div>
-                          <div className="p-3 rounded-xl border" style={{ backgroundColor: 'rgba(var(--theme-text-main), 0.03)', borderColor: 'rgba(var(--theme-text-main), 0.1)' }}>
-                              <span className="text-[10px] uppercase font-bold tracking-widest block mb-1" style={{ color: 'var(--theme-text-sub)' }}>Questions</span>
-                              <span className="text-2xl font-mono font-bold" style={{ color: 'var(--theme-text-main)' }}>
-                                  {sessionLogs.length}
-                              </span>
-                          </div>
-                      </div>
-                  </div>
 
-                  <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
-                      {sessionLogs.map((log, i) => {
-                          const isCorrect = log.result === 'correct';
-                          const mistake = !isCorrect ? MISTAKE_TYPES.find(m => m.id === log.result) : null;
-                          const subjectConfig = subjects.find(s => s.id === log.subject);
-
-                          return (
-                              <div key={i} className="flex items-center gap-3 p-3 rounded-xl border" style={{ backgroundColor: 'rgba(var(--theme-text-main), 0.02)', borderColor: 'rgba(var(--theme-text-main), 0.05)' }}>
-                                  <div className={`p-2 rounded-lg bg-white dark:bg-white/5 ${subjectConfig?.color}`}>
-                                      {subjectConfig?.icon ? <subjectConfig.icon size={14} /> : <Atom size={14} />}
+                          <div className="flex flex-col md:flex-row items-center gap-8">
+                              
+                              {/* Time Selection */}
+                              <div className="flex flex-col items-center gap-3 min-w-[140px]">
+                                  <div className="relative group/time cursor-pointer p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                      {isEditingTime ? (
+                                          <div className="flex flex-col items-center">
+                                              <div className="flex items-baseline justify-center">
+                                                  <input 
+                                                      autoFocus
+                                                      type="number"
+                                                      className={`w-40 bg-transparent text-6xl md:text-7xl font-display font-bold text-center outline-none p-0 leading-none text-${themeColor}-500 [&::-webkit-inner-spin-button]:appearance-none`}
+                                                      value={customTimeInput}
+                                                      onChange={(e) => setCustomTimeInput(e.target.value)}
+                                                      onBlur={handleTimeBlur}
+                                                      onKeyDown={(e) => e.key === 'Enter' && handleTimeBlur()}
+                                                  />
+                                                  <span className="text-xl text-slate-400 font-medium">m</span>
+                                              </div>
+                                              {/* LIVE CONVERSION PREVIEW */}
+                                              {parseInt(customTimeInput) > 0 && (
+                                                  <p className="text-xs text-indigo-500 font-bold uppercase tracking-widest mt-2 animate-in fade-in">
+                                                      {formatDuration(parseInt(customTimeInput))}
+                                                  </p>
+                                              )}
+                                          </div>
+                                      ) : (
+                                          <div onClick={() => { setIsEditingTime(true); setCustomTimeInput(durations[mode].toString()); }} className="flex items-baseline justify-center">
+                                              <div className="text-6xl md:text-7xl font-display font-bold text-slate-900 dark:text-white leading-none tracking-tighter tabular-nums select-none">
+                                                  {durations[mode]}
+                                              </div>
+                                              <span className="text-2xl text-slate-300 font-normal ml-1">m</span>
+                                          </div>
+                                      )}
                                   </div>
-                                  <div className="flex-grow min-w-0">
-                                      <div className="flex justify-between items-center mb-1">
-                                          <span className="text-xs font-bold" style={{ color: 'var(--theme-text-main)' }}>Question {i + 1}</span>
-                                          <span className="text-[10px] font-mono font-bold flex items-center gap-1" style={{ color: 'var(--theme-text-sub)' }}>
-                                              <Clock size={10} /> {formatTime(log.duration)}
-                                          </span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                          {isCorrect ? (
-                                              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Correct</span>
-                                          ) : (
-                                              <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500 flex items-center gap-1`}>
-                                                  {mistake?.label || 'Incorrect'}
-                                              </span>
-                                          )}
-                                      </div>
+                                  <div className="flex gap-1.5">
+                                      {getQuickDurations().map(m => (
+                                          <button key={m} onClick={() => onUpdateDurations(m, mode)} className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${durations[mode] === m ? `bg-${themeColor}-500 text-white` : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'}`}>
+                                              {m}
+                                          </button>
+                                      ))}
                                   </div>
                               </div>
-                          );
-                      })}
-                  </div>
 
-                  <div className="p-4 border-t" style={{ borderColor: 'rgba(var(--theme-text-main), 0.1)', backgroundColor: 'rgba(var(--theme-text-main), 0.02)' }}>
-                      <button 
-                          onClick={handleSaveAndClose}
-                          className="w-full py-4 text-white rounded-2xl font-bold uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95"
-                          style={{
-                              backgroundColor: 'var(--theme-accent)',
-                              color: 'var(--theme-on-accent)',
-                              boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.3), 0 4px 6px -2px rgba(var(--theme-accent-rgb), 0.1)'
-                          }}
-                      >
-                          Save to Dashboard
-                      </button>
+                              {/* Conditional Spacer & Configuration */}
+                              {mode === 'focus' ? (
+                                  <>
+                                    <div className="hidden md:block w-px h-24 bg-slate-200 dark:bg-white/5" />
+                                    <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Subject</label>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {subjectKeys.map(sub => (
+                                                    <button
+                                                        key={sub}
+                                                        onClick={() => setSelectedSubject(sub)}
+                                                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                                            selectedSubject === sub 
+                                                            ? 'border-indigo-500 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400' 
+                                                            : 'border-transparent bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'
+                                                        }`}
+                                                    >
+                                                        {sub}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Activity</label>
+                                            <button 
+                                                onClick={() => setSessionIntent(prev => prev === 'questions' ? 'theory' : 'questions')}
+                                                className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-200 dark:hover:bg-white/10 transition-all border border-transparent hover:border-slate-300 dark:hover:border-white/20"
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    {sessionIntent === 'questions' ? <PenTool size={16} /> : <BookOpen size={16} />}
+                                                    {sessionIntent === 'questions' ? 'Solving Problems' : 'Reading Theory'}
+                                                </span>
+                                                <RotateCcw size={14} className="text-slate-400" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                  </>
+                              ) : (
+                                  <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-2 min-h-[100px] border-t md:border-t-0 md:border-l border-slate-200 dark:border-white/5 pt-6 md:pt-0 md:pl-8">
+                                      {mode === 'short' ? <Coffee size={32} /> : <Armchair size={32} />}
+                                      <p className="text-sm font-medium">Take a breather. You earned it.</p>
+                                  </div>
+                              )}
+
+                              {/* Start Button */}
+                              <button 
+                                  onClick={onToggleTimer}
+                                  className={`w-full md:w-24 h-16 md:h-24 bg-${themeColor}-600 hover:bg-${themeColor}-500 text-white rounded-2xl shadow-lg shadow-${themeColor}-600/20 active:scale-95 transition-all flex flex-col items-center justify-center gap-1 group shrink-0`}
+                              >
+                                  <Play size={24} fill="currentColor" className="group-hover:scale-110 transition-transform" />
+                                  <span className="font-bold uppercase tracking-widest text-[10px]">Start</span>
+                              </button>
+                          </div>
+                      </div>
+                  )}
+              </div>
+          </div>
+
+          {/* 2. Primary Metrics Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="lg:col-span-2">
+                  <StatCard 
+                      icon={Clock}
+                      label="Focus Time"
+                      value={formatDuration(analyticsData.totalMinutes)}
+                      subtext={`${timeRange} total`}
+                      bgClass="bg-indigo-600"
+                      colorClass="text-indigo-200 bg-indigo-500/30"
+                  />
+              </div>
+              <StatCard 
+                  icon={Layers}
+                  label="Sessions"
+                  value={analyticsData.sessionCount}
+                  subtext="Completed"
+                  bgClass="bg-slate-900 dark:bg-white/5"
+                  colorClass="text-blue-400"
+              />
+              <StatCard 
+                  icon={Flame}
+                  label="Current Streak"
+                  value={`${analyticsData.currentStreak} Days`}
+                  subtext="Min 1h Daily"
+                  bgClass="bg-slate-900 dark:bg-white/5"
+                  colorClass="text-orange-500"
+              />
+          </div>
+
+          {/* 3. Detailed Breakdown Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Subject Distribution */}
+              <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 flex flex-col justify-between">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <PieChart size={16} className="text-indigo-500" /> Subject Split
+                      </h3>
+                  </div>
+                  <div className="flex items-center gap-8">
+                      <DonutChart 
+                          data={[
+                              { label: 'Physics', value: analyticsData.subjectDist.Physics, color: '#3b82f6' },
+                              { label: 'Chemistry', value: analyticsData.subjectDist.Chemistry, color: '#f97316' },
+                              { label: 'Maths', value: analyticsData.subjectDist.Maths, color: '#f43f5e' }
+                          ]} 
+                      />
+                      <div className="space-y-3 flex-1">
+                          {Object.entries(analyticsData.subjectDist).map(([subj, val]) => (
+                              <div key={subj} className="flex justify-between items-center text-xs">
+                                  <div className="flex items-center gap-2">
+                                      <div className={`w-2 h-2 rounded-full ${subj === 'Physics' ? 'bg-blue-500' : subj === 'Chemistry' ? 'bg-orange-500' : 'bg-rose-500'}`} />
+                                      <span className="font-bold text-slate-700 dark:text-slate-300">{subj}</span>
+                                  </div>
+                                  <span className="font-mono text-slate-500">{formatDuration(val)}</span>
+                              </div>
+                          ))}
+                      </div>
                   </div>
               </div>
-          </div>,
-          document.body
-      )}
-    </div>
+
+              {/* Secondary Stats */}
+              <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5">
+                      <div className="flex items-center gap-3 mb-2 text-emerald-500">
+                          <Activity size={20} />
+                          <span className="text-xs font-bold uppercase tracking-widest">Consistency</span>
+                      </div>
+                      <div className="text-4xl font-display font-bold text-slate-900 dark:text-white mb-1">
+                          {analyticsData.consistency}%
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden mt-4">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${analyticsData.consistency}%` }} />
+                      </div>
+                  </div>
+
+                  {/* SMART BALANCE CARD (Replaced Reviews/Lagging) */}
+                  <div className="p-6 rounded-3xl bg-gradient-to-br from-indigo-600 to-purple-700 border border-white/10 relative overflow-hidden group flex flex-col justify-between text-white">
+                      <div>
+                          <div className="flex items-center gap-3 mb-3 text-white/80">
+                              <Scale size={20} />
+                              <span className="text-xs font-bold uppercase tracking-widest">Study Balance</span>
+                          </div>
+                          <p className="text-sm leading-relaxed font-medium opacity-90 mb-4">
+                              {analyticsData.balanceMessage}
+                          </p>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider bg-white/10 px-3 py-2 rounded-xl w-fit backdrop-blur-sm border border-white/10">
+                           {analyticsData.balanceAction}
+                      </div>
+                      {/* Decorative elements */}
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-400/20 rounded-full blur-[30px] -translate-x-1/3 translate-y-1/3 pointer-events-none" />
+                  </div>
+              </div>
+          </div>
+
+          {/* 4. Heatmap Section */}
+          <div className="p-6 rounded-3xl bg-slate-900 border border-white/10 relative">
+              <div className="flex justify-between items-start mb-6 relative z-10">
+                  <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                          <Calendar size={16} className="text-emerald-500" /> Activity Map
+                      </h3>
+                      {/* NEW: Total Duration Display */}
+                      <div className="mt-2">
+                          <span className="text-3xl font-mono font-bold text-white tracking-tight">
+                              {formatDuration(analyticsData.totalMinutes)}
+                          </span>
+                          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-2">
+                              Focused {timeRange === 'weekly' ? 'This Week' : timeRange === 'monthly' ? 'This Month' : 'This Year'}
+                          </span>
+                      </div>
+                  </div>
+                  <div className="flex gap-1 text-[9px] font-bold uppercase text-slate-500 items-center">
+                      <span>Less</span>
+                      <div className="flex gap-1 mx-2">
+                          <div className="w-2 h-2 rounded-sm bg-slate-800/40 border border-slate-800" />
+                          <div className="w-2 h-2 rounded-sm bg-emerald-900/60 border border-emerald-800/50" />
+                          <div className="w-2 h-2 rounded-sm bg-emerald-700/80 border border-emerald-600/50" />
+                          <div className="w-2 h-2 rounded-sm bg-emerald-500 border border-emerald-400/50" />
+                      </div>
+                      <span>More</span>
+                  </div>
+              </div>
+              <Heatmap sessions={sessions} range={timeRange} />
+          </div>
+
+          {/* Tagger Modal (for +1 button) */}
+          {showTagger && (
+              <div className="fixed inset-0 z-[210] bg-black/60 backdrop-blur-sm flex items-end justify-center pb-24 md:pb-32" onClick={() => setShowTagger(false)}>
+                  <div className="bg-[#0f172a] border border-white/10 p-6 rounded-3xl w-[90%] max-w-md animate-in slide-in-from-bottom-10 duration-200" onClick={e => e.stopPropagation()}>
+                      <h3 className="text-white font-bold mb-4">Log Result</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                          <button onClick={() => { onAddLog({ timestamp: Date.now(), duration: currentQDuration, result: 'correct', subject: selectedSubject }, selectedSubject); setShowTagger(false); }} className="col-span-2 py-4 bg-emerald-600 rounded-xl text-white font-bold uppercase tracking-wider hover:bg-emerald-500 transition-colors">Correct</button>
+                          {MISTAKE_TYPES.slice(0,4).map(m => (
+                              <button key={m.id} onClick={() => { onAddLog({ timestamp: Date.now(), duration: currentQDuration, result: m.id as any, subject: selectedSubject }, selectedSubject); setShowTagger(false); }} className="py-3 bg-white/5 border border-white/5 hover:bg-white/10 rounded-xl text-slate-300 text-xs font-bold uppercase transition-colors">{m.label}</button>
+                          ))}
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          {/* Confirmation Modal */}
+          <ConfirmationModal
+              isOpen={showStopConfirm}
+              onClose={() => setShowStopConfirm(false)}
+              onConfirm={handleConfirmStop}
+              title="End Session?"
+              message="Are you sure you want to stop the timer? Your progress will be saved."
+          />
+
+          <TimerSettingsModal 
+              isOpen={showSettings} 
+              onClose={() => setShowSettings(false)} 
+              durations={durations}
+              onUpdate={onUpdateDurations}
+          />
+      </div>
+    </>
   );
 });

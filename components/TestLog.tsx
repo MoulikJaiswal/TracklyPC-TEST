@@ -1365,7 +1365,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
               </div>
               
               {/* Footer Actions */}
-              <div className="flex justify-between items-center px-5 py-3 bg-slate-50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 mt-auto">
+              <div className="flex justify-between items-center px-5 py-3 bg-slate-50 dark:bg-white/5 border border-t border-slate-100 dark:border-white/5 mt-auto">
                 <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-indigo-500 transition-colors">
                     View Report <ChevronRight size={12} />
                 </div>
@@ -1456,7 +1456,15 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                           
                           <div className="space-y-3">
                               {(['Physics', 'Chemistry', 'Maths'] as const).map(sub => {
-                                  const d = viewingReport.breakdown?.[sub] || { correct: 0, incorrect: 0, unattempted: 0 };
+                                  // Fix: Added full fallback object to match SubjectBreakdown type
+                                  const d: SubjectBreakdown = viewingReport.breakdown?.[sub] || { 
+                                      correct: 0, 
+                                      incorrect: 0, 
+                                      unattempted: 0,
+                                      calcErrors: 0,
+                                      otherErrors: 0,
+                                      mistakes: {} 
+                                  };
                                   const total = d.correct + d.incorrect + d.unattempted;
                                   const attempted = d.correct + d.incorrect;
                                   const acc = attempted > 0 ? Math.round((d.correct / attempted) * 100) : 0;
@@ -1575,6 +1583,68 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete, isPro, onO
                                       )
                                   })}
                               </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>,
+          document.body
+      )}
+
+      {/* --- Attachment Viewer Modal (Added for completeness) --- */}
+      {viewingAttachment && createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-[#0f172a] w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-white/10">
+                  <div className="p-4 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-white dark:bg-[#0f172a]">
+                      <div className="flex items-center gap-3">
+                          <div className="p-2 bg-indigo-100 dark:bg-indigo-500/20 rounded-lg text-indigo-600 dark:text-indigo-400">
+                              {viewingAttachment.attachmentType === 'pdf' ? <FileText size={20} /> : <ImageIcon size={20} />}
+                          </div>
+                          <div>
+                              <h3 className="text-sm font-bold text-slate-900 dark:text-white">{viewingAttachment.name}</h3>
+                              <p className="text-[10px] text-slate-500 font-mono uppercase">
+                                  {viewingAttachment.fileName || 'Attachment'}
+                              </p>
+                          </div>
+                      </div>
+                      <div className="flex gap-2">
+                          <a 
+                            href={viewingAttachment.attachment!} 
+                            download={viewingAttachment.fileName || "download"}
+                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
+                            title="Download"
+                          >
+                              <Download size={20} />
+                          </a>
+                          <button 
+                            onClick={() => setViewingAttachment(null)}
+                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
+                          >
+                              <X size={20} />
+                          </button>
+                      </div>
+                  </div>
+                  <div className="flex-1 bg-slate-100 dark:bg-black/50 overflow-auto flex items-center justify-center p-4 relative">
+                      {viewingAttachment.attachmentType === 'image' ? (
+                          <img 
+                            src={viewingAttachment.attachment!} 
+                            alt="Test Attachment" 
+                            className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                          />
+                      ) : (
+                          <div className="w-full h-full flex flex-col">
+                              {pdfBlobUrl ? (
+                                  <iframe 
+                                      src={pdfBlobUrl} 
+                                      className="w-full flex-1 rounded-lg shadow-lg border-0 bg-white"
+                                      title="PDF Viewer"
+                                  />
+                              ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                      <Loader2 size={32} className="animate-spin mb-2" />
+                                      <p className="text-xs uppercase font-bold">Loading PDF...</p>
+                                  </div>
+                              )}
                           </div>
                       )}
                   </div>

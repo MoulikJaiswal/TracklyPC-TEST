@@ -109,7 +109,7 @@ export interface Note {
   thumbnail?: string | null;
 }
 
-export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'resources' | 'library' | 'privacy' | 'group-focus';
+export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'privacy' | 'group-focus';
 
 export type ThemeId = 'midnight' | 'obsidian' | 'void' | 'forest' | 'morning' | 'earth' | 'default-dark' | 'default-light';
 
@@ -177,3 +177,5 @@ export interface FocusRoom {
   state: FocusRoomState;
   config: FocusRoomConfig;
 }
+
+export type SyllabusData = Record<string, string[]>;
