@@ -1,9 +1,9 @@
-// FIX: Updated React import to explicitly include Component, ErrorInfo, and ReactNode.
-import React, { Component, ErrorInfo, ReactNode } from "react";
+// FIX: Reverted to namespace import for React to resolve potential typing issues.
+import * as React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {
-  children?: ReactNode;
+  children?: React.ReactNode;
   viewKey?: string;
   onReset?: () => void;
 }
@@ -13,10 +13,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: Changed extends React.Component to extends Component.
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Initialized state as a class property, removing the constructor.
-  // This resolves the error on line 19 and is a more modern approach.
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
@@ -26,7 +23,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 

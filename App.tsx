@@ -39,6 +39,8 @@ import { QUOTES, THEME_CONFIG, JEE_SYLLABUS, NEET_SYLLABUS, GENERAL_DEFAULT_SYLL
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
 import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
+import { useLocalStorage } from './hooks/useLocalStorage';
+import { AnimatedBackground } from './components/AnimatedBackground';
 import { PerformanceToast } from './components/PerformanceToast';
 import { SmartRecommendationToast } from './components/SmartRecommendationToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -120,50 +122,6 @@ const hexToRgb = (hex: string) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '0, 0, 0';
 };
-
-const AnimatedBackground = React.memo(({ 
-    themeId,
-    showAurora,
-    parallaxEnabled,
-    showParticles,
-    graphicsEnabled,
-    animationsEnabled,
-    customBackground,
-    customBackgroundAlign = 'center'
-}: { 
-    themeId: ThemeId,
-    showAurora: boolean,
-    parallaxEnabled: boolean,
-    showParticles: boolean,
-    graphicsEnabled: boolean,
-    animationsEnabled: boolean,
-    customBackground: string | null,
-    customBackgroundAlign?: 'center' | 'top' | 'bottom'
-}) => {
-  const config = THEME_CONFIG[themeId];
-  // ... [AnimatedBackground logic remains unchanged] ...
-  if (!graphicsEnabled) {
-      return (
-        <div 
-            className="fixed inset-0 z-0 pointer-events-none transition-colors duration-300"
-            style={{ 
-                backgroundColor: config.colors.bg,
-                ...(customBackground ? { backgroundImage: `url(${customBackground})`, backgroundSize: 'cover', backgroundPosition: customBackgroundAlign } : {})
-            }}
-        >
-            {!customBackground && (
-                <div className="absolute inset-0 opacity-20" style={{ 
-                    background: `radial-gradient(circle at 50% 0%, ${config.colors.accent}40, transparent 70%)` 
-                }} />
-            )}
-            {customBackground && <div className="absolute inset-0 bg-black/30" />}
-        </div>
-      );
-  }
-  
-  // Minimal placeholder implementation for brevity in update, assume full implementation exists
-  return <div className="fixed inset-0 z-0 pointer-events-none" style={{ backgroundColor: config.colors.bg }} />;
-});
 
 const TABS = [
   { id: 'daily', label: 'Home', icon: LayoutDashboard },
@@ -260,23 +218,19 @@ export const App: React.FC = () => {
   const [quoteIdx] = useState(() => Math.floor(Math.random() * QUOTES.length));
 
   // Stream State
-  const [stream, setStream] = useState<StreamType>(() => safeJSONParse('trackly_stream', 'JEE'));
+  const [stream, setStream] = useLocalStorage<StreamType>('trackly_stream', 'JEE');
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionStream, setTransitionStream] = useState<StreamType>(stream);
   
   // Custom Syllabus State (General Stream)
-  const [customSyllabus, setCustomSyllabus] = useState<SyllabusData>(() => safeJSONParse('trackly_custom_syllabus', GENERAL_DEFAULT_SYLLABUS));
+  const [customSyllabus, setCustomSyllabus] = useLocalStorage<SyllabusData>('trackly_custom_syllabus', GENERAL_DEFAULT_SYLLABUS);
 
   // Derived Stream Data
   const currentSyllabus = useMemo(() => stream === 'General' ? customSyllabus : ALL_SYLLABUS[stream], [stream, customSyllabus]);
   const currentSubjects = useMemo(() => stream === 'General' ? Object.keys(customSyllabus) : STREAM_SUBJECTS[stream], [stream, customSyllabus]);
 
-  const [goals, setGoals] = useState<Record<string, number>>(() => {
-    const savedGoals = safeJSONParse('trackly_goals', {});
-    const defaultGoals = currentSubjects.reduce((acc, sub) => ({ ...acc, [sub]: 30 }), {});
-    return { ...defaultGoals, ...savedGoals };
-  });
-
+  const [goals, setGoals] = useLocalStorage<Record<string, number>>('trackly_goals', {});
+  
   // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [isGuest, setIsGuest] = useState(false);
@@ -289,7 +243,7 @@ export const App: React.FC = () => {
   const [syncError, setSyncError] = useState<string | null>(null);
 
   // Pro Features State
-  const [hasPaid, setHasPaid] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('trackly_pro') === 'true');
+  const [hasPaid, setHasPaid] = useLocalStorage('trackly_pro', false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const isPro = getProStatus(hasPaid);
 
@@ -298,23 +252,24 @@ export const App: React.FC = () => {
 
   // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [animationsEnabled, setAnimationsEnabled] = useState(true);
-  const [graphicsEnabled, setGraphicsEnabled] = useState(true); 
-  const [lagDetectionEnabled, setLagDetectionEnabled] = useState(true); 
-  const [theme, setTheme] = useState<ThemeId>('default-dark');
-  const [showAurora, setShowAurora] = useState(true);
-  const [parallaxEnabled, setParallaxEnabled] = useState(true);
-  const [showParticles, setShowParticles] = useState(true);
-  const [swipeAnimationEnabled, setSwipeAnimationEnabled] = useState(true);
-  const [swipeStiffness, setSwipeStiffness] = useState(6000); 
-  const [swipeDamping, setSwipeDamping] = useState(300);    
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [soundPitch, setSoundPitch] = useState(600);
-  const [soundVolume, setSoundVolume] = useState(0.5);
-  const [customBackground, setCustomBackground] = useState<string | null>(null);
-  const [customBackgroundEnabled, setCustomBackgroundEnabled] = useState(false);
-  const [customBackgroundAlign, setCustomBackgroundAlign] = useState<'center' | 'top' | 'bottom'>('center');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [animationsEnabled, setAnimationsEnabled] = useLocalStorage('trackly_animations', true);
+  const [graphicsEnabled, setGraphicsEnabled] = useLocalStorage('trackly_graphics', true); 
+  const [lagDetectionEnabled, setLagDetectionEnabled] = useLocalStorage('trackly_lag_detection', true); 
+  const [theme, setTheme] = useLocalStorage<ThemeId>('trackly_theme', 'default-dark');
+  const [showAurora, setShowAurora] = useLocalStorage('trackly_aurora', true);
+  const [parallaxEnabled, setParallaxEnabled] = useLocalStorage('trackly_parallax', true);
+  const [showParticles, setShowParticles] = useLocalStorage('trackly_particles', true);
+  const [swipeAnimationEnabled, setSwipeAnimationEnabled] = useLocalStorage('trackly_swipe', true);
+  const [swipeStiffness, setSwipeStiffness] = useLocalStorage('trackly_swipe_stiffness', 6000); 
+  const [swipeDamping, setSwipeDamping] = useLocalStorage('trackly_swipe_damping', 300);    
+  const [soundEnabled, setSoundEnabled] = useLocalStorage('trackly_sound', true);
+  const [soundPitch, setSoundPitch] = useLocalStorage('trackly_sound_pitch', 600);
+  const [soundVolume, setSoundVolume] = useLocalStorage('trackly_sound_volume', 0.5);
+  const [customBackground, setCustomBackground] = useLocalStorage<string | null>('trackly_custom_bg', null);
+  const [customBackgroundEnabled, setCustomBackgroundEnabled] = useLocalStorage('trackly_custom_bg_enabled', false);
+  const [customBackgroundAlign, setCustomBackgroundAlign] = useLocalStorage<'center' | 'top' | 'bottom'>('trackly_custom_bg_align', 'center');
+  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage('trackly_sidebar_collapsed', false);
+
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const touchStartRef = useRef<{ x: number, y: number } | null>(null);
@@ -328,7 +283,7 @@ export const App: React.FC = () => {
   const [showRecommendation, setShowRecommendation] = useState(false);
   const clickAudioCtxRef = useRef<AudioContext | null>(null);
   const [timerMode, setTimerMode] = useState<'focus' | 'short' | 'long'>('focus');
-  const [timerDurations, setTimerDurations] = useState({ focus: 25, short: 5, long: 15 });
+  const [timerDurations, setTimerDurations] = useLocalStorage('trackly_timer_durations', { focus: 25, short: 5, long: 15 });
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   // NEW TIMER STATE
   const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
@@ -366,10 +321,8 @@ export const App: React.FC = () => {
     }, 1000);
   };
 
-  // Save stream to localStorage
+  // When stream changes, update goals to match new subjects
   useEffect(() => {
-    localStorage.setItem('trackly_stream', JSON.stringify(stream));
-    // When stream changes, update goals and selected subject
     setGoals(prevGoals => {
         const defaultGoals = currentSubjects.reduce((acc, sub) => ({ ...acc, [sub]: 30 }), {});
         const newGoals = { ...defaultGoals };
@@ -380,12 +333,7 @@ export const App: React.FC = () => {
         }
         return newGoals;
     });
-  }, [stream, currentSubjects]);
-
-  // Save custom syllabus to localStorage
-  useEffect(() => {
-      localStorage.setItem('trackly_custom_syllabus', JSON.stringify(customSyllabus));
-  }, [customSyllabus]);
+  }, [stream, currentSubjects, setGoals]);
 
   // Save custom syllabus to Firestore (if logged in)
   useEffect(() => {
@@ -400,13 +348,6 @@ export const App: React.FC = () => {
           syncSyllabus();
       }
   }, [customSyllabus, user, isFirebaseReady]);
-
-  // Save goals to localStorage
-  useEffect(() => {
-    if (user || isGuest) { // Only save if user has loaded
-        localStorage.setItem('trackly_goals', JSON.stringify(goals));
-    }
-  }, [goals, user, isGuest]);
 
   // ... [Theme Config, Handlers, etc. largely unchanged] ...
   const themeConfig = THEME_CONFIG[theme];
@@ -439,7 +380,7 @@ export const App: React.FC = () => {
             return updated;
         });
     }
-  }, [user]);
+  }, [user, setTargets]);
 
   const changeView = useCallback((newView: ViewType) => {
      if (view === newView) return;
@@ -558,46 +499,46 @@ export const App: React.FC = () => {
     } else {
         setSessions([]); setTests([]); setTargets([]); setNotes([]); setFolders([]);
     }
-  }, [user, isGuest, isFirebaseReady]);
+  }, [user, isGuest, isFirebaseReady, setCustomSyllabus, setSessions, setTests, setTargets, setNotes, setFolders]);
 
   // ... [CRUD Handlers unchanged for brevity] ...
   const handleSaveNote = useCallback(async (note: Note) => {
     if (user) await setDoc(doc(db, 'users', user.uid, 'notes', note.id), sanitizeForFirestore(note));
     else if (isGuest) setNotes(prev => { const upd = [note, ...prev.filter(n=>n.id!==note.id)]; localStorage.setItem('trackly_guest_notes', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest]);
+  }, [user, isGuest, setNotes]);
   const handleDeleteNote = useCallback(async (id: string) => {
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'notes', id));
     else if (isGuest) setNotes(prev => { const upd = prev.filter(n=>n.id!==id); localStorage.setItem('trackly_guest_notes', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest]);
+  }, [user, isGuest, setNotes]);
   const handleSaveFolder = useCallback(async (folder: Folder) => {
     if (user) await setDoc(doc(db, 'users', user.uid, 'folders', folder.id), sanitizeForFirestore(folder));
     else if (isGuest) setFolders(prev => { const upd = [folder, ...prev.filter(f=>f.id!==folder.id)]; localStorage.setItem('trackly_guest_folders', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest]);
+  }, [user, isGuest, setFolders]);
   const handleDeleteFolder = useCallback(async (id: string) => {
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'folders', id));
     else if (isGuest) setFolders(prev => { const upd = prev.filter(f=>f.id!==id); localStorage.setItem('trackly_guest_folders', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest]);
+  }, [user, isGuest, setFolders]);
   const handleDeleteSession = useCallback(async (id: string) => {
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'sessions', id));
     else if (isGuest) setSessions(prev => { const upd = prev.filter(s=>s.id!==id); localStorage.setItem('trackly_guest_sessions', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest]);
+  }, [user, isGuest, setSessions]);
   const handleSaveTest = useCallback(async (newTest: Omit<TestResult, 'id' | 'timestamp'>) => {
     const id = generateUUID(); const timestamp = Date.now(); const test = { ...newTest, id, timestamp };
     if (user) { setTests(p => [test, ...p]); await setDoc(doc(db, 'users', user.uid, 'tests', id), sanitizeForFirestore(test)); }
     else if (isGuest) setTests(p => { const upd = [test, ...p]; localStorage.setItem('trackly_guest_tests', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest]);
+  }, [user, isGuest, setTests]);
   const handleDeleteTest = useCallback(async (id: string) => {
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'tests', id));
     else if (isGuest) setTests(prev => { const upd = prev.filter(t=>t.id!==id); localStorage.setItem('trackly_guest_tests', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest]);
+  }, [user, isGuest, setTests]);
   const handleSaveTarget = useCallback(async (target: Target) => {
     if (user) await setDoc(doc(db, 'users', user.uid, 'targets', target.id), sanitizeForFirestore(target));
     else if (isGuest) setTargets(prev => { const upd = [target, ...prev.filter(t=>t.id!==target.id)]; localStorage.setItem('trackly_guest_targets', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest]);
+  }, [user, isGuest, setTargets]);
   const handleDeleteTarget = useCallback(async (id: string) => {
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'targets', id));
     else if (isGuest) setTargets(prev => { const upd = prev.filter(t=>t.id!==id); localStorage.setItem('trackly_guest_targets', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest]);
+  }, [user, isGuest, setTargets]);
   // ... End CRUD Handlers ...
 
   const handleSaveSession = useCallback(async (newSession: Omit<Session, 'id' | 'timestamp'>) => {
@@ -610,7 +551,7 @@ export const App: React.FC = () => {
         localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
         return updated;
     });
-  }, [user, isGuest]);
+  }, [user, isGuest, setSessions]);
 
   // ... [Timer logic unchanged] ...
   const handleTimerReset = useCallback(() => { setTimerState('idle'); setTimeLeft(timerDurations[timerMode] * 60); }, [timerMode, timerDurations]);
@@ -644,7 +585,7 @@ export const App: React.FC = () => {
   const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus'|'short'|'long') => {
       setTimerDurations(prev => ({ ...prev, [modeKey]: newDuration }));
       if (timerMode === modeKey && timerState === 'idle') { setTimeLeft(newDuration * 60); }
-  }, [timerMode, timerState]);
+  }, [timerMode, timerState, setTimerDurations]);
 
   // ... [Install & Login Logic unchanged] ...
   const migrateGuestDataToFirebase = useCallback(async (uid: string) => {
@@ -680,11 +621,11 @@ export const App: React.FC = () => {
     else if (isGuest) { setIsGuest(false); localStorage.removeItem('trackly_is_guest'); localStorage.removeItem('trackly_guest_name'); setUserName(null); }
   }, [user, isGuest]);
 
-  const toggleCollapsed = useCallback(() => setSidebarCollapsed(prev => !prev), []);
-  const toggleSettings = useCallback(() => setIsSettingsOpen(prev => !prev), []);
+  const toggleSidebar = useCallback(() => setSidebarCollapsed(p => !p), [setSidebarCollapsed]);
+  const toggleSettings = useCallback(() => setIsSettingsOpen(p => !p), []);
   const toggleTutorial = useCallback(() => { setIsTutorialActive(true); setTutorialStep(0); }, []);
-  const handleUpgrade = useCallback(() => { setHasPaid(true); localStorage.setItem('trackly_pro', 'true'); setShowUpgradeModal(false); }, []);
-  const activateLiteMode = useCallback(() => { setGraphicsEnabled(false); setAnimationsEnabled(false); dismissLag(); }, [dismissLag]);
+  const handleUpgrade = useCallback(() => { setHasPaid(true); }, [setHasPaid]);
+  const activateLiteMode = useCallback(() => { setGraphicsEnabled(false); setAnimationsEnabled(false); dismissLag(); }, [dismissLag, setGraphicsEnabled, setAnimationsEnabled]);
 
   // --- WELCOME PAGE CHECK ---
   const showWelcome = !isAuthLoading && !user && !isGuest;
@@ -698,9 +639,6 @@ export const App: React.FC = () => {
             themeId={theme} 
             showAurora={effectiveShowAurora} 
             parallaxEnabled={effectiveParallax} 
-            showParticles={effectiveShowParticles} 
-            graphicsEnabled={graphicsEnabled}
-            animationsEnabled={animationsEnabled}
             customBackground={customBackgroundEnabled ? customBackground : null}
             customBackgroundAlign={customBackgroundAlign}
         />
@@ -719,7 +657,7 @@ export const App: React.FC = () => {
                     setView={changeView} 
                     onOpenSettings={toggleSettings}
                     isCollapsed={sidebarCollapsed}
-                    toggleCollapsed={toggleCollapsed}
+                    toggleCollapsed={toggleSidebar}
                     user={user}
                     isGuest={isGuest}
                     onLogin={handleLogin}
@@ -900,28 +838,28 @@ export const App: React.FC = () => {
             isOpen={isSettingsOpen} 
             onClose={() => setIsSettingsOpen(false)}
             animationsEnabled={animationsEnabled}
-            toggleAnimations={() => setAnimationsEnabled(!animationsEnabled)}
+            toggleAnimations={() => setAnimationsEnabled(p => !p)}
             graphicsEnabled={graphicsEnabled}
-            toggleGraphics={() => setGraphicsEnabled(!graphicsEnabled)}
+            toggleGraphics={() => setGraphicsEnabled(p => !p)}
             lagDetectionEnabled={lagDetectionEnabled}
-            toggleLagDetection={() => setLagDetectionEnabled(!lagDetectionEnabled)}
+            toggleLagDetection={() => setLagDetectionEnabled(p => !p)}
             theme={theme}
             setTheme={setTheme}
             onStartTutorial={toggleTutorial}
             showAurora={showAurora}
-            toggleAurora={() => setShowAurora(!showAurora)}
+            toggleAurora={() => setShowAurora(p => !p)}
             parallaxEnabled={parallaxEnabled}
-            toggleParallax={() => setParallaxEnabled(!parallaxEnabled)}
+            toggleParallax={() => setParallaxEnabled(p => !p)}
             showParticles={showParticles}
-            toggleParticles={() => setShowParticles(!showParticles)}
+            toggleParticles={() => setShowParticles(p => !p)}
             swipeAnimationEnabled={swipeAnimationEnabled}
-            toggleSwipeAnimation={() => setSwipeAnimationEnabled(!swipeAnimationEnabled)}
+            toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)}
             swipeStiffness={swipeStiffness}
             setSwipeStiffness={setSwipeStiffness}
             swipeDamping={swipeDamping}
             setSwipeDamping={setSwipeDamping}
             soundEnabled={soundEnabled}
-            toggleSound={() => setSoundEnabled(!soundEnabled)}
+            toggleSound={() => setSoundEnabled(p => !p)}
             soundPitch={soundPitch}
             setSoundPitch={setSoundPitch}
             soundVolume={soundVolume}
@@ -929,7 +867,7 @@ export const App: React.FC = () => {
             customBackground={customBackground}
             setCustomBackground={setCustomBackground}
             customBackgroundEnabled={customBackgroundEnabled}
-            toggleCustomBackground={() => setCustomBackgroundEnabled(!customBackgroundEnabled)}
+            toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)}
             customBackgroundAlign={customBackgroundAlign}
             setCustomBackgroundAlign={setCustomBackgroundAlign}
             user={user}
