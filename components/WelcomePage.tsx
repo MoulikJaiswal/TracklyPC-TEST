@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Atom, Dna, ArrowRight, User, ShieldCheck } from 'lucide-react';
+import { Atom, Dna, ArrowRight, User, ShieldCheck, GraduationCap } from 'lucide-react';
 import { StreamType } from '../types';
 import { TracklyLogo } from './TracklyLogo';
 import { GoogleIcon } from './GoogleIcon';
@@ -66,7 +67,7 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin, onGuestLogin,
                 <Atom className="text-blue-400" size={20} />
                 <div className="text-left">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Stream</p>
-                    <p className="text-xs font-bold text-white">JEE & NEET</p>
+                    <p className="text-xs font-bold text-white">JEE, NEET & Gen</p>
                 </div>
              </div>
           </motion.div>
@@ -89,28 +90,39 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin, onGuestLogin,
                 {/* Stream Selector */}
                 <div className="w-full mb-8">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center mb-3">Select Your Target</p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-2">
                         <button
                             onClick={() => setStream('JEE')}
-                            className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all ${
+                            className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all ${
                                 stream === 'JEE' 
                                 ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25' 
                                 : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
                             }`}
                         >
-                            <Atom size={24} />
-                            <span className="text-xs font-bold uppercase tracking-wider">JEE</span>
+                            <Atom size={20} />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">JEE</span>
                         </button>
                         <button
                             onClick={() => setStream('NEET')}
-                            className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all ${
+                            className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all ${
                                 stream === 'NEET' 
                                 ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-500/25' 
                                 : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
                             }`}
                         >
-                            <Dna size={24} />
-                            <span className="text-xs font-bold uppercase tracking-wider">NEET</span>
+                            <Dna size={20} />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">NEET</span>
+                        </button>
+                        <button
+                            onClick={() => setStream('General')}
+                            className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all ${
+                                stream === 'General' 
+                                ? 'bg-violet-600 border-violet-500 text-white shadow-lg shadow-violet-500/25' 
+                                : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white'
+                            }`}
+                        >
+                            <GraduationCap size={20} />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">Gen</span>
                         </button>
                     </div>
                 </div>

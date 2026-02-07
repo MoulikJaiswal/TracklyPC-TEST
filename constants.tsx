@@ -159,14 +159,26 @@ export const NEET_SYLLABUS = {
   Biology: BIOLOGY_SYLLABUS
 };
 
+// General Syllabus defaults - user can override
+export const GENERAL_DEFAULT_SYLLABUS = {
+    'Maths': ['Algebra', 'Calculus', 'Geometry', 'Statistics', 'Trigonometry'],
+    'Physics': ['Mechanics', 'Thermodynamics', 'Electromagnetism', 'Optics', 'Modern Physics'],
+    'Chemistry': ['Physical Chemistry', 'Organic Chemistry', 'Inorganic Chemistry'],
+    'English': ['Grammar', 'Reading Comprehension', 'Writing Skills', 'Literature'],
+    'History': ['Ancient History', 'Medieval History', 'Modern History', 'World History'],
+    'Geography': ['Physical Geography', 'Human Geography', 'Economic Geography']
+};
+
 export const ALL_SYLLABUS = {
   JEE: JEE_SYLLABUS,
-  NEET: NEET_SYLLABUS
+  NEET: NEET_SYLLABUS,
+  General: GENERAL_DEFAULT_SYLLABUS
 };
 
 export const STREAM_SUBJECTS = {
   JEE: ['Physics', 'Chemistry', 'Maths'],
-  NEET: ['Physics', 'Chemistry', 'Biology']
+  NEET: ['Physics', 'Chemistry', 'Biology'],
+  General: ['Maths', 'Physics', 'Chemistry', 'English', 'History', 'Geography']
 };
 
 export const MISTAKE_TYPES = [

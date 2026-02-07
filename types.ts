@@ -105,7 +105,7 @@ export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | '
 
 export type ThemeId = 'midnight' | 'obsidian' | 'void' | 'forest' | 'morning' | 'earth' | 'default-dark' | 'default-light';
 
-export type StreamType = 'JEE' | 'NEET';
+export type StreamType = 'JEE' | 'NEET' | 'General';
 
 // --- VIRTUAL LIBRARY TYPES ---
 

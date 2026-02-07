@@ -1,10 +1,12 @@
-import React, { useRef } from 'react';
-import { X, CheckCircle2, Map, MousePointer2, Sparkles, Layers, Volume2, VolumeX, Trash2, AlertTriangle, Eye, Smartphone, Battery, BatteryCharging, Activity, Palette, Zap, SlidersHorizontal, HelpCircle, Image as ImageIcon, Upload, Lock, Crown, LayoutTemplate, LogOut, Check, Loader2, UploadCloud, Shield, BookOpen } from 'lucide-react';
+
+import React, { useRef, useState } from 'react';
+import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye } from 'lucide-react';
 import { Card } from './Card';
-import { ThemeId, StreamType } from '../types';
+import { ThemeId, StreamType, SyllabusData } from '../types';
 import { THEME_CONFIG } from '../constants';
 import { User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -31,7 +33,6 @@ interface SettingsModalProps {
   swipeDamping: number;
   setSwipeDamping: (val: number) => void;
   
-  // Sound Props
   soundEnabled: boolean;
   toggleSound: () => void;
   soundPitch: number;
@@ -39,7 +40,6 @@ interface SettingsModalProps {
   soundVolume: number;
   setSoundVolume: (val: number) => void;
 
-  // Custom Background
   customBackground: string | null;
   setCustomBackground: (bg: string | null) => void;
   customBackgroundEnabled: boolean;
@@ -47,7 +47,6 @@ interface SettingsModalProps {
   customBackgroundAlign: 'center' | 'top' | 'bottom';
   setCustomBackgroundAlign: (align: 'center' | 'top' | 'bottom') => void;
 
-  // Account Props
   user: User | null;
   isGuest: boolean;
   onLogout: () => void;
@@ -56,9 +55,11 @@ interface SettingsModalProps {
   syncError: string | null;
   onOpenPrivacy: () => void;
 
-  // Stream Props
   stream: StreamType;
   setStream: (stream: StreamType) => void;
+  
+  customSyllabus: SyllabusData;
+  setCustomSyllabus: React.Dispatch<React.SetStateAction<SyllabusData>>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -109,9 +110,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenPrivacy,
 
   stream,
-  setStream
+  setStream,
+  customSyllabus,
+  setCustomSyllabus
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // General Stream Management State
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [newTopicName, setNewTopicName] = useState('');
+  const [activeSubjectForEdit, setActiveSubjectForEdit] = useState<string | null>(null);
+  const [subjectToDelete, setSubjectToDelete] = useState<string | null>(null);
+  
+  // Rename State
+  const [editingSubject, setEditingSubject] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   if (!isOpen) return null;
 
@@ -122,15 +135,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
   };
 
-  // Helper to force enable animations if they are off, while toggling graphics
   const setMode = (mode: 'standard' | 'lite') => {
       if (mode === 'standard') {
-          if (!graphicsEnabled) toggleGraphics(); // Turn Graphics ON
-          // Restore animations for standard mode if preferred
+          if (!graphicsEnabled) toggleGraphics(); 
           if (!animationsEnabled) toggleAnimations();
       } else {
-          if (graphicsEnabled) toggleGraphics(); // Turn Graphics OFF
-          // Do not force animations ON for Lite mode - let them be optional or off for speed
+          if (graphicsEnabled) toggleGraphics();
       }
   };
 
@@ -138,7 +148,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // Check file size (limit to ~2MB to be safe with localStorage)
     if (file.size > 2 * 1024 * 1024) {
         alert("Image is too large. Please select an image under 2MB.");
         return;
@@ -156,6 +165,94 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     reader.readAsDataURL(file);
   };
 
+  // --- Curriculum Management Handlers ---
+  const handleAddSubject = (e: React.FormEvent) => {
+      e.preventDefault();
+      const trimmed = newSubjectName.trim();
+      if(!trimmed) return;
+      if(customSyllabus[trimmed]) {
+          alert('Subject already exists');
+          return;
+      }
+      setCustomSyllabus(prev => ({ ...prev, [trimmed]: [] }));
+      setNewSubjectName('');
+  };
+
+  const handleDeleteSubjectClick = (e: React.MouseEvent, subject: string) => {
+      e.preventDefault();
+      e.stopPropagation(); 
+      setSubjectToDelete(subject);
+  };
+
+  const confirmDeleteSubject = () => {
+      if (!subjectToDelete) return;
+      
+      setCustomSyllabus(prev => {
+          const newState = { ...prev };
+          delete newState[subjectToDelete];
+          return newState;
+      });
+      
+      if (activeSubjectForEdit === subjectToDelete) setActiveSubjectForEdit(null);
+      if (editingSubject === subjectToDelete) setEditingSubject(null);
+      
+      setSubjectToDelete(null);
+  };
+
+  const handleStartRename = (e: React.MouseEvent, subject: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditingSubject(subject);
+      setRenameValue(subject);
+  };
+
+  const handleSaveRename = (e?: React.MouseEvent | React.KeyboardEvent) => {
+      if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+      }
+      
+      if (!editingSubject || !renameValue.trim() || renameValue === editingSubject) {
+          setEditingSubject(null);
+          return;
+      }
+      
+      const trimmed = renameValue.trim();
+      if (customSyllabus[trimmed]) {
+          alert('A subject with this name already exists.');
+          return;
+      }
+
+      setCustomSyllabus(prev => {
+          const topics = prev[editingSubject];
+          const newState = { ...prev };
+          delete newState[editingSubject]; // Remove old key
+          newState[trimmed] = topics; // Add new key with preserved topics
+          return newState;
+      });
+      
+      if (activeSubjectForEdit === editingSubject) setActiveSubjectForEdit(trimmed);
+      setEditingSubject(null);
+  };
+
+  const handleAddTopic = (e: React.FormEvent) => {
+      e.preventDefault();
+      if(!activeSubjectForEdit || !newTopicName.trim()) return;
+      
+      setCustomSyllabus(prev => ({
+          ...prev,
+          [activeSubjectForEdit]: [...(prev[activeSubjectForEdit] || []), newTopicName.trim()]
+      }));
+      setNewTopicName('');
+  };
+
+  const handleDeleteTopic = (subject: string, topic: string) => {
+      setCustomSyllabus(prev => ({
+          ...prev,
+          [subject]: prev[subject].filter(t => t !== topic)
+      }));
+  };
+
   const syncButtonContent = () => {
     switch (syncStatus) {
       case 'syncing':
@@ -170,18 +267,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
+    <>
+    <ConfirmationModal
+        isOpen={!!subjectToDelete}
+        onClose={() => setSubjectToDelete(null)}
+        onConfirm={confirmDeleteSubject}
+        title={`Delete ${subjectToDelete}?`}
+        message="This will remove the subject and all its topics. Past session logs will be preserved but won't count towards new goals."
+    />
+    
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
       <Card 
         className="w-full max-w-lg shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col [&>div.z-10]:flex [&>div.z-10]:flex-col [&>div.z-10]:h-full [&>div.z-10]:overflow-hidden"
         style={{ 
             backgroundColor: 'rgba(var(--theme-card-rgb), 0.85)',
-            backgroundImage: `
-                radial-gradient(circle at top left, rgba(var(--theme-accent-rgb), 0.25), transparent 70%),
-                radial-gradient(circle at bottom right, rgba(var(--theme-accent-rgb), 0.15), transparent 70%)
-            `,
             borderColor: 'rgba(var(--theme-accent-rgb), 0.3)',
-            borderWidth: '1px',
-            boxShadow: '0 25px 50px -12px rgba(var(--theme-accent-rgb), 0.3), 0 0 15px rgba(var(--theme-accent-rgb), 0.1)',
             backdropFilter: 'blur(24px)'
         }}
       >
@@ -197,7 +297,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="space-y-8 overflow-y-auto pr-2 pb-4 flex-1 min-h-0">
+        <div className="space-y-8 overflow-y-auto pr-2 pb-4 flex-1 min-h-0 custom-scrollbar">
           
           {/* --- SECTION 0: STUDY STREAM --- */}
           <div className="space-y-4">
@@ -206,21 +306,129 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span className="text-xs font-bold uppercase tracking-widest">Study Stream</span>
              </div>
              <div className="flex bg-slate-100 dark:bg-black/20 p-1 rounded-xl">
-                <button
-                    onClick={() => setStream('JEE')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${stream === 'JEE' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
-                >
-                    JEE (Eng.)
-                </button>
-                <button
-                    onClick={() => setStream('NEET')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${stream === 'NEET' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
-                >
-                    NEET (Med.)
-                </button>
+                {(['JEE', 'NEET', 'General'] as const).map(s => (
+                    <button
+                        key={s}
+                        onClick={() => setStream(s)}
+                        className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${stream === s ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                    >
+                        {s}
+                    </button>
+                ))}
             </div>
+
+            {/* General Stream Customization */}
+            {stream === 'General' && (
+                <div className="bg-slate-50/50 dark:bg-black/20 border border-slate-200 dark:border-white/5 rounded-xl p-4 animate-in slide-in-from-top-2 duration-300">
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 flex items-center gap-2"><GraduationCap size={14}/> Curriculum</span>
+                    </div>
+                    
+                    {/* Add Subject */}
+                    <form onSubmit={handleAddSubject} className="flex gap-2 mb-4">
+                        <input 
+                            type="text" 
+                            placeholder="Add Subject (e.g. History)" 
+                            className="flex-1 bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all"
+                            value={newSubjectName}
+                            onChange={e => setNewSubjectName(e.target.value)}
+                        />
+                        <button type="submit" className="p-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"><Plus size={16}/></button>
+                    </form>
+
+                    {/* Subject List */}
+                    <div className="space-y-2">
+                        {Object.keys(customSyllabus).map(subject => (
+                            <div key={subject} className="bg-white dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/5 overflow-hidden">
+                                <div className="flex justify-between items-center p-3">
+                                    {editingSubject === subject ? (
+                                        <div className="flex items-center gap-2 flex-1 mr-2" onClick={(e) => e.stopPropagation()}>
+                                            <input 
+                                                type="text"
+                                                autoFocus
+                                                value={renameValue}
+                                                onChange={(e) => setRenameValue(e.target.value)}
+                                                className="w-full bg-slate-100 dark:bg-black/40 px-2 py-1 rounded text-sm font-bold border border-indigo-500 outline-none text-slate-900 dark:text-white"
+                                                onKeyDown={(e) => e.key === 'Enter' && handleSaveRename(e)}
+                                                onBlur={() => handleSaveRename()}
+                                            />
+                                            <button onClick={handleSaveRename} className="p-1.5 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors"><Check size={14} /></button>
+                                        </div>
+                                    ) : (
+                                        <div 
+                                            className="flex-1 cursor-pointer font-bold text-slate-800 dark:text-slate-200 text-sm"
+                                            onClick={() => setActiveSubjectForEdit(activeSubjectForEdit === subject ? null : subject)}
+                                        >
+                                            {subject}
+                                        </div>
+                                    )}
+                                    
+                                    <div className="flex items-center gap-2">
+                                        {!editingSubject && (
+                                            <>
+                                                <span className="text-[10px] text-slate-400 mr-1">{customSyllabus[subject].length} topics</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={(e) => handleStartRename(e, subject)}
+                                                    className="text-slate-400 hover:text-indigo-500 p-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors z-10"
+                                                    title="Rename Subject"
+                                                >
+                                                    <Pencil size={12} />
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={(e) => handleDeleteSubjectClick(e, subject)} 
+                                                    className="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors z-10"
+                                                    title="Delete Subject"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <AnimatePresence>
+                                    {activeSubjectForEdit === subject && (
+                                        <motion.div 
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: 'auto', opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            className="bg-slate-50 dark:bg-black/20 border-t border-slate-200 dark:border-white/5 p-3"
+                                        >
+                                            <div className="flex flex-wrap gap-2 mb-3">
+                                                {customSyllabus[subject].map(topic => (
+                                                    <span key={topic} className="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-white/10 rounded text-[10px] font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5">
+                                                        {topic}
+                                                        <button onClick={() => handleDeleteTopic(subject, topic)} className="hover:text-rose-500 transition-colors"><X size={10} /></button>
+                                                    </span>
+                                                ))}
+                                                {customSyllabus[subject].length === 0 && <span className="text-[10px] text-slate-400 italic">No topics yet</span>}
+                                            </div>
+                                            <form onSubmit={handleAddTopic} className="flex gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Add Topic..." 
+                                                    className="flex-1 bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                                    value={newTopicName}
+                                                    onChange={e => setNewTopicName(e.target.value)}
+                                                />
+                                                <button type="submit" className="text-xs font-bold uppercase text-indigo-500 hover:text-indigo-400 px-2">Add</button>
+                                            </form>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        ))}
+                        {Object.keys(customSyllabus).length === 0 && (
+                            <p className="text-xs text-slate-400 text-center py-4 italic">No subjects added. Add one above.</p>
+                        )}
+                    </div>
+                </div>
+            )}
           </div>
           
+          {/* ... Rest of settings content ... */}
           {/* --- SECTION 1: APPEARANCE --- */}
           <div className="space-y-4">
              <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
@@ -251,8 +459,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                         {isSelected && <CheckCircle2 size={16} style={{ color: 'var(--theme-accent)' }} className="shrink-0" />}
                       </div>
-                      
-                      {/* Preview Gradient Background */}
                       <div 
                         className="absolute inset-0 opacity-10 pointer-events-none"
                         style={{ backgroundColor: config.colors.bg }} 
@@ -262,7 +468,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 })}
              </div>
 
-             {/* Custom Background (Unlocked for All) */}
+             {/* Custom Background */}
              <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
                  <div className="flex justify-between items-center mb-4">
                      <div className="flex items-center gap-2">
@@ -344,67 +550,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                      </div>
                  )}
              </div>
-
-             {/* Visual Effects Preferences */}
-             <div className={`space-y-3 transition-all duration-300 ${!graphicsEnabled ? 'opacity-50 grayscale pointer-events-none select-none' : ''}`}>
-                 <div className="grid grid-cols-1 gap-3">
-                    {/* Aurora Toggle */}
-                    <button 
-                      onClick={toggleAurora}
-                      disabled={customBackgroundEnabled}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-white/10 transition-colors ${customBackgroundEnabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 dark:hover:bg-white/5'}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${showAurora && !customBackgroundEnabled ? 'bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                            <Sparkles size={18} />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">Aurora Background</p>
-                        </div>
-                      </div>
-                      <div className={`w-10 h-5 rounded-full relative transition-colors ${showAurora && !customBackgroundEnabled ? 'bg-purple-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
-                          <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${showAurora && !customBackgroundEnabled ? 'left-6' : 'left-1'}`} />
-                      </div>
-                    </button>
-
-                    {/* Particles Toggle */}
-                    <button 
-                      onClick={toggleParticles}
-                      className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${showParticles ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                            <Layers size={18} />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">Background Elements</p>
-                        </div>
-                      </div>
-                      <div className={`w-10 h-5 rounded-full relative transition-colors ${showParticles ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
-                          <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${showParticles ? 'left-6' : 'left-1'}`} />
-                      </div>
-                    </button>
-
-                    {/* Parallax Toggle */}
-                    <button 
-                      onClick={toggleParallax}
-                      disabled={!showParticles || customBackgroundEnabled}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-white/10 transition-colors ${(!showParticles || customBackgroundEnabled) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 dark:hover:bg-white/5'}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${parallaxEnabled && showParticles && !customBackgroundEnabled ? 'bg-pink-100 text-pink-600 dark:bg-pink-500/20 dark:text-pink-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                            <MousePointer2 size={18} />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">Parallax Effect</p>
-                        </div>
-                      </div>
-                      <div className={`w-10 h-5 rounded-full relative transition-colors ${parallaxEnabled && showParticles && !customBackgroundEnabled ? 'bg-pink-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
-                          <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${parallaxEnabled && showParticles && !customBackgroundEnabled ? 'left-6' : 'left-1'}`} />
-                      </div>
-                    </button>
-                 </div>
-             </div>
           </div>
 
           {/* --- SECTION 2: PERFORMANCE --- */}
@@ -415,7 +560,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              </div>
 
              <div className="grid grid-cols-2 gap-3">
-                {/* Standard Mode */}
                 <button 
                     onClick={() => setMode('standard')}
                     className={`
@@ -435,7 +579,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">High Fidelity</span>
                 </button>
 
-                {/* Lite Mode */}
                 <button 
                     onClick={() => setMode('lite')}
                     className={`
@@ -453,107 +596,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span className={`text-sm font-bold transition-colors ${!graphicsEnabled ? 'text-emerald-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'}`}>Lite Mode</span>
                     <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70 mt-1">Battery Saver</span>
                 </button>
-             </div>
-             
-             <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-2">
-                    <Activity size={16} className="text-slate-400" />
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Lag Alerts</span>
-                </div>
-                <button 
-                    onClick={toggleLagDetection}
-                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 ease-in-out ${lagDetectionEnabled ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}
-                    style={lagDetectionEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}
-                >
-                    <span className={`absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out ${lagDetectionEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-             </div>
-          </div>
-
-          {/* --- SECTION 3: INTERACTION --- */}
-          <div className="space-y-4">
-             <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
-                <SlidersHorizontal size={16} />
-                <span className="text-xs font-bold uppercase tracking-widest">Interaction</span>
-             </div>
-
-             <div className="space-y-3">
-                {/* Audio Settings */}
-                <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl space-y-4">
-                    <button
-                        onClick={toggleSound}
-                        className="w-full flex items-center justify-between p-2 -ml-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/5 transition-colors"
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className={`p-1.5 rounded-lg ${soundEnabled ? 'bg-indigo-100 dark:bg-indigo-500/20' : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`} style={soundEnabled ? { backgroundColor: 'rgba(var(--theme-accent-rgb), 0.1)', color: 'var(--theme-accent)' } : {}}>
-                                {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                            </div>
-                            <span className="text-sm font-bold text-slate-900 dark:text-white">Click Sounds</span>
-                        </div>
-                        <div className={`w-10 h-5 rounded-full relative transition-colors ${soundEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`} style={soundEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}>
-                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${soundEnabled ? 'left-6' : 'left-1'}`} />
-                        </div>
-                    </button>
-
-                    {soundEnabled && (
-                        <div className="space-y-4 pl-1 animate-in slide-in-from-top-2 fade-in duration-300">
-                            <div className="h-px bg-slate-200 dark:bg-white/5 w-full" />
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Tone Pitch</span>
-                                    <span className="text-xs font-mono font-bold" style={{ color: 'var(--theme-accent)' }}>{soundPitch}Hz</span>
-                                </div>
-                                <input 
-                                    type="range" min="200" max="1200" step="50"
-                                    value={soundPitch} onChange={(e) => setSoundPitch(Number(e.target.value))}
-                                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-                                    style={{ accentColor: 'var(--theme-accent)' }}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Volume</span>
-                                    <span className="text-xs font-mono font-bold text-emerald-500">{Math.round(soundVolume * 100)}%</span>
-                                </div>
-                                <input 
-                                    type="range" min="0.1" max="1.0" step="0.1"
-                                    value={soundVolume} onChange={(e) => setSoundVolume(Number(e.target.value))}
-                                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-emerald-500"
-                                />
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Animation Settings */}
-                <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl space-y-4">
-                    <button
-                        onClick={toggleSwipeAnimation}
-                        className="w-full flex items-center justify-between p-2 -ml-2 rounded-lg hover:bg-slate-200 dark:hover:bg-white/5 transition-colors"
-                    >
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">Swipe Transitions</span>
-                        <div className={`w-10 h-5 rounded-full relative transition-colors ${swipeAnimationEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`} style={swipeAnimationEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}>
-                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${swipeAnimationEnabled ? 'left-6' : 'left-1'}`} />
-                        </div>
-                    </button>
-                    {animationsEnabled && swipeAnimationEnabled && (
-                        <div className="space-y-4 pl-1 animate-in slide-in-from-top-2 fade-in duration-300">
-                            <div className="h-px bg-slate-200 dark:bg-white/5 w-full" />
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Speed</span>
-                                    <span className="text-xs font-mono font-bold" style={{ color: 'var(--theme-accent)' }}>{swipeStiffness}</span>
-                                </div>
-                                <input 
-                                    type="range" min="50" max="8000" step="50"
-                                    value={swipeStiffness} onChange={(e) => setSwipeStiffness(Number(e.target.value))}
-                                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
-                                    style={{ accentColor: 'var(--theme-accent)' }}
-                                />
-                            </div>
-                        </div>
-                    )}
-                </div>
              </div>
           </div>
           
@@ -579,65 +621,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   >
                     {syncButtonContent()}
                   </button>
-                  <AnimatePresence>
-                    {syncError && syncStatus === 'error' && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="mt-3 p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs text-rose-500 dark:text-rose-400"
-                        >
-                            <p className="font-bold mb-1">Action Required:</p>
-                            <p>{syncError}</p>
-                        </motion.div>
-                    )}
-                  </AnimatePresence>
                </div>
             </div>
           )}
-
-          {/* --- SECTION 5: SUPPORT & GUIDE --- */}
-          <div className="space-y-4">
-             <div className="flex items-center gap-2 text-amber-500 dark:text-amber-400 border-b border-amber-100 dark:border-amber-500/20 pb-2">
-                <HelpCircle size={16} />
-                <span className="text-xs font-bold uppercase tracking-widest">Support</span>
-             </div>
-
-             <div className="grid grid-cols-1 gap-3">
-                 <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl flex items-center justify-between" style={{ backgroundColor: 'rgba(var(--theme-accent-rgb), 0.05)', borderColor: 'rgba(var(--theme-accent-rgb), 0.1)' }}>
-                    <div>
-                        <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-100" style={{ color: 'var(--theme-text-main)' }}>Tutorial</h3>
-                        <p className="text-[10px] text-indigo-700 dark:text-indigo-300 mt-1" style={{ color: 'var(--theme-accent)' }}>Replay the welcome tour.</p>
-                    </div>
-                    <button 
-                        onClick={() => { onStartTutorial(); onClose(); }}
-                        className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center gap-2"
-                        style={{
-                            backgroundColor: 'var(--theme-accent)',
-                            color: 'var(--theme-on-accent)'
-                        }}
-                    >
-                        <Map size={14} /> Start
-                    </button>
-                 </div>
-
-                 {/* Privacy Policy Link */}
-                 <button
-                    onClick={() => { onOpenPrivacy(); onClose(); }}
-                    className="flex items-center justify-between p-4 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl hover:border-emerald-400 dark:hover:border-emerald-500/50 group transition-all"
-                 >
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg text-emerald-600 dark:text-emerald-400">
-                            <Shield size={16} />
-                        </div>
-                        <div className="text-left">
-                            <span className="block text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-emerald-500">Privacy Policy</span>
-                            <span className="block text-[10px] text-slate-500 uppercase tracking-wider">AdSense & Data Usage</span>
-                        </div>
-                    </div>
-                 </button>
-             </div>
-          </div>
 
           {/* --- SECTION 6: DANGER ZONE --- */}
           <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-white/10">
@@ -646,7 +632,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span className="text-xs font-bold uppercase tracking-widest">Danger Zone</span>
              </div>
 
-             {/* Logout Button */}
              {(user || isGuest) && (
                 <div className="flex justify-between items-center p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
                     <div>
@@ -682,11 +667,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              </button>
           </div>
         </div>
-        
-        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 text-center shrink-0">
-          <p className="text-[10px] text-slate-400 dark:text-slate-600 font-mono">Trackly v1.4.0</p>
-        </div>
       </Card>
     </div>
+    </>
   );
 };

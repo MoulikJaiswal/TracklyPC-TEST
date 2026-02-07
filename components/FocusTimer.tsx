@@ -128,7 +128,7 @@ const StatCard = ({
     colorClass?: string, 
     bgClass?: string 
 }) => (
-    <div className={`p-5 rounded-3xl border border-white/5 flex flex-col justify-between h-full ${bgClass}`}>
+    <div className={`p-5 rounded-3xl border border-white/5 flex flex-col justify-between h-full ${bgClass} text-white`}>
         <div className="flex justify-between items-start mb-2">
             <div className={`p-2.5 rounded-2xl bg-white/10 ${colorClass}`}>
                 <Icon size={20} />
@@ -648,10 +648,13 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
   
   const subjectColorMap: Record<string, string> = useMemo(() => {
     const colors: Record<string, string> = {
-        Physics: '#3b82f6',   // blue
-        Chemistry: '#f97316', // orange
-        Maths: '#f43f5e',     // rose
-        Biology: '#10b981'    // emerald
+        Physics: '#3b82f6',   // blue-500
+        Chemistry: '#f97316', // orange-500
+        Maths: '#f43f5e',     // rose-500
+        Biology: '#10b981',   // emerald-500
+        English: '#8b5cf6',   // violet-500
+        History: '#f59e0b',   // amber-500
+        Geography: '#06b6d4'  // cyan-500
     };
     return subjectKeys.reduce((acc, key) => {
         acc[key] = colors[key] || '#64748b'; // default slate
@@ -766,7 +769,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                           <div className="flex items-center gap-4">
                                <button onClick={onToggleTimer} className="h-20 w-20 rounded-2xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-all flex items-center justify-center shadow-lg active:scale-95">
                                    {isActive ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
-                               </button>
+                                </button>
                                <button onClick={handleStopClick} className="h-20 w-20 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-rose-500/20 shadow-lg active:scale-95">
                                    <Square size={32} fill="currentColor" />
                                </button>
@@ -852,21 +855,28 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                     <div className="flex-1 w-full flex flex-col gap-4 justify-center">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Subject</label>
-                                            <div className="flex flex-wrap gap-1.5 justify-center md:justify-start">
-                                                {subjectKeys.map(sub => (
-                                                    <button
-                                                        key={sub}
-                                                        onClick={() => onSelectSubject(sub)}
-                                                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
-                                                            selectedSubject === sub 
-                                                            ? 'border-indigo-500 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400' 
-                                                            : 'border-transparent bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'
-                                                        }`}
-                                                    >
-                                                        {sub}
-                                                    </button>
-                                                ))}
-                                            </div>
+                                            {subjectKeys.length === 0 ? (
+                                                <div className="p-3 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-center">
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">No subjects found.</p>
+                                                    <p className="text-[10px] text-slate-400 mt-1">Add subjects in Settings to focus.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-1.5 justify-center md:justify-start">
+                                                    {subjectKeys.map(sub => (
+                                                        <button
+                                                            key={sub}
+                                                            onClick={() => onSelectSubject(sub)}
+                                                            className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                                                selectedSubject === sub 
+                                                                ? 'border-indigo-500 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400' 
+                                                                : 'border-transparent bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'
+                                                            }`}
+                                                        >
+                                                            {sub}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                   </>

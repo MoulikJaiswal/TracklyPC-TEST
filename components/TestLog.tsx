@@ -99,6 +99,167 @@ const StatDisplay = memo(({ label, value, color }: { label: string, value: numbe
     );
 });
 
+// --- TEST REPORT MODAL ---
+const TestReportModal = memo(({ test, onClose }: { test: TestResult, onClose: () => void }) => {
+    const percentage = safeDiv(test.marks, test.total || 300) * 100;
+    
+    // Helper for subject stats
+    const getSubStats = (sub: 'Physics' | 'Chemistry' | 'Maths') => {
+        const data = test.breakdown?.[sub] || DEFAULT_BREAKDOWN;
+        const totalQs = (Number(data.correct)||0) + (Number(data.incorrect)||0) + (Number(data.unattempted)||0);
+        const score = ((Number(data.correct)||0) * 4) - (Number(data.incorrect)||0);
+        return { ...data, totalQs, score };
+    };
+
+    const physics = getSubStats('Physics');
+    const chemistry = getSubStats('Chemistry');
+    const maths = getSubStats('Maths');
+
+    return createPortal(
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-start bg-slate-50/80 dark:bg-white/5">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30">
+                                {test.testType || 'Mock Test'}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{test.date}</span>
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white leading-tight">{test.name}</h2>
+                        {test.coachingName && <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">{test.coachingName}</p>}
+                    </div>
+                    <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="p-6 overflow-y-auto">
+                    {/* Score Card */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                        {/* Overall */}
+                        <div className="p-4 rounded-2xl bg-indigo-600 text-white flex flex-col justify-between relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl translate-x-1/2 -translate-y-1/2" />
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">Total Score</p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-4xl font-display font-bold">{test.marks}</span>
+                                    <span className="text-sm opacity-60">/ {test.total}</span>
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-end mt-4">
+                                <span className="text-xs font-bold bg-white/20 px-2 py-1 rounded-lg">{Math.round(percentage)}%</span>
+                                <Trophy size={20} className="text-yellow-300 opacity-80" />
+                            </div>
+                        </div>
+
+                        {/* Temperament */}
+                        <div className="p-4 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 flex flex-col justify-center items-center text-center">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Temperament</p>
+                            <span className={`text-xl font-bold ${
+                                test.temperament === 'Calm' ? 'text-emerald-500' : 
+                                test.temperament === 'Focused' ? 'text-blue-500' :
+                                test.temperament === 'Anxious' ? 'text-orange-500' : 'text-rose-500'
+                            }`}>
+                                {test.temperament}
+                            </span>
+                        </div>
+
+                        {/* Accuracy (Calculated) */}
+                        <div className="p-4 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 flex flex-col justify-center items-center text-center">
+                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Accuracy</p>
+                             <span className="text-xl font-bold text-slate-800 dark:text-white">
+                                 {(() => {
+                                     const totalAttempted = (physics.correct + physics.incorrect) + (chemistry.correct + chemistry.incorrect) + (maths.correct + maths.incorrect);
+                                     const totalCorrect = physics.correct + chemistry.correct + maths.correct;
+                                     return totalAttempted > 0 ? Math.round((totalCorrect / totalAttempted) * 100) : 0;
+                                 })()}%
+                             </span>
+                        </div>
+                    </div>
+
+                    {/* Subject Breakdown */}
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                            <BarChart3 size={16} /> Subject Analysis
+                        </h3>
+                        <div className="grid grid-cols-1 gap-3">
+                            {[
+                                { label: 'Physics', data: physics, color: 'text-blue-500', bg: 'bg-blue-500', icon: Atom },
+                                { label: 'Chemistry', data: chemistry, color: 'text-orange-500', bg: 'bg-orange-500', icon: Zap },
+                                { label: 'Maths', data: maths, color: 'text-rose-500', bg: 'bg-rose-500', icon: Calculator }
+                            ].map(sub => (
+                                <div key={sub.label} className="bg-slate-50 dark:bg-white/5 rounded-xl p-3 border border-slate-200 dark:border-white/5 flex items-center gap-4">
+                                    <div className={`p-2.5 rounded-xl bg-white dark:bg-white/10 ${sub.color} shadow-sm`}>
+                                        <sub.icon size={20} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-center mb-1.5">
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{sub.label}</span>
+                                            <span className={`text-sm font-mono font-bold ${sub.color}`}>{sub.data.score} <span className="text-[10px] text-slate-400 dark:text-slate-500 font-sans font-medium opacity-60 uppercase">Marks</span></span>
+                                        </div>
+                                        <div className="flex h-2 rounded-full overflow-hidden bg-slate-200 dark:bg-black/40">
+                                            <div style={{ width: `${safeDiv(sub.data.correct, sub.data.totalQs) * 100}%` }} className="bg-emerald-500" />
+                                            <div style={{ width: `${safeDiv(sub.data.incorrect, sub.data.totalQs) * 100}%` }} className="bg-rose-500" />
+                                        </div>
+                                        <div className="flex justify-between mt-1 text-[9px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                                            <span>{sub.data.correct} Correct</span>
+                                            <span>{sub.data.incorrect} Wrong</span>
+                                            <span>{sub.data.unattempted} Skip</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Mistakes */}
+                    <div className="mt-8">
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+                            <AlertCircle size={16} /> Mistake Distribution
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                            {MISTAKE_TYPES.map(type => {
+                                const count = (physics.mistakes?.[type.id as keyof MistakeCounts] || 0) + 
+                                              (chemistry.mistakes?.[type.id as keyof MistakeCounts] || 0) + 
+                                              (maths.mistakes?.[type.id as keyof MistakeCounts] || 0);
+                                if (count === 0) return null;
+                                return (
+                                    <div key={type.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/5">
+                                        <span className={type.color}>{type.icon}</span>
+                                        <span className="text-[10px] font-bold uppercase text-slate-600 dark:text-slate-300">{type.label}</span>
+                                        <span className="text-xs font-mono font-bold text-slate-900 dark:text-white bg-white dark:bg-black/20 px-1.5 rounded ml-1">{count}</span>
+                                    </div>
+                                )
+                            })}
+                            {(() => {
+                                const totalMistakes = Object.values(physics.mistakes || {}).reduce((a,b) => a+(b||0),0) + 
+                                                      Object.values(chemistry.mistakes || {}).reduce((a,b) => a+(b||0),0) + 
+                                                      Object.values(maths.mistakes || {}).reduce((a,b) => a+(b||0),0);
+                                return totalMistakes === 0 ? <p className="text-xs text-slate-500 dark:text-slate-400 italic">No mistakes categorized for this test.</p> : null;
+                            })()}
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Footer Actions */}
+                {test.attachment && (
+                    <div className="p-4 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5">
+                        <a 
+                            href={test.attachment} 
+                            download={test.fileName || "test-report"}
+                            className="flex items-center justify-center gap-2 w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold uppercase text-xs tracking-widest hover:opacity-90 transition-opacity"
+                        >
+                            <Download size={16} /> Download {test.attachmentType === 'pdf' ? 'Question Paper' : 'Attachment'}
+                        </a>
+                    </div>
+                )}
+            </div>
+        </div>,
+        document.body
+    );
+});
 
 // --- ANALYTICS COMPONENT ---
 const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
@@ -409,15 +570,12 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
 
 export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogProps) => {
   const [isAdding, setIsAdding] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{ name: string; type: 'image' | 'pdf', thumbnail?: string } | null>(null);
   const [viewingAttachment, setViewingAttachment] = useState<TestResult | null>(null);
-  const [viewingReport, setViewingReport] = useState<TestResult | null>(null);
-  const [reportSubject, setReportSubject] = useState<'Physics' | 'Chemistry' | 'Maths' | null>(null);
+  const [viewingReport, setViewingReport] = useState<TestResult | null>(null); // State for report modal
   const [activeTab, setActiveTab] = useState<'Physics' | 'Chemistry' | 'Maths'>('Physics');
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-  const [isProcessingAttachment, setIsProcessingAttachment] = useState(false);
   const [isProcessingThumbnail, setIsProcessingThumbnail] = useState(false);
   const [deletingTestId, setDeletingTestId] = useState<string | null>(null);
   
@@ -560,41 +718,6 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
       }));
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 4 * 1024 * 1024) {
-      alert("File is too large! Please upload an image/PDF smaller than 4MB.");
-      return;
-    }
-
-    setIsProcessingAttachment(true);
-    
-    try {
-        const type = file.type.includes('pdf') ? 'pdf' : 'image';
-    
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const result = event.target?.result as string;
-          
-          setFormData(prev => ({
-            ...prev,
-            attachment: result,
-            attachmentType: type,
-            fileName: file.name,
-            thumbnail: type === 'image' ? result : null
-          }));
-          setPreviewFile({ name: file.name, type, thumbnail: type === 'image' ? result : undefined });
-          setIsProcessingAttachment(false);
-        };
-        reader.readAsDataURL(file);
-    } catch(err) {
-        alert("Failed to process file.");
-        setIsProcessingAttachment(false);
-    }
-  };
-
   const handleThumbnailFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -616,18 +739,6 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
       };
       reader.readAsDataURL(file);
       e.target.value = '';
-  };
-
-  const removeAttachment = () => {
-    setFormData(prev => ({
-      ...prev,
-      attachment: null,
-      attachmentType: null,
-      fileName: null,
-      thumbnail: null
-    }));
-    setPreviewFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const updateMistake = (subject: 'Physics' | 'Chemistry' | 'Maths', type: keyof MistakeCounts, delta: number) => {
@@ -864,6 +975,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
       {/* Add Form */}
       {isAdding && (
         <Card className="bg-slate-900/50 dark:bg-slate-900/50 border border-slate-800 max-w-2xl mx-auto shadow-2xl">
+          {/* ... [Form content remains unchanged] ... */}
           <form onSubmit={handleSubmit} className="space-y-8">
             <input 
                 type="file" 
@@ -1110,6 +1222,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
 
             {/* Deep Dive Analysis Section */}
             <div className="space-y-4 pt-4 border-t border-indigo-500/20">
+               {/* ... [Breakdown content remains unchanged] ... */}
                <div className="flex items-center justify-between">
                    <label className="text-xs uppercase font-bold text-indigo-400 tracking-widest flex items-center gap-2">
                       <BarChart3 size={16} /> Question Breakdown
@@ -1219,44 +1332,6 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
                </div>
             </div>
 
-            {/* File Upload Section */}
-             <div className="space-y-2">
-               <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">Attachment (Paper / Solution)</label>
-               {previewFile ? (
-                 <div className="relative group rounded-xl overflow-hidden border border-slate-700">
-                   {previewFile.type === 'image' ? (
-                     <img src={previewFile.thumbnail} alt="Preview" className="w-full h-48 object-cover" />
-                   ) : (
-                     <div className="flex items-center justify-center h-24 bg-slate-800 text-slate-400 gap-2">
-                       <FileText size={24} />
-                       <span className="text-sm font-bold">{previewFile.name}</span>
-                     </div>
-                   )}
-                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                     <button type="button" onClick={removeAttachment} className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-rose-500 transition-colors">
-                       <Trash2 size={16} /> Remove
-                     </button>
-                   </div>
-                 </div>
-               ) : (
-                 <div
-                   onClick={() => fileInputRef.current?.click()}
-                   className="border-2 border-dashed border-slate-700 rounded-xl p-8 flex flex-col items-center justify-center text-slate-500 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all cursor-pointer group"
-                 >
-                   <UploadCloud size={32} className="mb-2 group-hover:scale-110 transition-transform" />
-                   <p className="text-xs font-bold uppercase tracking-wider">Click to Upload</p>
-                   <p className="text-[10px] opacity-60 mt-1">Image or PDF (Max 4MB)</p>
-                 </div>
-               )}
-               <input
-                 type="file"
-                 ref={fileInputRef}
-                 className="hidden"
-                 accept="image/*,application/pdf"
-                 onChange={handleFileChange}
-               />
-             </div>
-
              {/* Submit Button */}
              <div className="flex gap-4 pt-4 border-t border-slate-800">
                <button
@@ -1268,10 +1343,10 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
                </button>
                <button
                  type="submit"
-                 disabled={isProcessingAttachment || isProcessingThumbnail}
+                 disabled={isProcessingThumbnail}
                  className="flex-[2] py-4 rounded-xl bg-indigo-600 text-white font-bold uppercase text-xs tracking-wider hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                >
-                 {(isProcessingAttachment || isProcessingThumbnail) ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                 {isProcessingThumbnail ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                  Save Test Log
                </button>
              </div>
@@ -1282,7 +1357,11 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
       {/* List of Tests */}
       <div className="space-y-4">
         {processedTests.map((test) => (
-          <div key={test.id} className="group relative bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-white/5 hover:border-indigo-400 dark:hover:border-indigo-500/50 p-5 rounded-2xl transition-all hover:shadow-lg active:scale-[0.99] flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div 
+            key={test.id} 
+            onClick={() => setViewingReport(test)}
+            className="group relative bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-white/5 hover:border-indigo-400 dark:hover:border-indigo-500/50 p-5 rounded-2xl transition-all hover:shadow-lg active:scale-[0.99] flex flex-col md:flex-row items-start md:items-center gap-4 cursor-pointer"
+          >
             {/* Score Circle */}
             <div className="relative shrink-0">
                <svg className="w-16 h-16 transform -rotate-90">
@@ -1299,7 +1378,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{test.name}</h3>
                   {test.attachment && (
                       <button 
-                        onClick={() => setViewingAttachment(test)}
+                        onClick={(e) => { e.stopPropagation(); setViewingAttachment(test); }}
                         className="p-1 rounded bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 transition-colors"
                         title="View Attachment"
                       >
@@ -1340,7 +1419,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
             </div>
 
             <button 
-                onClick={() => setDeletingTestId(test.id)}
+                onClick={(e) => { e.stopPropagation(); setDeletingTestId(test.id); }}
                 className="absolute top-4 right-4 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
             >
                 <Trash2 size={16} />
@@ -1363,6 +1442,11 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
           title="Delete Test?"
           message="This action cannot be undone. All data for this test will be lost."
       />
+
+      {/* Test Report Modal */}
+      {viewingReport && (
+          <TestReportModal test={viewingReport} onClose={() => setViewingReport(null)} />
+      )}
 
       {/* Attachment Viewer */}
       {viewingAttachment && createPortal(

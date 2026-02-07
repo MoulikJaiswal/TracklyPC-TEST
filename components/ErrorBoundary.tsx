@@ -1,4 +1,5 @@
-import React, { type ErrorInfo, type ReactNode } from "react";
+// FIX: Updated React import to explicitly include Component, ErrorInfo, and ReactNode.
+import React, { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {
@@ -12,8 +13,11 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = {
+// FIX: Changed extends React.Component to extends Component.
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // FIX: Initialized state as a class property, removing the constructor.
+  // This resolves the error on line 19 and is a more modern approach.
+  state: ErrorBoundaryState = {
     hasError: false,
     error: null,
   };
