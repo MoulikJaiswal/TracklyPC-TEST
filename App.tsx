@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -139,10 +140,10 @@ const TOUR_STEPS: TutorialStep[] = [
 
 const Sidebar = React.memo(({ view, setView, onOpenSettings, isCollapsed, toggleCollapsed, user, isGuest, onLogin, onLogout, isInstalled, onInstall, userName, isPro, onOpenUpgrade }: any) => {
   return (
-    <aside className={`hidden md:flex flex-col h-screen fixed left-0 top-0 z-40 border-r border-slate-200 dark:border-white/5 backdrop-blur-xl transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isCollapsed ? 'w-20 items-center' : 'w-64'} overflow-visible transform-gpu will-change-transform`} style={{ backgroundColor: 'rgba(var(--theme-card-rgb), 0.5)' }}>
+    <aside className={`hidden md:flex flex-col h-screen fixed left-0 top-0 z-40 border-r border-theme-border backdrop-blur-xl transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isCollapsed ? 'w-20 items-center' : 'w-64'} overflow-visible transform-gpu will-change-transform`} style={{ backgroundColor: 'rgba(var(--theme-card-rgb), 0.5)' }}>
       <div className={`h-20 flex items-center relative shrink-0 ${isCollapsed ? 'justify-center px-0 w-full' : 'justify-between px-6'}`}>
         <TracklyLogo collapsed={isCollapsed} id="trackly-logo" />
-        <button onClick={toggleCollapsed} className={`absolute top-1/2 -translate-y-1/2 -right-3 z-50 w-6 h-6 flex items-center justify-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-full text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-indigo-500/30 transition-all shadow-sm hover:shadow-md hover:scale-110 active:scale-95`}>
+        <button onClick={toggleCollapsed} className={`absolute top-1/2 -translate-y-1/2 -right-3 z-50 w-6 h-6 flex items-center justify-center bg-theme-card border border-theme-border rounded-full text-theme-text-secondary hover:text-theme-accent hover:border-theme-accent/30 transition-all shadow-sm hover:shadow-md hover:scale-110 active:scale-95`}>
            {isCollapsed ? <ChevronRight size={12} strokeWidth={3} /> : <ChevronLeft size={12} strokeWidth={3} />}
         </button>
       </div>
@@ -150,20 +151,20 @@ const Sidebar = React.memo(({ view, setView, onOpenSettings, isCollapsed, toggle
         {TABS.map(tab => {
           const isActive = view === tab.id;
           return (
-            <button key={tab.id} onClick={() => setView(tab.id as ViewType)} className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-300 group relative ${isActive ? 'bg-indigo-50/50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'} ${isCollapsed ? 'justify-center gap-0' : 'gap-4'}`} title={isCollapsed ? tab.label : ''}>
-              <div className={`p-2 rounded-xl transition-all duration-300 flex-shrink-0 relative z-10 will-change-transform ${isActive ? 'bg-white dark:bg-white/10 shadow-indigo-500/20 shadow-lg' : 'group-hover:text-indigo-500 dark:group-hover:text-indigo-400 group-hover:bg-indigo-50/50 dark:group-hover:bg-indigo-500/10 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]'}`}>
+            <button key={tab.id} onClick={() => setView(tab.id as ViewType)} className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-300 group relative ${isActive ? 'bg-theme-accent/10 text-theme-accent' : 'text-theme-text-secondary hover:text-theme-text'} ${isCollapsed ? 'justify-center gap-0' : 'gap-4'}`} title={isCollapsed ? tab.label : ''}>
+              <div className={`p-2 rounded-xl transition-all duration-300 flex-shrink-0 relative z-10 will-change-transform ${isActive ? 'bg-theme-card dark:bg-theme-text/10 shadow-indigo-500/20 shadow-lg' : 'group-hover:text-theme-accent group-hover:bg-theme-accent/10 group-hover:shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.2)]'}`}>
                 <tab.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
               </div>
               <span className={`text-sm font-bold tracking-wide transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? 'w-0 opacity-0 translate-x-4' : 'w-auto opacity-100 translate-x-0'}`}>{tab.label}</span>
-              {isActive && !isCollapsed && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>}
+              {isActive && !isCollapsed && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-theme-accent animate-pulse"></div>}
             </button>
           )
         })}
       </nav>
       {/* ... Footer logic same as before ... */}
-      <div className="p-4 border-t border-slate-200 dark:border-white/5 w-full space-y-2">
-        <button id="settings-btn" onClick={onOpenSettings} className={`w-full flex items-center px-3 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-all group ${isCollapsed ? 'justify-center gap-0' : 'gap-3'}`}>
-          <div className="p-2 rounded-xl transition-all duration-300 flex-shrink-0 relative z-10 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 group-hover:bg-indigo-50/50 dark:group-hover:bg-indigo-500/10 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] will-change-transform">
+      <div className="p-4 border-t border-theme-border w-full space-y-2">
+        <button id="settings-btn" onClick={onOpenSettings} className={`w-full flex items-center px-3 py-3 rounded-xl text-theme-text-secondary hover:text-theme-text transition-all group ${isCollapsed ? 'justify-center gap-0' : 'gap-3'}`}>
+          <div className="p-2 rounded-xl transition-all duration-300 flex-shrink-0 relative z-10 group-hover:text-theme-accent group-hover:bg-theme-accent/10 group-hover:shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.2)] will-change-transform">
              <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500" />
           </div>
           <span className={`text-sm font-bold transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? 'w-0 opacity-0 translate-x-4' : 'w-auto opacity-100 translate-x-0'}`}>Settings</span>
@@ -187,14 +188,14 @@ const OverdueTasksModal = ({ isOpen, tasks, onClose, onComplete, onDelete }: any
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
       <Card className="w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
         <div className="flex justify-between items-center mb-4 p-6 border-b">
-          <h3 className="text-lg font-bold flex items-center gap-2"><ListChecks size={20} className="text-amber-500" /> Overdue Tasks</h3>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"><X size={18} /></button>
+          <h3 className="text-lg font-bold flex items-center gap-2 text-theme-text"><ListChecks size={20} className="text-amber-500" /> Overdue Tasks</h3>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-theme-text-secondary transition-colors"><X size={18} /></button>
         </div>
         <div className="px-6 pb-6 overflow-y-auto space-y-3">
-          <p className="text-xs text-slate-500 dark:text-slate-400 pb-2">You have {tasks.length} unfinished tasks from previous days.</p>
+          <p className="text-xs text-theme-text-secondary pb-2">You have {tasks.length} unfinished tasks from previous days.</p>
           {tasks.map((task: Target) => (
-            <div key={task.id} className="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200 dark:border-white/10 flex items-center justify-between gap-2 group">
-              <div><p className="text-sm font-medium text-slate-800 dark:text-slate-200">{task.text}</p><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">{task.date}</p></div>
+            <div key={task.id} className="bg-theme-bg-tertiary/50 p-3 rounded-xl border border-theme-border flex items-center justify-between gap-2 group">
+              <div><p className="text-sm font-medium text-theme-text">{task.text}</p><p className="text-[10px] font-bold uppercase tracking-wider text-theme-text-secondary mt-0.5">{task.date}</p></div>
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button onClick={() => onComplete(task.id)} className="p-2 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg"><Check size={14} /></button>
                 <button onClick={() => onDelete(task.id)} className="p-2 bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg"><Trash2 size={14} /></button>
@@ -202,7 +203,7 @@ const OverdueTasksModal = ({ isOpen, tasks, onClose, onComplete, onDelete }: any
             </div>
           ))}
         </div>
-        <div className="p-6 border-t"><button onClick={onClose} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg transition-all active:scale-95">Got It</button></div>
+        <div className="p-6 border-t"><button onClick={onClose} className="w-full py-3 bg-theme-accent hover:opacity-90 text-theme-text-on-accent rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg transition-all active:scale-95">Got It</button></div>
       </Card>
     </div>, document.body
   );
@@ -360,6 +361,12 @@ export const App: React.FC = () => {
         --theme-accent-rgb: ${hexToRgb(themeConfig.colors.accent)};
         --theme-accent-glow: ${themeConfig.colors.accentGlow};
         --theme-text-main: ${themeConfig.colors.text};
+        --theme-text-secondary: ${themeConfig.colors.textSecondary};
+        --theme-text-on-accent: ${themeConfig.colors.textOnAccent};
+        --theme-border: ${themeConfig.colors.border};
+        --theme-bg-tertiary: ${themeConfig.colors.bgTertiary};
+        --theme-gradient-from: ${themeConfig.colors.gradient.from};
+        --theme-gradient-to: ${themeConfig.colors.gradient.to};
       }
   `, [themeConfig]);
 
@@ -633,7 +640,7 @@ export const App: React.FC = () => {
   return (
     <>
       <style>{dynamicStyles}</style>
-      <div className={`min-h-screen transition-colors duration-300 ${themeConfig.mode} font-sans selection:bg-indigo-500/30`}>
+      <div className={`min-h-screen transition-colors duration-300 ${themeConfig.mode} font-sans selection:bg-theme-accent/30`}>
         <StreamTransition isTransitioning={isTransitioning} stream={transitionStream} />
         <AnimatedBackground 
             themeId={theme} 
@@ -675,7 +682,7 @@ export const App: React.FC = () => {
                     <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen pb-24">
                         <AnimatePresence mode="wait" custom={direction}>
                             {view === 'daily' && (
-                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
                                     <MotionDiv
                                         key="daily"
                                         custom={direction}
@@ -702,7 +709,7 @@ export const App: React.FC = () => {
                                 </Suspense>
                             )}
                             {view === 'planner' && (
-                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
                                     <MotionDiv
                                         key="planner"
                                         custom={direction}
@@ -722,7 +729,7 @@ export const App: React.FC = () => {
                                 </Suspense>
                             )}
                             {view === 'focus' && (
-                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
                                     <MotionDiv
                                         key="focus"
                                         custom={direction}
@@ -755,7 +762,7 @@ export const App: React.FC = () => {
                                 </Suspense>
                             )}
                             {view === 'tests' && (
-                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
                                     <MotionDiv
                                         key="tests"
                                         custom={direction}
@@ -775,7 +782,7 @@ export const App: React.FC = () => {
                                 </Suspense>
                             )}
                             {view === 'analytics' && (
-                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
                                     <MotionDiv
                                         key="analytics"
                                         custom={direction}
@@ -797,7 +804,7 @@ export const App: React.FC = () => {
                                 </Suspense>
                             )}
                             {view === 'group-focus' && (
-                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>}>
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
                                     <MotionDiv
                                         key="group-focus"
                                         custom={direction}

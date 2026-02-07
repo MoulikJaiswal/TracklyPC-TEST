@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 interface CardProps {
@@ -31,12 +32,12 @@ export const Card: React.FC<CardProps> = React.memo(({ children, className = '',
       transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
       willChange: onClick ? 'transform' : 'auto',
       backgroundColor: 'rgba(var(--theme-card-rgb), 0.6)',
-      borderColor: 'rgba(var(--theme-text-main), 0.1)',
+      borderColor: 'var(--theme-border)',
       ...style
     }}
   >
     {/* Hover State Layer - Simulates hover effect without repainting the blur */}
-    <div className="absolute inset-0 rounded-[1.75rem] bg-white/0 hover:bg-white/20 dark:hover:bg-slate-900/10 transition-colors duration-300 pointer-events-none" />
+    <div className="absolute inset-0 rounded-[1.75rem] bg-black/0 hover:bg-black/[.03] dark:hover:bg-white/[.03] transition-colors duration-300 pointer-events-none" />
     
     <div className="relative z-10">
       {children}
@@ -60,7 +61,7 @@ export const FloatingCard: React.FC<CardProps> = React.memo(({ children, classNa
       transitionProperty: 'transform, opacity',
       transitionDuration: '300ms',
       backgroundColor: 'rgba(var(--theme-card-rgb), 0.7)',
-      borderColor: 'rgba(var(--theme-text-main), 0.1)',
+      borderColor: 'var(--theme-border)',
       ...style
     }}
   >

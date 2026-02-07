@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { 
   Zap, 
@@ -200,6 +201,14 @@ export const THEME_CONFIG: Record<ThemeId, {
     accent: string; // The main branding color
     accentGlow: string;
     text: string;
+    textSecondary: string;
+    textOnAccent: string;
+    border: string;
+    bgTertiary: string;
+    gradient: {
+        from: string;
+        to: string;
+    }
   };
   icon: any;
 }> = {
@@ -207,56 +216,56 @@ export const THEME_CONFIG: Record<ThemeId, {
     label: 'Standard Dark',
     description: 'The classic Trackly experience',
     mode: 'dark',
-    colors: { bg: '#080a12', card: '#11131e', accent: '#6366f1', accentGlow: '#818cf8', text: '#f1f5f9' },
+    colors: { bg: '#080a12', card: '#11131e', accent: '#6366f1', accentGlow: '#818cf8', text: '#f1f5f9', textSecondary: '#94a3b8', textOnAccent: '#ffffff', border: 'rgba(255, 255, 255, 0.1)', bgTertiary: '#1e293b', gradient: { from: 'rgba(99, 102, 241, 0.15)', to: 'rgba(99, 102, 241, 0)' } },
     icon: Moon
   },
   'default-light': {
     label: 'Paper White',
     description: 'Crisp, clean, and high contrast.',
     mode: 'light',
-    colors: { bg: '#F8FAFC', card: '#FFFFFF', accent: '#4F46E5', accentGlow: '#6366F1', text: '#0F172A' }, // Slate-900 text, Slate-50 bg
+    colors: { bg: '#F8FAFC', card: '#FFFFFF', accent: '#4F46E5', accentGlow: '#6366F1', text: '#0F172A', textSecondary: '#64748b', textOnAccent: '#ffffff', border: 'rgba(0, 0, 0, 0.1)', bgTertiary: '#f1f5f9', gradient: { from: 'rgba(79, 70, 229, 0.08)', to: 'rgba(79, 70, 229, 0)' } },
     icon: Sun
   },
   'midnight': {
     label: 'Midnight Quiet',
     description: 'True black. The silence of space.',
     mode: 'dark',
-    colors: { bg: '#000000', card: '#09090b', accent: '#FFFFFF', accentGlow: '#FFFFFF', text: '#e2e8f0' }, // Zinc-950 cards, Pure Black BG
+    colors: { bg: '#000000', card: '#09090b', accent: '#FFFFFF', accentGlow: '#FFFFFF', text: '#e2e8f0', textSecondary: '#94a3b8', textOnAccent: '#000000', border: 'rgba(255, 255, 255, 0.1)', bgTertiary: '#171717', gradient: { from: 'rgba(255, 255, 255, 0.07)', to: 'rgba(255, 255, 255, 0)' } },
     icon: Moon
   },
   'obsidian': {
     label: 'Obsidian Focus',
     description: 'Jet black & cyan. Sharp and serious.',
     mode: 'dark',
-    colors: { bg: '#000000', card: '#121212', accent: '#06b6d4', accentGlow: '#22d3ee', text: '#e2e8f0' },
+    colors: { bg: '#000000', card: '#121212', accent: '#06b6d4', accentGlow: '#22d3ee', text: '#e2e8f0', textSecondary: '#94a3b8', textOnAccent: '#ffffff', border: 'rgba(255, 255, 255, 0.1)', bgTertiary: '#1C1C1C', gradient: { from: 'rgba(6, 182, 212, 0.1)', to: 'rgba(6, 182, 212, 0)' } },
     icon: Hexagon
   },
   'void': {
     label: 'Silent Void',
     description: 'Pure darkness with neon lime accents.',
     mode: 'dark',
-    colors: { bg: '#050505', card: '#111111', accent: '#84cc16', accentGlow: '#a3e635', text: '#d4d4d4' },
+    colors: { bg: '#050505', card: '#111111', accent: '#84cc16', accentGlow: '#a3e635', text: '#d4d4d4', textSecondary: '#71717a', textOnAccent: '#000000', border: 'rgba(255, 255, 255, 0.1)', bgTertiary: '#1C1C1C', gradient: { from: 'rgba(132, 204, 22, 0.1)', to: 'rgba(132, 204, 22, 0)' } },
     icon: ZapOff
   },
   'forest': {
     label: 'Lush Forest',
     description: 'Deep moss greens & warm yellow.',
     mode: 'dark',
-    colors: { bg: '#0f1f15', card: '#1a2e22', accent: '#eab308', accentGlow: '#facc15', text: '#e2e8f0' },
+    colors: { bg: '#0f1f15', card: '#1a2e22', accent: '#eab308', accentGlow: '#facc15', text: '#e2e8f0', textSecondary: '#94a3b8', textOnAccent: '#000000', border: 'rgba(255, 255, 255, 0.15)', bgTertiary: '#14261b', gradient: { from: 'rgba(234, 179, 8, 0.1)', to: 'rgba(234, 179, 8, 0)' } },
     icon: TreePine
   },
   'morning': {
     label: 'Morning Mist',
     description: 'Fresh sky blues and deep ocean text.',
     mode: 'light',
-    colors: { bg: '#F0F9FF', card: '#FFFFFF', accent: '#0284C7', accentGlow: '#38BDF8', text: '#0C4A6E' }, // Sky-900 text, Sky-50 bg
+    colors: { bg: '#F0F9FF', card: '#FFFFFF', accent: '#0284C7', accentGlow: '#38BDF8', text: '#0C4A6E', textSecondary: '#64748b', textOnAccent: '#ffffff', border: 'rgba(0, 0, 0, 0.1)', bgTertiary: '#E0F2FE', gradient: { from: 'rgba(2, 132, 199, 0.1)', to: 'rgba(2, 132, 199, 0)' } },
     icon: Droplets
   },
   'earth': {
     label: 'Earthbound',
     description: 'Clay, stone & copper. Grounded.',
     mode: 'dark',
-    colors: { bg: '#1c1917', card: '#292524', accent: '#d97706', accentGlow: '#fb923c', text: '#e7e5e4' },
+    colors: { bg: '#1c1917', card: '#292524', accent: '#d97706', accentGlow: '#fb923c', text: '#e7e5e4', textSecondary: '#a8a29e', textOnAccent: '#ffffff', border: 'rgba(255, 255, 255, 0.1)', bgTertiary: '#44403c', gradient: { from: 'rgba(217, 119, 6, 0.12)', to: 'rgba(217, 119, 6, 0)' } },
     icon: Mountain
   }
 };

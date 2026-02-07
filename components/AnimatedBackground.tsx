@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { THEME_CONFIG } from '../constants';
 import { ThemeId } from '../types';
@@ -41,7 +42,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = React.memo(
   }, [parallaxEnabled]);
 
   const config = useMemo(() => THEME_CONFIG[themeId] || THEME_CONFIG['default-dark'], [themeId]);
-  const parallaxStrength = 15;
+  const parallaxStrength = 8; // Reduced from 15
 
   const backgroundStyle: React.CSSProperties = {
     backgroundColor: config.colors.bg,
@@ -51,7 +52,7 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = React.memo(
   
   const parallaxWrapperStyle: React.CSSProperties = {
       transform: `translate(${mousePosition.x * parallaxStrength}px, ${mousePosition.y * parallaxStrength}px) scale(1.05)`,
-      transition: 'transform 0.2s ease-out',
+      transition: 'transform 0.5s ease-out', // Slowed from 0.2s
       willChange: 'transform',
   };
 
@@ -62,6 +63,17 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = React.memo(
   }
   
   const auroraColor = config.colors.accent;
+
+  const gradientStyle: React.CSSProperties = {
+    position: 'absolute',
+    inset: '-20%',
+    backgroundImage: `radial-gradient(circle at center, var(--theme-gradient-from) 0%, var(--theme-gradient-to) 50%)`,
+    // Reduced movement range from [0, 100] to [25, 75]
+    backgroundPosition: `${(mousePosition.x * 25) + 50}% ${(mousePosition.y * 25) + 50}%`,
+    backgroundSize: '200% 200%',
+    transition: 'background-position 0.8s ease-out', // Slowed from 0.4s
+    willChange: 'background-position',
+  };
 
   return (
     <div className="fixed inset-0 z-0 pointer-events-none transition-colors duration-300" style={{ backgroundColor: config.colors.bg }}>
@@ -80,6 +92,11 @@ export const AnimatedBackground: React.FC<AnimatedBackgroundProps> = React.memo(
                         style={{ backgroundColor: auroraColor, animationDelay: '5s' }} 
                     />
                 </>
+            )}
+            
+            {/* New Parallax Gradient */}
+            {!customBackground && (
+                <div style={gradientStyle} />
             )}
         </div>
         {!customBackground && <div className="absolute inset-0 bg-noise opacity-[0.02]" />}

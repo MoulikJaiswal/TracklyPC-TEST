@@ -1,4 +1,4 @@
-// FIX: Reverted to namespace import for React to resolve potential typing issues.
+// FIX: Changed React import to a namespace import to resolve component typing issues.
 import * as React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
@@ -27,12 +27,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  componentDidUpdate(prevProps: ErrorBoundaryProps) {
+  // FIX: Converted to arrow function to ensure `this` is correctly bound.
+  componentDidUpdate = (prevProps: ErrorBoundaryProps) => {
     if (this.props.viewKey !== prevProps.viewKey) {
       this.setState({ hasError: false, error: null });
     }
-  }
+  };
 
+  // FIX: Converted to arrow function to ensure `this` is correctly bound.
   handleReset = () => {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
@@ -40,11 +42,13 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   };
 
+  // FIX: Converted to arrow function to ensure `this` is correctly bound.
   handleReload = () => {
     window.location.reload();
   };
 
-  render() {
+  // FIX: Converted to arrow function to ensure `this` is correctly bound.
+  render = () => {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-in fade-in zoom-in duration-300">
@@ -86,5 +90,5 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
 
     return this.props.children;
-  }
+  };
 }

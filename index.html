@@ -36,6 +36,17 @@
             darkMode: 'class',
             theme: {
                 extend: {
+                    colors: {
+                        'theme-bg': 'var(--theme-bg)',
+                        'theme-card': 'var(--theme-card)',
+                        'theme-accent': 'var(--theme-accent)',
+                        'theme-accent-glow': 'var(--theme-accent-glow)',
+                        'theme-text': 'var(--theme-text-main)',
+                        'theme-text-secondary': 'var(--theme-text-secondary)',
+                        'theme-text-on-accent': 'var(--theme-text-on-accent)',
+                        'theme-border': 'var(--theme-border)',
+                        'theme-bg-tertiary': 'var(--theme-bg-tertiary)',
+                    },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
@@ -249,9 +260,6 @@
         .mask-gradient-bottom {
           mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
           -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
-        }
-        .text-theme-accent-on-light {
-            color: var(--theme-accent-text-on-light);
         }
     </style>
 <script type="importmap">
