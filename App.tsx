@@ -375,20 +375,6 @@ export const App: React.FC = () => {
   const effectiveShowParticles = graphicsEnabled && showParticles;
   const effectiveSwipe = animationsEnabled && swipeAnimationEnabled;
 
-  const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => {
-    if (user) {
-        setTargets(prev => prev.map(t => t.id === id ? { ...t, completed } : t));
-        const targetRef = doc(db, 'users', user.uid, 'targets', id);
-        await setDoc(targetRef, { completed }, { merge: true });
-    } else if (localStorage.getItem('trackly_is_guest') === 'true') {
-        setTargets(prev => {
-            const updated = prev.map(t => t.id === id ? { ...t, completed } : t);
-            localStorage.setItem('trackly_guest_targets', JSON.stringify(updated));
-            return updated;
-        });
-    }
-  }, [user, setTargets]);
-
   const changeView = useCallback((newView: ViewType) => {
      if (view === newView) return;
      const currentIdx = TABS.findIndex(t => t.id === view);
@@ -508,57 +494,87 @@ export const App: React.FC = () => {
     }
   }, [user, isGuest, isFirebaseReady, setCustomSyllabus, setSessions, setTests, setTargets, setNotes, setFolders]);
 
-  // ... [CRUD Handlers unchanged for brevity] ...
+  // --- CRUD Handlers with Optimistic Updates ---
   const handleSaveNote = useCallback(async (note: Note) => {
+    const newNotes = [note, ...notes.filter(n => n.id !== note.id)];
+    setNotes(newNotes); // Optimistic Update
     if (user) await setDoc(doc(db, 'users', user.uid, 'notes', note.id), sanitizeForFirestore(note));
-    else if (isGuest) setNotes(prev => { const upd = [note, ...prev.filter(n=>n.id!==note.id)]; localStorage.setItem('trackly_guest_notes', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest, setNotes]);
+    else if (isGuest) localStorage.setItem('trackly_guest_notes', JSON.stringify(newNotes));
+  }, [user, isGuest, notes, setNotes]);
+
   const handleDeleteNote = useCallback(async (id: string) => {
+    const newNotes = notes.filter(n => n.id !== id);
+    setNotes(newNotes); // Optimistic Update
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'notes', id));
-    else if (isGuest) setNotes(prev => { const upd = prev.filter(n=>n.id!==id); localStorage.setItem('trackly_guest_notes', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest, setNotes]);
+    else if (isGuest) localStorage.setItem('trackly_guest_notes', JSON.stringify(newNotes));
+  }, [user, isGuest, notes, setNotes]);
+
   const handleSaveFolder = useCallback(async (folder: Folder) => {
+    const newFolders = [folder, ...folders.filter(f => f.id !== folder.id)];
+    setFolders(newFolders); // Optimistic Update
     if (user) await setDoc(doc(db, 'users', user.uid, 'folders', folder.id), sanitizeForFirestore(folder));
-    else if (isGuest) setFolders(prev => { const upd = [folder, ...prev.filter(f=>f.id!==folder.id)]; localStorage.setItem('trackly_guest_folders', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest, setFolders]);
+    else if (isGuest) localStorage.setItem('trackly_guest_folders', JSON.stringify(newFolders));
+  }, [user, isGuest, folders, setFolders]);
+
   const handleDeleteFolder = useCallback(async (id: string) => {
+    const newFolders = folders.filter(f => f.id !== id);
+    setFolders(newFolders); // Optimistic Update
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'folders', id));
-    else if (isGuest) setFolders(prev => { const upd = prev.filter(f=>f.id!==id); localStorage.setItem('trackly_guest_folders', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest, setFolders]);
-  const handleDeleteSession = useCallback(async (id: string) => {
-    if (user) await deleteDoc(doc(db, 'users', user.uid, 'sessions', id));
-    else if (isGuest) setSessions(prev => { const upd = prev.filter(s=>s.id!==id); localStorage.setItem('trackly_guest_sessions', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest, setSessions]);
-  const handleSaveTest = useCallback(async (newTest: Omit<TestResult, 'id' | 'timestamp'>) => {
-    const id = generateUUID(); const timestamp = Date.now(); const test = { ...newTest, id, timestamp };
-    if (user) { setTests(p => [test, ...p]); await setDoc(doc(db, 'users', user.uid, 'tests', id), sanitizeForFirestore(test)); }
-    else if (isGuest) setTests(p => { const upd = [test, ...p]; localStorage.setItem('trackly_guest_tests', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest, setTests]);
-  const handleDeleteTest = useCallback(async (id: string) => {
-    if (user) await deleteDoc(doc(db, 'users', user.uid, 'tests', id));
-    else if (isGuest) setTests(prev => { const upd = prev.filter(t=>t.id!==id); localStorage.setItem('trackly_guest_tests', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest, setTests]);
-  const handleSaveTarget = useCallback(async (target: Target) => {
-    if (user) await setDoc(doc(db, 'users', user.uid, 'targets', target.id), sanitizeForFirestore(target));
-    else if (isGuest) setTargets(prev => { const upd = [target, ...prev.filter(t=>t.id!==target.id)]; localStorage.setItem('trackly_guest_targets', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest, setTargets]);
-  const handleDeleteTarget = useCallback(async (id: string) => {
-    if (user) await deleteDoc(doc(db, 'users', user.uid, 'targets', id));
-    else if (isGuest) setTargets(prev => { const upd = prev.filter(t=>t.id!==id); localStorage.setItem('trackly_guest_targets', JSON.stringify(upd)); return upd; });
-  }, [user, isGuest, setTargets]);
-  // ... End CRUD Handlers ...
+    else if (isGuest) localStorage.setItem('trackly_guest_folders', JSON.stringify(newFolders));
+  }, [user, isGuest, folders, setFolders]);
 
   const handleSaveSession = useCallback(async (newSession: Omit<Session, 'id' | 'timestamp'>) => {
     const id = generateUUID();
     const timestamp = Date.now();
     const session: Session = { ...newSession, id, timestamp };
+    const newSessions = [session, ...sessions];
+    setSessions(newSessions); // Optimistic Update
     if (user) await setDoc(doc(db, 'users', user.uid, 'sessions', id), sanitizeForFirestore(session));
-    else if (isGuest) setSessions(prev => {
-        const updated = [session, ...prev];
-        localStorage.setItem('trackly_guest_sessions', JSON.stringify(updated));
-        return updated;
-    });
-  }, [user, isGuest, setSessions]);
+    else if (isGuest) localStorage.setItem('trackly_guest_sessions', JSON.stringify(newSessions));
+  }, [user, isGuest, sessions, setSessions]);
+
+  const handleDeleteSession = useCallback(async (id: string) => {
+    const newSessions = sessions.filter(s => s.id !== id);
+    setSessions(newSessions); // Optimistic Update
+    if (user) await deleteDoc(doc(db, 'users', user.uid, 'sessions', id));
+    else if (isGuest) localStorage.setItem('trackly_guest_sessions', JSON.stringify(newSessions));
+  }, [user, isGuest, sessions, setSessions]);
+  
+  const handleSaveTest = useCallback(async (newTest: Omit<TestResult, 'id' | 'timestamp'>) => {
+    const id = generateUUID(); const timestamp = Date.now(); const test = { ...newTest, id, timestamp };
+    const newTests = [test, ...tests];
+    setTests(newTests); // Optimistic Update
+    if (user) await setDoc(doc(db, 'users', user.uid, 'tests', id), sanitizeForFirestore(test));
+    else if (isGuest) localStorage.setItem('trackly_guest_tests', JSON.stringify(newTests));
+  }, [user, isGuest, tests, setTests]);
+  
+  const handleDeleteTest = useCallback(async (id: string) => {
+    const newTests = tests.filter(t => t.id !== id);
+    setTests(newTests); // Optimistic Update
+    if (user) await deleteDoc(doc(db, 'users', user.uid, 'tests', id));
+    else if (isGuest) localStorage.setItem('trackly_guest_tests', JSON.stringify(newTests));
+  }, [user, isGuest, tests, setTests]);
+
+  const handleSaveTarget = useCallback(async (target: Target) => {
+    const newTargets = [target, ...targets.filter(t => t.id !== target.id)];
+    setTargets(newTargets); // Optimistic Update
+    if (user) await setDoc(doc(db, 'users', user.uid, 'targets', target.id), sanitizeForFirestore(target));
+    else if (isGuest) localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
+  }, [user, isGuest, targets, setTargets]);
+
+  const handleDeleteTarget = useCallback(async (id: string) => {
+    const newTargets = targets.filter(t => t.id !== id);
+    setTargets(newTargets); // Optimistic Update
+    if (user) await deleteDoc(doc(db, 'users', user.uid, 'targets', id));
+    else if (isGuest) localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
+  }, [user, isGuest, targets, setTargets]);
+
+  const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => {
+    const newTargets = targets.map(t => t.id === id ? { ...t, completed } : t);
+    setTargets(newTargets); // Optimistic Update
+    if (user) await setDoc(doc(db, 'users', user.uid, 'targets', id), { completed }, { merge: true });
+    else if (isGuest) localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
+  }, [user, isGuest, targets, setTargets]);
 
   // ... [Timer logic unchanged] ...
   const handleTimerReset = useCallback(() => { setTimerState('idle'); setTimeLeft(timerDurations[timerMode] * 60); }, [timerMode, timerDurations]);

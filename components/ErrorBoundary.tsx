@@ -27,12 +27,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  // FIX: Converted to arrow function to ensure `this` is correctly bound.
-  componentDidUpdate = (prevProps: ErrorBoundaryProps) => {
+  // FIX: Reverted to a standard class method. Arrow functions should not be used for lifecycle methods like componentDidUpdate.
+  componentDidUpdate(prevProps: ErrorBoundaryProps) {
     if (this.props.viewKey !== prevProps.viewKey) {
       this.setState({ hasError: false, error: null });
     }
-  };
+  }
 
   // FIX: Converted to arrow function to ensure `this` is correctly bound.
   handleReset = () => {
@@ -47,8 +47,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     window.location.reload();
   };
 
-  // FIX: Converted to arrow function to ensure `this` is correctly bound.
-  render = () => {
+  // FIX: Reverted to a standard class method. The render method must be on the prototype for React to call it correctly.
+  render() {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-in fade-in zoom-in duration-300">
@@ -90,5 +90,5 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
 
     return this.props.children;
-  };
+  }
 }
