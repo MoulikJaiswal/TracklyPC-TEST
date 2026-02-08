@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus, Search, ArrowDownWideNarrow, ArrowUpNarrowWide, Hammer, Save } from 'lucide-react';
+import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus, Search, ArrowDownWideNarrow, ArrowUpNarrowWide, Hammer, Save, Info } from 'lucide-react';
 import { TestResult, Target as TargetType, SubjectBreakdown, MistakeCounts } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES, JEE_SYLLABUS } from '../constants';
@@ -20,8 +20,7 @@ const getLocalDate = () => {
 
 interface TestLogProps {
   tests: TestResult[];
-  targets?: TargetType[]; 
-  onSave: (test: Omit<TestResult, 'id' | 'timestamp'>) => void;
+  onSave: (test: Omit<TestResult, 'id' | 'timestamp' | 'stream'>) => void;
   onDelete: (id: string) => void;
 }
 
@@ -165,7 +164,14 @@ const TestReportModal = memo(({ test, onClose }: { test: TestResult, onClose: ()
 
                         {/* Accuracy (Calculated) */}
                         <div className="p-4 rounded-2xl bg-theme-bg-tertiary/50 border border-theme-border flex flex-col justify-center items-center text-center">
-                             <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-2">Accuracy</p>
+                             <div className="group relative flex items-center gap-2 mb-2">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary">Accuracy</p>
+                                <Info size={12} className="text-theme-text-secondary cursor-help" />
+                                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                    Percentage of correct answers out of total attempted questions.
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45" />
+                                </div>
+                             </div>
                              <span className="text-xl font-bold text-theme-text">
                                  {(() => {
                                      const totalAttempted = (physics.correct + physics.incorrect) + (chemistry.correct + chemistry.incorrect) + (maths.correct + maths.incorrect);
@@ -351,7 +357,14 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
                         <TrendingUp size={20} />
                     </div>
                     <div>
-                        <h3 className="text-sm font-bold text-theme-text uppercase tracking-wider">Performance Trend</h3>
+                        <div className="group relative flex items-center gap-2">
+                           <h3 className="text-sm font-bold text-theme-text uppercase tracking-wider">Performance Trend</h3>
+                           <Info size={12} className="text-theme-text-secondary cursor-help" />
+                           <div className="absolute bottom-full mb-2 left-0 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                Your score percentage over the last {dataPoints.length} tests.
+                                <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                           </div>
+                        </div>
                         <p className="text-[10px] text-theme-text-secondary font-bold uppercase tracking-wide">Analysis of Last {dataPoints.length} Tests</p>
                     </div>
                 </div>
@@ -481,7 +494,7 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
     );
 });
 
-export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogProps) => {
+export const TestLog = memo(({ tests, onSave, onDelete }: TestLogProps) => {
   const [isAdding, setIsAdding] = useState(false);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{ name: string; type: 'image' | 'pdf', thumbnail?: string } | null>(null);
@@ -501,7 +514,7 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
   
   const [globalQCount, setGlobalQCount] = useState<number>(75); 
 
-  const [formData, setFormData] = useState<Omit<TestResult, 'id' | 'timestamp'>>({
+  const [formData, setFormData] = useState<Omit<TestResult, 'id' | 'timestamp' | 'stream'>>({
     name: '',
     date: getLocalDate(),
     marks: 0,
@@ -818,13 +831,6 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
     }
     return test.type === 'part' ? 'PART TEST' : 'FULL SYLLABUS';
   };
-
-  const upcomingTests = useMemo(() => {
-      const today = getLocalDate();
-      return targets
-        .filter(t => t.type === 'test' && t.date >= today && !t.completed)
-        .sort((a, b) => a.date.localeCompare(b.date));
-  }, [targets]);
 
   const activeBreakdown = formData.breakdown![activeTab];
   const activeTotalQuestions = activeBreakdown.correct + activeBreakdown.incorrect + activeBreakdown.unattempted;
@@ -1174,25 +1180,20 @@ export const TestLog = memo(({ tests, targets = [], onSave, onDelete }: TestLogP
               <div className="bg-theme-bg w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-theme-border">
                   <div className="p-4 border-b border-theme-border flex justify-between items-center bg-theme-bg">
                       <div className="flex items-center gap-3">
-                          {/* FIX: Replaced `viewingFile` with `viewingAttachment` */}
                           <div className="p-2 bg-theme-accent/10 rounded-lg text-theme-accent">{viewingAttachment.attachmentType === 'pdf' ? <FileText size={20} /> : <ImageIcon size={20} />}</div>
-                          {/* FIX: Replaced `viewingFile` with `viewingAttachment` */}
                           <div><h3 className="text-sm font-bold text-theme-text">{viewingAttachment.title}</h3><p className="text-[10px] text-theme-text-secondary font-mono uppercase">{new Date(viewingAttachment.timestamp).toLocaleDateString()}</p></div>
                       </div>
                       <div className="flex gap-2">
-                          {/* FIX: Replaced `viewingFile` with `viewingAttachment` */}
                           <a href={viewingAttachment.attachment!} download={viewingAttachment.fileName || "download"} className="p-2 rounded-full hover:bg-theme-bg-tertiary text-theme-text-secondary transition-colors" title="Download"><Download size={20} /></a>
                           <button onClick={() => setViewingAttachment(null)} className="p-2 rounded-full hover:bg-theme-bg-tertiary text-theme-text-secondary transition-colors"><X size={20} /></button>
                       </div>
                   </div>
                   <div className="flex-1 bg-black/20 overflow-auto flex items-center justify-center p-4 relative">
-                      {/* FIX: Replaced `viewingFile` with `viewingAttachment` */}
                       {viewingAttachment.attachmentType === 'image' ? (
                           <img src={viewingAttachment.attachment!} alt={viewingAttachment.title} className="max-w-full max-h-full object-contain rounded-lg shadow-lg" />
                       ) : (
                           <div className="w-full h-full flex flex-col">
                               {pdfBlobUrl ? (
-                                  // FIX: Replaced `viewingFile` with `viewingAttachment`
                                   <iframe src={pdfBlobUrl} className="w-full flex-1 rounded-lg shadow-lg border-0 bg-white" title={viewingAttachment.title} />
                               ) : (
                                   <div className="flex flex-col items-center justify-center h-full text-theme-text-secondary"><Loader2 size={32} className="animate-spin mb-2" /><p className="text-xs uppercase font-bold">Loading PDF...</p></div>

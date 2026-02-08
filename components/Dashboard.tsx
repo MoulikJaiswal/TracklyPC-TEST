@@ -1,6 +1,7 @@
 
+
 import React, { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
-import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, ShieldCheck, Dna, Clock, Timer, BookOpen, Settings, Globe, Landmark, Feather } from 'lucide-react';
+import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, ShieldCheck, Dna, Clock, Timer, BookOpen, Settings, Globe, Landmark, Feather, Info } from 'lucide-react';
 import { Session, Target, MistakeCounts, SyllabusData } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES } from '../constants';
@@ -61,36 +62,12 @@ interface DashboardProps {
   onDelete: (id: string) => void;
   goals: Record<string, number>;
   setGoals: React.Dispatch<React.SetStateAction<Record<string, number>>>;
-  onSaveSession: (session: Omit<Session, 'id' | 'timestamp'>) => void;
+  onSaveSession: (session: Omit<Session, 'id' | 'timestamp' | 'stream'>) => void;
   userName: string | null;
   onOpenPrivacy: () => void;
   subjects: string[];
   syllabus: SyllabusData;
 }
-
-// ... [PrivacyConsentBanner and ActivityHeatmap components remain unchanged] ...
-const PrivacyConsentBanner = memo(({ onAccept, onReadPolicy }: { onAccept: () => void, onReadPolicy: () => void }) => (
-  <div className="fixed bottom-24 md:bottom-6 left-4 right-4 md:left-auto md:right-6 z-[150] max-w-sm animate-in slide-in-from-bottom-10 fade-in duration-500">
-    <div className="bg-slate-900/95 dark:bg-black/95 backdrop-blur-xl border border-white/10 p-5 rounded-2xl shadow-2xl flex flex-col gap-3 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-[40px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-        <div className="flex items-start gap-3 relative z-10">
-            <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
-                <ShieldCheck size={20} />
-            </div>
-            <div>
-                <h4 className="text-sm font-bold text-white leading-tight">Privacy & Data</h4>
-                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                    We use cookies and third-party services to improve your experience.
-                </p>
-            </div>
-        </div>
-        <div className="flex gap-3 mt-1 relative z-10">
-            <button onClick={onReadPolicy} className="flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 transition-colors border border-white/5 hover:border-white/10">Read Policy</button>
-            <button onClick={onAccept} className="flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all active:scale-95">Accept</button>
-        </div>
-    </div>
-  </div>
-));
 
 const ActivityHeatmap = memo(({ sessions }: { sessions: Session[] }) => {
   const days = useMemo(() => {
@@ -221,7 +198,7 @@ const SubjectDetailModal = memo(({
   subject: string, 
   sessions: Session[], 
   onClose: () => void,
-  onSaveSession: (data: Omit<Session, 'id' | 'timestamp'>) => void,
+  onSaveSession: (data: Omit<Session, 'id' | 'timestamp' | 'stream'>) => void,
   onDeleteSession: (id: string) => void,
   syllabus: SyllabusData
 }) => {
@@ -355,7 +332,14 @@ const SubjectDetailModal = memo(({
                 <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl"><p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Success Rate</p><p className="text-2xl font-mono font-bold text-slate-900 dark:text-white mt-1">{sessions.length > 0 ? Math.round((sessions.reduce((a,b) => a + b.correct, 0) / sessions.reduce((a,b) => a + b.attempted, 0)) * 100) : 0}%</p></div>
               </div>
               <div className="space-y-3">
-                 <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><Brain size={14} /> Mistake Patterns</h4>
+                 <div className="group relative flex items-center gap-2">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><Brain size={14} /> Mistake Patterns</h4>
+                    <Info size={12} className="text-slate-400 cursor-help" />
+                     <div className="absolute bottom-full mb-2 left-0 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                        Common mistakes made in this subject based on your logs.
+                        <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                    </div>
+                 </div>
                  {Object.keys(mistakesSummary).length === 0 ? (<p className="text-xs text-slate-600 italic">No mistakes recorded yet.</p>) : (
                    MISTAKE_TYPES.map(type => {
                      const count = mistakesSummary[type.id] || 0;
@@ -368,7 +352,14 @@ const SubjectDetailModal = memo(({
                  )}
               </div>
               <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 mt-2"><History size={14} /> Recent Sessions</h4>
+                <div className="group relative flex items-center gap-2 mt-2">
+                   <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2"><History size={14} /> Recent Sessions</h4>
+                   <Info size={12} className="text-slate-400 cursor-help" />
+                   <div className="absolute bottom-full mb-2 left-0 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                        A list of practice sessions you've logged for this subject.
+                        <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                   </div>
+                </div>
                 {sessions.length === 0 ? (<div className="text-center py-8 opacity-30 border border-dashed border-slate-400 dark:border-white/10 rounded-xl"><p className="text-[10px] uppercase font-bold tracking-widest">No history</p></div>) : (
                   sessions.map(s => (<div key={s.id} className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl flex justify-between items-center group active:scale-[0.98] transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/10"><div className="min-w-0 pr-4"><p className="text-xs font-bold text-slate-900 dark:text-white truncate">{s.topic}</p><p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">{new Date(s.timestamp).toLocaleDateString()}</p></div><div className="flex items-center gap-4 shrink-0"><div className="text-right"><span className="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-300">{s.correct}/{s.attempted}</span></div><button onClick={() => onDeleteSession(s.id)} className="text-rose-500/50 hover:text-rose-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all p-2 bg-rose-500/10 rounded-lg"><Trash2 size={14} /></button></div></div>))
                 )}
@@ -459,16 +450,19 @@ export const Dashboard = memo(({
       if (isMobile) { setTimeout(() => { window.scrollTo({ top: scrollPosRef.current, behavior: 'smooth' }); }, 100); }
   }, []);
 
-  const [showPrivacyBanner, setShowPrivacyBanner] = useState(false);
-  useEffect(() => { const accepted = localStorage.getItem('trackly_privacy_accepted'); if (!accepted) { const t = setTimeout(() => setShowPrivacyBanner(true), 2000); return () => clearTimeout(t); } }, []);
-  const handleAcceptPrivacy = useCallback(() => { localStorage.setItem('trackly_privacy_accepted', 'true'); setShowPrivacyBanner(false); }, []);
-
   return (
     <>
       <div className="space-y-6 md:space-y-10 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row justify-between items-center md:items-end gap-6">
           <div className="flex flex-col items-center md:items-start gap-3 order-2 md:order-1 w-full md:w-auto">
-             <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest w-full text-center md:text-left">Last 7 Days</span>
+             <div className="group relative flex items-center gap-2 w-full justify-center md:justify-start">
+                <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest">Last 7 Days</span>
+                <Info size={12} className="text-slate-400 cursor-help" />
+                <div className="absolute bottom-full mb-2 left-0 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    Your session count for the last 7 days. Higher bars mean more sessions.
+                    <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                </div>
+             </div>
              <ActivityHeatmap sessions={sessions} />
           </div>
           <div className="text-center md:text-right order-1 md:order-2 w-full md:w-auto">
@@ -520,12 +514,19 @@ export const Dashboard = memo(({
             </div>
         )}
 
-        {/* ... [Rest of the Dashboard: Up Next, Recent Activity, AdUnit, PrivacyBanner] ... */}
+        {/* ... [Rest of the Dashboard: Up Next, Recent Activity, AdUnit] ... */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
           <div className="space-y-6">
              <div className="bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-white/5 rounded-3xl p-5 md:p-8 relative overflow-hidden backdrop-blur-md h-full transform-gpu" style={{ transform: 'translate3d(0,0,0)', backgroundColor: 'rgba(var(--theme-card-rgb), 0.4)' }}>
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xs md:text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><CalendarClock size={16} className="text-indigo-500 dark:text-indigo-400" /> Up Next</h3>
+                  <div className="group relative flex items-center gap-2">
+                    <h3 className="text-xs md:text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><CalendarClock size={16} className="text-indigo-500 dark:text-indigo-400" /> Up Next</h3>
+                    <Info size={12} className="text-slate-400 cursor-help" />
+                    <div className="absolute bottom-full mb-2 left-0 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                        Your top 3 unfinished tasks scheduled for today.
+                        <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                    </div>
+                  </div>
                   <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{pendingTargets.length} Tasks</span>
                 </div>
                 {pendingTargets.length > 0 ? (
@@ -546,7 +547,14 @@ export const Dashboard = memo(({
           <div>
              <div className="bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-white/5 rounded-3xl p-5 md:p-8 backdrop-blur-md h-full transform-gpu" style={{ transform: 'translate3d(0,0,0)', backgroundColor: 'rgba(var(--theme-card-rgb), 0.4)' }}>
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xs md:text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><Activity size={16} className="text-indigo-500 dark:text-indigo-400" /> Recent Activity</h3>
+                  <div className="group relative flex items-center gap-2">
+                    <h3 className="text-xs md:text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><Activity size={16} className="text-indigo-500 dark:text-indigo-400" /> Recent Activity</h3>
+                    <Info size={12} className="text-slate-400 cursor-help" />
+                     <div className="absolute bottom-full mb-2 left-0 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                        A log of your most recent practice and focus sessions from today.
+                        <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-3 max-h-[400px] overflow-y-auto no-scrollbar mask-gradient-bottom">
                   {todaysSessions.length === 0 ? (
@@ -584,7 +592,6 @@ export const Dashboard = memo(({
       </div>
       
       <AdUnit client="ca-pub-YOUR_PUBLISHER_ID_HERE" slot="1234567890" label="Sponsored" />
-      {showPrivacyBanner && <PrivacyConsentBanner onAccept={handleAcceptPrivacy} onReadPolicy={onOpenPrivacy} />}
 
       {selectedSubject && (
         <SubjectDetailModal 

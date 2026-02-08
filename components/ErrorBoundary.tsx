@@ -1,4 +1,5 @@
-// FIX: Changed React import to a namespace import to resolve component typing issues.
+// FIX: Use namespace import for React to correctly resolve React.Component for class components.
+// This fixes errors where 'this.props' and 'this.setState' were not found.
 import * as React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
@@ -27,14 +28,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  // FIX: Reverted to a standard class method. Arrow functions should not be used for lifecycle methods like componentDidUpdate.
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
     if (this.props.viewKey !== prevProps.viewKey) {
       this.setState({ hasError: false, error: null });
     }
   }
 
-  // FIX: Converted to arrow function to ensure `this` is correctly bound.
   handleReset = () => {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
@@ -42,12 +41,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   };
 
-  // FIX: Converted to arrow function to ensure `this` is correctly bound.
   handleReload = () => {
     window.location.reload();
   };
 
-  // FIX: Reverted to a standard class method. The render method must be on the prototype for React to call it correctly.
   render() {
     if (this.state.hasError) {
       return (

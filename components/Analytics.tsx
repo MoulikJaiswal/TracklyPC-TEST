@@ -4,7 +4,7 @@ import React, { useMemo, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Target, Trophy, Brain, TrendingUp, Zap, Atom, Calculator, Grid, Lock, Crown,
-  X, CheckCircle2, AlertCircle, Clock, PieChart, Activity, Calendar, Dna, BookOpen, Globe, Landmark, Feather
+  X, CheckCircle2, AlertCircle, Clock, PieChart, Activity, Calendar, Dna, BookOpen, Globe, Landmark, Feather, Info
 } from 'lucide-react';
 import { Session, TestResult, MistakeCounts, StreamType, SyllabusData } from '../types';
 import { Card } from './Card';
@@ -244,10 +244,18 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream, syllabus
 
   return (
     <Card className="p-6 md:p-8 relative">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary mb-4 flex items-center gap-2">
-         <Grid size={14} /> Topic Mastery Heatmap
-         {!isPro && <span className="bg-amber-500/10 text-amber-500 text-[9px] px-2 py-0.5 rounded border border-amber-500/20">PRO</span>}
-      </h3>
+      <div className="group relative flex items-center gap-2 mb-4">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary flex items-center gap-2">
+             <Grid size={14} /> Topic Mastery Heatmap
+          </h3>
+          <Info size={12} className="text-theme-text-secondary cursor-help" />
+          <div className="absolute bottom-full mb-2 left-0 w-max max-w-[240px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                Visualizes performance per topic. Red = weak (&lt;20 questions solved or &lt;30% accuracy), Yellow = average (&lt;60%), Green = strong. Click a topic for details.
+              <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+          </div>
+      </div>
+      
+      {!isPro && <span className="absolute top-6 right-6 bg-amber-500/10 text-amber-500 text-[9px] px-2 py-0.5 rounded border border-amber-500/20">PRO</span>}
       
       {visibleSubjects.length === 0 ? (
           <div className="p-8 text-center text-theme-text-secondary bg-theme-bg-tertiary rounded-2xl border border-dashed border-theme-border">
@@ -341,9 +349,16 @@ export const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPr
             </div>
             
             <Card className="p-6 md:p-8">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary mb-4 flex items-center gap-2">
-                    <TrendingUp size={14} /> Subject Proficiency
-                </h3>
+                <div className="group relative flex items-center gap-2 mb-4">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary flex items-center gap-2">
+                        <TrendingUp size={14} /> Subject Proficiency
+                    </h3>
+                    <Info size={12} className="text-theme-text-secondary cursor-help" />
+                    <div className="absolute bottom-full mb-2 left-0 w-max max-w-[240px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                        Your average accuracy across all logged practice sessions for each subject.
+                        <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                    </div>
+                </div>
                 <SubjectProficiency sessions={sessions} stream={stream} syllabus={syllabus} />
             </Card>
 

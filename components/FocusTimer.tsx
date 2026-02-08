@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, memo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,7 +37,8 @@ import {
   Armchair,
   X,
   Dna,
-  AlertCircle
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import { Target as TargetType, Session, SyllabusData } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -97,7 +99,7 @@ const formatDuration = (totalMinutes: number) => {
     const roundedMinutes = Math.round(totalMinutes);
     const h = Math.floor(roundedMinutes / 60);
     const m = roundedMinutes % 60;
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    return `${h}h ${m}m`;
 };
 
 const formatDigitalTime = (totalSeconds: number) => {
@@ -123,7 +125,7 @@ const StatCard = ({
 }: { 
     label: string, 
     value: string | number, 
-    subtext?: string, 
+    subtext?: React.ReactNode, 
     icon: any, 
     colorClass?: string, 
     bgClass?: string 
@@ -133,7 +135,7 @@ const StatCard = ({
             <div className={`p-2.5 rounded-2xl bg-white/10 ${colorClass}`}>
                 <Icon size={20} />
             </div>
-            {subtext && <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">{subtext}</span>}
+            {subtext && <div className="text-[10px] font-bold uppercase tracking-wider opacity-60 flex items-center gap-1">{subtext}</div>}
         </div>
         <div>
             <div className="text-3xl font-display font-bold tracking-tight mb-1">{value}</div>
@@ -549,7 +551,10 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
   const analyticsData = useMemo(() => {
       const filtered = filterSessions(sessions, timeRange);
       const totalMinutes = filtered.reduce((acc, s) => acc + (s.duration ? s.duration / 60 : 0), 0); 
-      const sessionCount = filtered.length;
+      
+      const sessionCount = filtered.filter(s => 
+          s.duration !== undefined && s.plannedDuration !== undefined && s.duration >= s.plannedDuration
+      ).length;
       
       const subjectDist: Record<string, number> = {};
       subjectKeys.forEach(key => subjectDist[key] = 0);
@@ -908,7 +913,16 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                       icon={Clock}
                       label="Focus Time"
                       value={formatDuration(analyticsData.totalMinutes)}
-                      subtext={`${timeRange} total`}
+                      subtext={
+                          <div className="flex items-center gap-1 group relative">
+                              <span>{timeRange} total</span>
+                              <Info size={12} className="cursor-help" />
+                              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
+                                  Total time spent in focus sessions for the selected period.
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45" />
+                              </div>
+                          </div>
+                      }
                       bgClass="bg-indigo-600"
                       colorClass="text-indigo-200 bg-indigo-500/30"
                   />
@@ -917,7 +931,16 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                   icon={Layers}
                   label="Sessions"
                   value={analyticsData.sessionCount}
-                  subtext="Completed"
+                  subtext={
+                      <div className="flex items-center gap-1 group relative">
+                          <span>Completed</span>
+                          <Info size={12} className="cursor-help" />
+                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
+                              A session is only counted if the timer finishes completely.
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45" />
+                          </div>
+                      </div>
+                  }
                   bgClass="bg-slate-900 dark:bg-white/5"
                   colorClass="text-blue-400"
               />
@@ -925,7 +948,16 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                   icon={Flame}
                   label="Current Streak"
                   value={`${analyticsData.currentStreak} Days`}
-                  subtext="Min 1h Daily"
+                  subtext={
+                      <div className="flex items-center gap-1 group relative">
+                          <span>Min 1h Daily</span>
+                          <Info size={12} className="cursor-help" />
+                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
+                              Days in a row you've focused for at least 1 hour. Keep it up!
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45" />
+                          </div>
+                      </div>
+                  }
                   bgClass="bg-slate-900 dark:bg-white/5"
                   colorClass="text-orange-500"
               />
@@ -936,9 +968,16 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
               {/* Subject Distribution */}
               <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 flex flex-col justify-between">
                   <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          <PieChart size={16} className="text-indigo-500" /> Subject Split
-                      </h3>
+                      <div className="group relative flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                              <PieChart size={16} className="text-indigo-500" /> Subject Split
+                          </h3>
+                          <Info size={12} className="text-slate-400 cursor-help" />
+                          <div className="absolute bottom-full mb-2 left-0 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                              How your focus time is distributed across different subjects.
+                              <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                          </div>
+                      </div>
                   </div>
                   <div className="flex items-center gap-8">
                       <DonutChart data={donutData} />
@@ -959,9 +998,14 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
               {/* Secondary Stats */}
               <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5">
-                      <div className="flex items-center gap-3 mb-2 text-emerald-500">
+                      <div className="flex items-center gap-3 mb-2 text-emerald-500 group relative">
                           <Activity size={20} />
                           <span className="text-xs font-bold uppercase tracking-widest">Consistency</span>
+                          <Info size={12} className="cursor-help" />
+                          <div className="absolute bottom-full mb-2 left-0 w-max max-w-[220px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                              Percentage of days you met your 1-hour focus goal within the selected period.
+                              <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                          </div>
                       </div>
                       <div className="text-4xl font-display font-bold text-slate-900 dark:text-white mb-1">
                           {analyticsData.consistency}%
@@ -972,11 +1016,16 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                   </div>
 
                   {/* SMART BALANCE CARD (Replaced Reviews/Lagging) */}
-                  <div className="p-6 rounded-3xl bg-gradient-to-br from-indigo-600 to-purple-700 border border-white/10 relative overflow-hidden group flex flex-col justify-between text-white">
+                  <div className="p-6 rounded-3xl bg-gradient-to-br from-indigo-600 to-purple-700 border border-white/10 relative overflow-hidden flex flex-col justify-between text-white">
                       <div>
-                          <div className="flex items-center gap-3 mb-3 text-white/80">
+                          <div className="flex items-center gap-3 mb-3 text-white/80 group relative">
                               <Scale size={20} />
                               <span className="text-xs font-bold uppercase tracking-widest">Study Balance</span>
+                              <Info size={12} className="cursor-help" />
+                              <div className="absolute bottom-full mb-2 left-0 w-max max-w-[220px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                  Indicates if you're over-focusing on one subject. A balanced approach prevents burnout.
+                                  <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                              </div>
                           </div>
                           <p className="text-sm leading-relaxed font-medium opacity-90 mb-4">
                               {analyticsData.balanceMessage}
@@ -996,9 +1045,16 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
           <div className="p-6 rounded-3xl bg-slate-900 border border-white/10 relative">
               <div className="flex justify-between items-start mb-6 relative z-10">
                   <div>
-                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                          <Calendar size={16} className="text-emerald-500" /> Activity Map
-                      </h3>
+                      <div className="group relative flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                              <Calendar size={16} className="text-emerald-500" /> Activity Map
+                          </h3>
+                          <Info size={12} className="text-slate-400 cursor-help" />
+                          <div className="absolute bottom-full mb-2 left-0 w-max max-w-[220px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                              Your daily focus intensity. Darker squares mean more focus time.
+                              <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45" />
+                          </div>
+                      </div>
                       {/* NEW: Total Duration Display */}
                       <div className="mt-2">
                           <span className="text-3xl font-mono font-bold text-white tracking-tight">

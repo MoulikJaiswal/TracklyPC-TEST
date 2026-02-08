@@ -43,12 +43,10 @@ import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { PerformanceToast } from './components/PerformanceToast';
-import { SmartRecommendationToast } from './components/SmartRecommendationToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { GoogleIcon } from './components/GoogleIcon';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { Card } from './components/Card';
-import { BuyMeCoffee } from './components/BuyMeCoffee';
 import { ProUpgradeModal } from './components/ProUpgradeModal';
 import { getProStatus } from './components/proController';
 import { StreamTransition } from './components/StreamTransition';
@@ -248,9 +246,6 @@ export const App: React.FC = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const isPro = getProStatus(hasPaid);
 
-  // Clock State
-  const [currentTime, setCurrentTime] = useState(new Date());
-
   // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [animationsEnabled, setAnimationsEnabled] = useLocalStorage('trackly_animations', true);
@@ -278,17 +273,11 @@ export const App: React.FC = () => {
   const minSwipeDistance = 50;
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [showNetworkToast, setShowNetworkToast] = useState(false);
-  const [recommendation, setRecommendation] = useState<{subject: string, topic: string, accuracy: number} | null>(null);
-  const [showRecommendation, setShowRecommendation] = useState(false);
-  const clickAudioCtxRef = useRef<AudioContext | null>(null);
+  
   const [timerMode, setTimerMode] = useState<'focus' | 'short' | 'long'>('focus');
   const [timerDurations, setTimerDurations] = useLocalStorage('trackly_timer_durations', { focus: 25, short: 5, long: 15 });
   const [timeLeft, setTimeLeft] = useState(25 * 60);
-  // NEW TIMER STATE
   const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
-  const [lastLogTime, setLastLogTime] = useState<number>(Date.now()); 
   const timerRef = useRef<any>(null);
   const endTimeRef = useRef<number>(0);
   const { isLagging, dismiss: dismissLag } = usePerformanceMonitor(graphicsEnabled && lagDetectionEnabled);
@@ -384,7 +373,7 @@ export const App: React.FC = () => {
      window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [view]);
 
-  // ... [Clock, Analytics, Overdue Logic unchanged] ...
+  // ... [Analytics, Overdue Logic unchanged] ...
 
   const handleForceSync = useCallback(async () => {
     if (!user) {
@@ -454,6 +443,10 @@ export const App: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
+    dbReadyPromise.then(() => setIsFirebaseReady(true));
+  }, []);
+
+  useEffect(() => {
     if (!isFirebaseReady) return; 
 
     if (user) {
@@ -492,7 +485,7 @@ export const App: React.FC = () => {
     } else {
         setSessions([]); setTests([]); setTargets([]); setNotes([]); setFolders([]);
     }
-  }, [user, isGuest, isFirebaseReady, setCustomSyllabus, setSessions, setTests, setTargets, setNotes, setFolders]);
+  }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
 
   // --- CRUD Handlers with Optimistic Updates ---
   const handleSaveNote = useCallback(async (note: Note) => {
@@ -500,88 +493,98 @@ export const App: React.FC = () => {
     setNotes(newNotes); // Optimistic Update
     if (user) await setDoc(doc(db, 'users', user.uid, 'notes', note.id), sanitizeForFirestore(note));
     else if (isGuest) localStorage.setItem('trackly_guest_notes', JSON.stringify(newNotes));
-  }, [user, isGuest, notes, setNotes]);
+  }, [user, isGuest, notes]);
 
   const handleDeleteNote = useCallback(async (id: string) => {
     const newNotes = notes.filter(n => n.id !== id);
     setNotes(newNotes); // Optimistic Update
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'notes', id));
     else if (isGuest) localStorage.setItem('trackly_guest_notes', JSON.stringify(newNotes));
-  }, [user, isGuest, notes, setNotes]);
+  }, [user, isGuest, notes]);
 
   const handleSaveFolder = useCallback(async (folder: Folder) => {
     const newFolders = [folder, ...folders.filter(f => f.id !== folder.id)];
     setFolders(newFolders); // Optimistic Update
     if (user) await setDoc(doc(db, 'users', user.uid, 'folders', folder.id), sanitizeForFirestore(folder));
     else if (isGuest) localStorage.setItem('trackly_guest_folders', JSON.stringify(newFolders));
-  }, [user, isGuest, folders, setFolders]);
+  }, [user, isGuest, folders]);
 
   const handleDeleteFolder = useCallback(async (id: string) => {
     const newFolders = folders.filter(f => f.id !== id);
     setFolders(newFolders); // Optimistic Update
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'folders', id));
     else if (isGuest) localStorage.setItem('trackly_guest_folders', JSON.stringify(newFolders));
-  }, [user, isGuest, folders, setFolders]);
+  }, [user, isGuest, folders]);
 
-  const handleSaveSession = useCallback(async (newSession: Omit<Session, 'id' | 'timestamp'>) => {
+  const handleSaveSession = useCallback(async (newSession: Omit<Session, 'id' | 'timestamp' | 'stream'>) => {
     const id = generateUUID();
     const timestamp = Date.now();
-    const session: Session = { ...newSession, id, timestamp };
+    const session: Session = { ...newSession, id, timestamp, stream: stream };
     const newSessions = [session, ...sessions];
     setSessions(newSessions); // Optimistic Update
     if (user) await setDoc(doc(db, 'users', user.uid, 'sessions', id), sanitizeForFirestore(session));
     else if (isGuest) localStorage.setItem('trackly_guest_sessions', JSON.stringify(newSessions));
-  }, [user, isGuest, sessions, setSessions]);
+  }, [user, isGuest, sessions, stream]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     const newSessions = sessions.filter(s => s.id !== id);
     setSessions(newSessions); // Optimistic Update
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'sessions', id));
     else if (isGuest) localStorage.setItem('trackly_guest_sessions', JSON.stringify(newSessions));
-  }, [user, isGuest, sessions, setSessions]);
+  }, [user, isGuest, sessions]);
   
-  const handleSaveTest = useCallback(async (newTest: Omit<TestResult, 'id' | 'timestamp'>) => {
-    const id = generateUUID(); const timestamp = Date.now(); const test = { ...newTest, id, timestamp };
+  const handleSaveTest = useCallback(async (newTest: Omit<TestResult, 'id' | 'timestamp' | 'stream'>) => {
+    const id = generateUUID(); const timestamp = Date.now(); const test: TestResult = { ...newTest, id, timestamp, stream: stream };
     const newTests = [test, ...tests];
     setTests(newTests); // Optimistic Update
     if (user) await setDoc(doc(db, 'users', user.uid, 'tests', id), sanitizeForFirestore(test));
     else if (isGuest) localStorage.setItem('trackly_guest_tests', JSON.stringify(newTests));
-  }, [user, isGuest, tests, setTests]);
+  }, [user, isGuest, tests, stream]);
   
   const handleDeleteTest = useCallback(async (id: string) => {
     const newTests = tests.filter(t => t.id !== id);
     setTests(newTests); // Optimistic Update
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'tests', id));
     else if (isGuest) localStorage.setItem('trackly_guest_tests', JSON.stringify(newTests));
-  }, [user, isGuest, tests, setTests]);
+  }, [user, isGuest, tests]);
 
   const handleSaveTarget = useCallback(async (target: Target) => {
     const newTargets = [target, ...targets.filter(t => t.id !== target.id)];
     setTargets(newTargets); // Optimistic Update
     if (user) await setDoc(doc(db, 'users', user.uid, 'targets', target.id), sanitizeForFirestore(target));
     else if (isGuest) localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
-  }, [user, isGuest, targets, setTargets]);
+  }, [user, isGuest, targets]);
 
   const handleDeleteTarget = useCallback(async (id: string) => {
     const newTargets = targets.filter(t => t.id !== id);
     setTargets(newTargets); // Optimistic Update
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'targets', id));
     else if (isGuest) localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
-  }, [user, isGuest, targets, setTargets]);
+  }, [user, isGuest, targets]);
 
   const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => {
     const newTargets = targets.map(t => t.id === id ? { ...t, completed } : t);
     setTargets(newTargets); // Optimistic Update
     if (user) await setDoc(doc(db, 'users', user.uid, 'targets', id), { completed }, { merge: true });
     else if (isGuest) localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
-  }, [user, isGuest, targets, setTargets]);
+  }, [user, isGuest, targets]);
 
-  // ... [Timer logic unchanged] ...
+  // ... [Timer logic] ...
   const handleTimerReset = useCallback(() => { setTimerState('idle'); setTimeLeft(timerDurations[timerMode] * 60); }, [timerMode, timerDurations]);
   const handleCompleteSession = useCallback((elapsedTime?: number) => {
-      const effectiveDuration = elapsedTime !== undefined ? elapsedTime : (timerDurations[timerMode] * 60);
+      const plannedDuration = timerDurations[timerMode] * 60;
+      const effectiveDuration = elapsedTime !== undefined ? elapsedTime : plannedDuration;
+      
       if (effectiveDuration > 60) {
-         handleSaveSession({ subject: selectedSubject, topic: 'Focus Session', attempted: 0, correct: 0, mistakes: {}, duration: effectiveDuration });
+         handleSaveSession({ 
+           subject: selectedSubject, 
+           topic: 'Focus Session', 
+           attempted: 0, 
+           correct: 0, 
+           mistakes: {}, 
+           duration: effectiveDuration,
+           plannedDuration: plannedDuration
+         });
       }
       handleTimerReset();
   }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset]);
@@ -601,14 +604,14 @@ export const App: React.FC = () => {
       return () => clearInterval(timerRef.current);
   }, [timerState, timerDurations, timerMode, handleCompleteSession]);
   const handleTimerToggle = useCallback(() => {
-      if (timerState === 'idle' || timerState === 'paused') { setTimerState('running'); endTimeRef.current = Date.now() + timeLeft * 1000; setLastLogTime(Date.now()); } 
+      if (timerState === 'idle' || timerState === 'paused') { setTimerState('running'); endTimeRef.current = Date.now() + timeLeft * 1000; } 
       else { setTimerState('paused'); clearInterval(timerRef.current); }
   }, [timerState, timeLeft]);
   const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => { setTimerMode(mode); setTimerState('idle'); setTimeLeft(timerDurations[mode] * 60); }, [timerDurations]);
   const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus'|'short'|'long') => {
       setTimerDurations(prev => ({ ...prev, [modeKey]: newDuration }));
       if (timerMode === modeKey && timerState === 'idle') { setTimeLeft(newDuration * 60); }
-  }, [timerMode, timerState, setTimerDurations]);
+  }, [timerMode, timerState]);
 
   // ... [Install & Login Logic unchanged] ...
   const migrateGuestDataToFirebase = useCallback(async (uid: string) => {
@@ -652,6 +655,31 @@ export const App: React.FC = () => {
 
   // --- WELCOME PAGE CHECK ---
   const showWelcome = !isAuthLoading && !user && !isGuest;
+
+  const sessionsForStream = useMemo(() => {
+    return sessions.filter(s => {
+      if (s.stream) {
+        return s.stream === stream;
+      }
+      // Backwards compatibility: Assume old, untagged data belongs to JEE stream.
+      if (!s.stream && stream === 'JEE') {
+        return true;
+      }
+      return false;
+    });
+  }, [sessions, stream]);
+
+  const testsForStream = useMemo(() => {
+    return tests.filter(t => {
+      if (t.stream) {
+        return t.stream === stream;
+      }
+      if (!t.stream && stream === 'JEE') {
+        return true;
+      }
+      return false;
+    });
+  }, [tests, stream]);
 
   return (
     <>
@@ -709,7 +737,7 @@ export const App: React.FC = () => {
                                         transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
                                     >
                                         <Dashboard 
-                                            sessions={sessions} 
+                                            sessions={sessionsForStream} 
                                             targets={targets} 
                                             quote={QUOTES[quoteIdx]} 
                                             onDelete={handleDeleteSession} 
@@ -757,20 +785,17 @@ export const App: React.FC = () => {
                                     >
                                         <FocusTimer 
                                             timerState={timerState}
-                                            sessions={sessions}
+                                            sessions={sessionsForStream}
                                             onToggleTimer={handleTimerToggle}
                                             mode={timerMode}
                                             timeLeft={timeLeft}
                                             durations={timerDurations}
                                             onResetTimer={handleTimerReset}
                                             onCompleteSession={handleCompleteSession}
-                                            lastLogTime={lastLogTime}
                                             onSwitchMode={handleModeSwitch}
                                             onUpdateDurations={handleDurationUpdate}
-                                            userName={userName || 'Guest'}
                                             syllabus={currentSyllabus}
-                                            sessionCount={sessions.length}
-                                            targets={targets}
+                                            sessionCount={sessionsForStream.length}
                                             selectedSubject={selectedSubject}
                                             onSelectSubject={setSelectedSubject}
                                         />
@@ -789,8 +814,7 @@ export const App: React.FC = () => {
                                         transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
                                     >
                                         <TestLog 
-                                            tests={tests}
-                                            targets={targets}
+                                            tests={testsForStream}
                                             onSave={handleSaveTest}
                                             onDelete={handleDeleteTest}
                                         />
@@ -809,8 +833,8 @@ export const App: React.FC = () => {
                                         transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
                                     >
                                         <Analytics 
-                                            sessions={sessions}
-                                            tests={tests}
+                                            sessions={sessionsForStream}
+                                            tests={testsForStream}
                                             isPro={isPro}
                                             onOpenUpgrade={() => setShowUpgradeModal(true)}
                                             stream={stream}
@@ -912,7 +936,6 @@ export const App: React.FC = () => {
             onUpgrade={handleUpgrade} 
         />
 
-        {/* ... Other modals (Overdue, Performance, Recommendation) ... */}
         <OverdueTasksModal
             isOpen={showOverdueModal}
             tasks={overdueTasks}
@@ -924,12 +947,6 @@ export const App: React.FC = () => {
             isVisible={isLagging} 
             onSwitch={activateLiteMode} 
             onDismiss={dismissLag} 
-        />
-        <SmartRecommendationToast
-            isVisible={showRecommendation}
-            data={recommendation}
-            onDismiss={() => setShowRecommendation(false)}
-            onPractice={() => { setShowRecommendation(false); changeView('focus'); }}
         />
       </div>
     </>

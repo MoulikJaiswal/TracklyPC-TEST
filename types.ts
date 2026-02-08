@@ -1,4 +1,5 @@
 
+
 export interface MistakeCounts {
   concept?: number;
   formula?: number;
@@ -17,7 +18,9 @@ export interface Session {
   mistakes: MistakeCounts;
   timestamp: number;
   duration?: number; // Total seconds spent in this session
+  plannedDuration?: number; // Total seconds planned for the session
   focusRating?: number; // 1-10 rating of focus quality
+  stream?: StreamType;
 }
 
 export interface QuestionLog {
@@ -56,6 +59,7 @@ export interface TestResult {
   attachmentType?: 'image' | 'pdf' | null;
   fileName?: string | null;
   thumbnail?: string | null;
+  stream?: StreamType;
 }
 
 export interface Target {
