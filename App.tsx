@@ -42,6 +42,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
 import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { useSmartRecommendations, Recommendation } from './hooks/useSmartRecommendations';
+import { SmartRecommendationToast } from './components/SmartRecommendationToast';
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { PerformanceToast } from './components/PerformanceToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -53,6 +55,7 @@ import { getProStatus } from './components/proController';
 import { StreamTransition } from './components/StreamTransition';
 import { TracklyLogo } from './components/TracklyLogo';
 import { WelcomePage } from './components/WelcomePage';
+import { ConfirmationModal } from './components/ConfirmationModal';
 
 // Firebase Imports
 import { auth, db, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
@@ -454,6 +457,31 @@ export const App: React.FC = () => {
     dbReadyPromise.then(() => setIsFirebaseReady(true));
   }, []);
 
+  const sessionsForStream = useMemo(() => {
+    return sessions.filter(s => {
+      if (s.stream) {
+        return s.stream === stream;
+      }
+      // Backwards compatibility: Assume old, untagged data belongs to JEE stream.
+      if (!s.stream && stream === 'JEE') {
+        return true;
+      }
+      return false;
+    });
+  }, [sessions, stream]);
+
+  const testsForStream = useMemo(() => {
+    return tests.filter(t => {
+      if (t.stream) {
+        return t.stream === stream;
+      }
+      if (!t.stream && stream === 'JEE') {
+        return true;
+      }
+      return false;
+    });
+  }, [tests, stream]);
+
   useEffect(() => {
     if (!isFirebaseReady) return; 
 
@@ -494,6 +522,58 @@ export const App: React.FC = () => {
         setSessions([]); setTests([]); setTargets([]); setNotes([]); setFolders([]);
     }
   }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
+
+  const showWelcome = !isAuthLoading && !user && !isGuest;
+
+  // --- Smart Recommendation Logic ---
+  const recommendation = useSmartRecommendations(sessionsForStream, currentSyllabus);
+  const [showRecommendationToast, setShowRecommendationToast] = useState(false);
+  const [plannerPrompt, setPlannerPrompt] = useState<Recommendation | null>(null);
+
+  useEffect(() => {
+    if (showWelcome) return;
+    
+    const hasShownToast = sessionStorage.getItem('recommendationToastShown');
+    if (recommendation && !hasShownToast) {
+        const timer = setTimeout(() => {
+            setShowRecommendationToast(true);
+            sessionStorage.setItem('recommendationToastShown', 'true');
+        }, 3000); // Show toast 3 seconds after app load
+        return () => clearTimeout(timer);
+    }
+  }, [recommendation, showWelcome]);
+  
+  const handleSaveTarget = useCallback(async (target: Target) => {
+    const newTargets = [target, ...targets.filter(t => t.id !== target.id)];
+    setTargets(newTargets); // Optimistic Update
+    if (user) await setDoc(doc(db, 'users', user.uid, 'targets', target.id), sanitizeForFirestore(target));
+    else if (isGuest) localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
+  }, [user, isGuest, targets]);
+
+  const handlePracticeRecommendation = useCallback(() => {
+    if (recommendation) {
+        setSelectedSubject(recommendation.subject);
+        changeView('focus');
+        setShowRecommendationToast(false);
+        // After navigating, show the prompt to add to planner
+        setPlannerPrompt(recommendation);
+    }
+  }, [recommendation, changeView]);
+  
+  const handleConfirmPlannerTask = useCallback(() => {
+    if (!plannerPrompt) return;
+
+    const newTarget: Target = {
+        id: generateUUID(),
+        date: getLocalDate(),
+        text: `Revise ${plannerPrompt.topic}`,
+        completed: false,
+        timestamp: Date.now(),
+        type: 'task',
+    };
+    handleSaveTarget(newTarget);
+    setPlannerPrompt(null);
+  }, [plannerPrompt, handleSaveTarget]);
 
   // --- CRUD Handlers with Optimistic Updates ---
   const handleSaveNote = useCallback(async (note: Note) => {
@@ -555,13 +635,6 @@ export const App: React.FC = () => {
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'tests', id));
     else if (isGuest) localStorage.setItem('trackly_guest_tests', JSON.stringify(newTests));
   }, [user, isGuest, tests]);
-
-  const handleSaveTarget = useCallback(async (target: Target) => {
-    const newTargets = [target, ...targets.filter(t => t.id !== target.id)];
-    setTargets(newTargets); // Optimistic Update
-    if (user) await setDoc(doc(db, 'users', user.uid, 'targets', target.id), sanitizeForFirestore(target));
-    else if (isGuest) localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
-  }, [user, isGuest, targets]);
 
   const handleDeleteTarget = useCallback(async (id: string) => {
     const newTargets = targets.filter(t => t.id !== id);
@@ -660,34 +733,6 @@ export const App: React.FC = () => {
   const toggleTutorial = useCallback(() => { setIsTutorialActive(true); setTutorialStep(0); }, []);
   const handleUpgrade = useCallback(() => { setHasPaid(true); }, [setHasPaid]);
   const activateLiteMode = useCallback(() => { setGraphicsEnabled(false); setAnimationsEnabled(false); dismissLag(); }, [dismissLag, setGraphicsEnabled, setAnimationsEnabled]);
-
-  // --- WELCOME PAGE CHECK ---
-  const showWelcome = !isAuthLoading && !user && !isGuest;
-
-  const sessionsForStream = useMemo(() => {
-    return sessions.filter(s => {
-      if (s.stream) {
-        return s.stream === stream;
-      }
-      // Backwards compatibility: Assume old, untagged data belongs to JEE stream.
-      if (!s.stream && stream === 'JEE') {
-        return true;
-      }
-      return false;
-    });
-  }, [sessions, stream]);
-
-  const testsForStream = useMemo(() => {
-    return tests.filter(t => {
-      if (t.stream) {
-        return t.stream === stream;
-      }
-      if (!t.stream && stream === 'JEE') {
-        return true;
-      }
-      return false;
-    });
-  }, [tests, stream]);
 
   return (
     <>
@@ -959,6 +1004,23 @@ export const App: React.FC = () => {
             isVisible={isLagging} 
             onSwitch={activateLiteMode} 
             onDismiss={dismissLag} 
+        />
+        <SmartRecommendationToast
+            isVisible={showRecommendationToast}
+            data={recommendation}
+            onDismiss={() => setShowRecommendationToast(false)}
+            onPractice={handlePracticeRecommendation}
+        />
+        <ConfirmationModal
+            isOpen={!!plannerPrompt}
+            onClose={() => setPlannerPrompt(null)}
+            onConfirm={handleConfirmPlannerTask}
+            title="Add to Planner?"
+            message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`}
+            confirmText="Add Task"
+            cancelText="No, thanks"
+            confirmVariant="primary"
+            icon={<ListChecks size={24} className="text-white" />}
         />
       </div>
     </>

@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus, Search, ArrowDownWideNarrow, ArrowUpNarrowWide, Hammer, Save, Info } from 'lucide-react';
@@ -1173,7 +1174,14 @@ export const TestLog = memo(({ tests, onSave, onDelete }: TestLogProps) => {
         )}
       </div>
 
-      <ConfirmationModal isOpen={!!deletingTestId} onClose={() => setDeletingTestId(null)} onConfirm={handleConfirmDelete} title="Delete Test?" message="This action cannot be undone. All data for this test will be lost." />
+      <ConfirmationModal 
+        isOpen={!!deletingTestId} 
+        onClose={() => setDeletingTestId(null)} 
+        onConfirm={handleConfirmDelete} 
+        title="Delete Test?" 
+        message="This action cannot be undone. All data for this test will be lost."
+        confirmText="Delete"
+      />
       {viewingReport && (<TestReportModal test={viewingReport} onClose={() => setViewingReport(null)} />)}
       {viewingAttachment && createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">

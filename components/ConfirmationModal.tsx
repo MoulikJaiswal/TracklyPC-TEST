@@ -10,10 +10,29 @@ interface ConfirmationModalProps {
   onConfirm: () => void;
   title: string;
   message: string;
+  confirmText?: string;
+  cancelText?: string;
+  confirmVariant?: 'danger' | 'primary';
+  icon?: React.ReactNode;
 }
 
-export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, onConfirm, title, message }) => {
+export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  title, 
+  message,
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  confirmVariant = 'danger',
+  icon
+}) => {
   if (!isOpen) return null;
+
+  const iconBgClass = confirmVariant === 'danger' ? 'bg-rose-500' : 'bg-indigo-500';
+  const confirmButtonClass = confirmVariant === 'danger' 
+      ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/20' 
+      : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20';
 
   return createPortal(
     <AnimatePresence>
@@ -34,23 +53,23 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, on
             className="w-full max-w-sm rounded-3xl bg-white dark:bg-[#11131e] border border-slate-200 dark:border-white/10 shadow-2xl p-6 transform-gpu"
           >
             <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 flex items-center justify-center bg-rose-500 rounded-full mb-4">
-                <AlertTriangle size={24} className="text-white" />
+              <div className={`w-12 h-12 flex items-center justify-center rounded-full mb-4 ${iconBgClass}`}>
+                {icon || <AlertTriangle size={24} className="text-white" />}
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{title}</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{message}</p>
               <div className="grid grid-cols-2 gap-3 w-full">
                 <button
                   onClick={onClose}
-                  className="py-3 rounded-xl bg-slate-200 text-slate-800 hover:bg-slate-300 font-bold uppercase text-xs tracking-wider transition-colors"
+                  className="py-3 rounded-xl bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 font-bold uppercase text-xs tracking-wider transition-colors"
                 >
-                  Cancel
+                  {cancelText}
                 </button>
                 <button
                   onClick={onConfirm}
-                  className="py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold uppercase text-xs tracking-wider shadow-lg shadow-rose-600/20 transition-all active:scale-95"
+                  className={`py-3 rounded-xl font-bold uppercase text-xs tracking-wider transition-all active:scale-95 ${confirmButtonClass}`}
                 >
-                  Delete
+                  {confirmText}
                 </button>
               </div>
             </div>

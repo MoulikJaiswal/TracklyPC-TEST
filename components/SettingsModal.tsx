@@ -1,5 +1,6 @@
 
 
+
 import React, { useRef, useState } from 'react';
 import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye, Activity } from 'lucide-react';
 import { Card } from './Card';
@@ -304,6 +305,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         onConfirm={confirmDeleteSubject}
         title={`Delete ${subjectToDelete}?`}
         message="This will remove the subject and all its topics. Past session logs will be preserved but won't count towards new goals."
+        confirmText="Delete"
     />
     
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">

@@ -2,14 +2,9 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lightbulb, X, ArrowRight, Target } from 'lucide-react';
+import { Recommendation } from '../hooks/useSmartRecommendations';
 
 const MotionDiv = motion.div as any;
-
-interface Recommendation {
-  subject: string;
-  topic: string;
-  accuracy: number;
-}
 
 interface SmartRecommendationToastProps {
   isVisible: boolean;
@@ -20,6 +15,8 @@ interface SmartRecommendationToastProps {
 
 export const SmartRecommendationToast: React.FC<SmartRecommendationToastProps> = ({ isVisible, data, onDismiss, onPractice }) => {
   if (!data) return null;
+
+  const isLowAccuracy = data.accuracy !== -1;
 
   return (
     <AnimatePresence>
@@ -58,7 +55,11 @@ export const SmartRecommendationToast: React.FC<SmartRecommendationToastProps> =
 
             <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-3 border border-slate-100 dark:border-white/5 relative z-10">
                 <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-                    Your accuracy in <span className="font-bold text-indigo-500 dark:text-indigo-400">{data.topic}</span> ({data.subject}) is only <span className="font-mono font-bold text-rose-500">{Math.round(data.accuracy)}%</span>.
+                    {isLowAccuracy ? (
+                        <>Your accuracy in <span className="font-bold text-indigo-500 dark:text-indigo-400">{data.topic}</span> ({data.subject}) is only <span className="font-mono font-bold text-rose-500">{Math.round(data.accuracy * 100)}%</span>.</>
+                    ) : (
+                        <>You haven't practiced <span className="font-bold text-indigo-500 dark:text-indigo-400">{data.topic}</span> ({data.subject}) yet. Time to start?</>
+                    )}
                 </p>
             </div>
 
