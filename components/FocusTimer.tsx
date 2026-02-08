@@ -40,29 +40,28 @@ import {
   AlertCircle,
   Info
 } from 'lucide-react';
-import { Target as TargetType, Session, SyllabusData } from '../types';
+import { Target as TargetType, Session, SyllabusData, ActivityThresholds } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 
 // --- Types & Interfaces ---
 
 interface FocusTimerProps {
-  targets?: TargetType[];
   sessions: Session[];
   mode: 'focus' | 'short' | 'long';
   timeLeft: number;
   timerState: 'idle' | 'running' | 'paused'; 
   durations: { focus: number; short: number; long: number };
-  lastLogTime: number;
   onToggleTimer: () => void;
   onResetTimer: () => void;
   onSwitchMode: (mode: 'focus' | 'short' | 'long') => void;
   onUpdateDurations: (newDuration: number, mode: 'focus' | 'short' | 'long') => void;
   onCompleteSession: (elapsedTime?: number) => void;
   sessionCount: number;
-  userName: string;
   syllabus: SyllabusData;
   selectedSubject: string;
   onSelectSubject: (subject: string) => void;
+  activityThresholds: ActivityThresholds;
+  onOpenSettings: () => void;
 }
 
 type TimeRange = 'weekly' | 'monthly' | 'yearly';
@@ -188,7 +187,7 @@ const DonutChart = ({ data }: { data: { label: string, value: number, color: str
     );
 };
 
-const Heatmap = ({ sessions, range }: { sessions: Session[], range: TimeRange }) => {
+const Heatmap = ({ sessions, range, thresholds }: { sessions: Session[], range: TimeRange, thresholds: ActivityThresholds }) => {
     const [hoveredData, setHoveredData] = useState<{
         date: Date;
         stats: { level: number; count: number; duration: number };
@@ -259,11 +258,11 @@ const Heatmap = ({ sessions, range }: { sessions: Session[], range: TimeRange })
         const duration = daysSessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 60; // in minutes
         
         let level = 0;
-        // Updated Thresholds: 1h, 3h, 5h, 6h+
-        if (duration > 0) level = 1;   // > 0 min (Lightest)
-        if (duration >= 180) level = 2; // >= 3 hours
-        if (duration >= 300) level = 3; // >= 5 hours
-        if (duration >= 360) level = 4; // >= 6 hours (Darkest)
+        // Thresholds based on props
+        if (duration > 0) level = 1;
+        if (duration >= thresholds.level2) level = 2;
+        if (duration >= thresholds.level3) level = 3;
+        if (duration >= thresholds.level4) level = 4;
 
         return { level, duration, count: daysSessions.length };
     };
@@ -271,17 +270,17 @@ const Heatmap = ({ sessions, range }: { sessions: Session[], range: TimeRange })
     const getTileStyle = (level: number, isCurrentMonth: boolean) => {
         const baseOpacity = isCurrentMonth ? 'opacity-100' : 'opacity-30 grayscale';
         
-        // Updated Color Scale: Lightest Green -> Dark Green
+        // New Color Scale: Red -> Yellow -> Light Green -> Dark Green
         switch(level) {
             case 0: return `bg-slate-800/40 border-slate-800 ${baseOpacity}`;
-            // 1h: Lightest Green (Pale/Bright)
-            case 1: return `bg-emerald-300/40 border-emerald-300/30 text-emerald-100 ${baseOpacity}`;
-            // 3h: Medium Green
-            case 2: return `bg-emerald-500/60 border-emerald-500/40 ${baseOpacity}`;
-            // 5h: Rich Green
-            case 3: return `bg-emerald-600 border-emerald-600/50 shadow-[0_0_12px_rgba(5,150,105,0.4)] ${baseOpacity}`;
-            // 6h+: Darkest Green (Deep Saturated)
-            case 4: return `bg-emerald-700 border-emerald-600 shadow-[0_0_15px_rgba(4,120,87,0.6)] ${baseOpacity}`;
+            // Lowest: Red
+            case 1: return `bg-rose-500/40 border-rose-500/30 text-rose-100 ${baseOpacity}`;
+            // Medium-Low: Yellow/Orange
+            case 2: return `bg-amber-500/60 border-amber-500/40 ${baseOpacity}`;
+            // Medium-High: Light Green
+            case 3: return `bg-lime-500/70 border-lime-500/50 shadow-[0_0_12px_rgba(132,204,22,0.4)] ${baseOpacity}`;
+            // Highest: Dark Green
+            case 4: return `bg-emerald-600 border-emerald-500 shadow-[0_0_15px_rgba(5,150,105,0.6)] ${baseOpacity}`;
             default: return `bg-slate-800/40 border-slate-800 ${baseOpacity}`;
         }
     };
@@ -518,7 +517,9 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     onUpdateDurations,
     syllabus,
     selectedSubject,
-    onSelectSubject
+    onSelectSubject,
+    activityThresholds,
+    onOpenSettings,
   } = props;
 
   const subjectKeys = useMemo(() => Object.keys(syllabus), [syllabus]);
@@ -649,7 +650,7 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
           currentStreak,
           consistency
       };
-  }, [sessions, timeRange, subjectKeys, syllabus]);
+  }, [sessions, timeRange, subjectKeys]);
   
   const subjectColorMap: Record<string, string> = useMemo(() => {
     const colors: Record<string, string> = {
@@ -1065,26 +1066,29 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                           </span>
                       </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 md:gap-3">
                       <div className="flex items-center gap-1.5">
-                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-300/40 border border-emerald-300/30" />
-                          <span className="text-[9px] font-bold text-slate-500 uppercase">1h</span>
+                          <div className="w-2.5 h-2.5 rounded-sm bg-rose-500/40 border border-rose-500/30" />
+                          <span className="text-[9px] font-bold text-slate-500 uppercase">&gt;0H</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500/60 border border-emerald-500/40" />
-                          <span className="text-[9px] font-bold text-slate-500 uppercase">3h</span>
+                          <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/60 border border-amber-500/40" />
+                          <span className="text-[9px] font-bold text-slate-500 uppercase">{activityThresholds.level2 / 60}H+</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-600 border border-emerald-600/50 shadow-[0_0_8px_rgba(5,150,105,0.4)]" />
-                          <span className="text-[9px] font-bold text-slate-500 uppercase">5h</span>
+                          <div className="w-2.5 h-2.5 rounded-sm bg-lime-500/70 border border-lime-500/50 shadow-[0_0_8px_rgba(132,204,22,0.4)]" />
+                          <span className="text-[9px] font-bold text-slate-500 uppercase">{activityThresholds.level3 / 60}H+</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-700 border border-emerald-600 shadow-[0_0_15px_rgba(4,120,87,0.6)]" />
-                          <span className="text-[9px] font-bold text-slate-500 uppercase">6h+</span>
+                          <div className="w-2.5 h-2.5 rounded-sm bg-emerald-600 border border-emerald-500 shadow-[0_0_15px_rgba(5,150,105,0.6)]" />
+                          <span className="text-[9px] font-bold text-slate-500 uppercase">{activityThresholds.level4 / 60}H+</span>
                       </div>
+                      <button onClick={onOpenSettings} className="ml-1 p-1 rounded-full text-slate-500 hover:text-white hover:bg-white/10 transition-colors" title="Customize Thresholds">
+                          <Settings2 size={12} />
+                      </button>
                   </div>
               </div>
-              <Heatmap sessions={sessions} range={timeRange} />
+              <Heatmap sessions={sessions} range={timeRange} thresholds={activityThresholds} />
           </div>
 
           {/* Confirmation Modal */}

@@ -33,9 +33,10 @@ import {
   ListChecks, 
   Check, 
   Trash2, 
-  X
+  X,
+  Activity as ActivityIcon
 } from 'lucide-react';
-import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData } from './types';
+import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds } from './types';
 import { QUOTES, THEME_CONFIG, JEE_SYLLABUS, NEET_SYLLABUS, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
@@ -265,6 +266,13 @@ export const App: React.FC = () => {
   const [customBackgroundEnabled, setCustomBackgroundEnabled] = useLocalStorage('trackly_custom_bg_enabled', false);
   const [customBackgroundAlign, setCustomBackgroundAlign] = useLocalStorage<'center' | 'top' | 'bottom'>('trackly_custom_bg_align', 'center');
   const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage('trackly_sidebar_collapsed', false);
+
+  // Analytics settings
+  const [activityThresholds, setActivityThresholds] = useLocalStorage<ActivityThresholds>('trackly_activity_thresholds', {
+    level2: 120, // 2 hours in minutes
+    level3: 240, // 4 hours in minutes
+    level4: 360, // 6 hours in minutes
+  });
 
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -798,6 +806,8 @@ export const App: React.FC = () => {
                                             sessionCount={sessionsForStream.length}
                                             selectedSubject={selectedSubject}
                                             onSelectSubject={setSelectedSubject}
+                                            activityThresholds={activityThresholds}
+                                            onOpenSettings={toggleSettings}
                                         />
                                     </MotionDiv>
                                 </Suspense>
@@ -928,6 +938,8 @@ export const App: React.FC = () => {
             setStream={handleChangeStream}
             customSyllabus={customSyllabus}
             setCustomSyllabus={setCustomSyllabus}
+            activityThresholds={activityThresholds}
+            setActivityThresholds={setActivityThresholds}
         />
 
         <ProUpgradeModal 

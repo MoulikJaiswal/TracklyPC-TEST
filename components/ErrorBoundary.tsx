@@ -1,6 +1,5 @@
-// FIX: Use namespace import for React to correctly resolve React.Component for class components.
-// This fixes errors where 'this.props' and 'this.setState' were not found.
-import * as React from "react";
+// FIX: Explicitly extend React.Component and use types from the React namespace (e.g., React.ReactNode) to resolve issues where TypeScript could not find properties like 'this.props' or 'this.setState' on the class component instance. This ensures correct type resolution for class components.
+import React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {

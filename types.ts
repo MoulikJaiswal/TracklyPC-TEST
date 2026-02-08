@@ -175,3 +175,9 @@ export interface FocusRoom {
 }
 
 export type SyllabusData = Record<string, string[]>;
+
+export interface ActivityThresholds {
+  level2: number; // in minutes
+  level3: number; // in minutes
+  level4: number; // in minutes
+}

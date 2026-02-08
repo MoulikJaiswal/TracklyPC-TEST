@@ -1,8 +1,9 @@
 
+
 import React, { useRef, useState } from 'react';
-import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye } from 'lucide-react';
+import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye, Activity } from 'lucide-react';
 import { Card } from './Card';
-import { ThemeId, StreamType, SyllabusData } from '../types';
+import { ThemeId, StreamType, SyllabusData, ActivityThresholds } from '../types';
 import { THEME_CONFIG } from '../constants';
 import { User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -60,6 +61,9 @@ interface SettingsModalProps {
   
   customSyllabus: SyllabusData;
   setCustomSyllabus: React.Dispatch<React.SetStateAction<SyllabusData>>;
+
+  activityThresholds: ActivityThresholds;
+  setActivityThresholds: React.Dispatch<React.SetStateAction<ActivityThresholds>>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -112,7 +116,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   stream,
   setStream,
   customSyllabus,
-  setCustomSyllabus
+  setCustomSyllabus,
+
+  activityThresholds,
+  setActivityThresholds,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -163,6 +170,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleThresholdChange = (level: keyof ActivityThresholds, value: number) => {
+      // value is in hours, convert to minutes
+      const minutes = value * 60;
+      setActivityThresholds(prev => {
+          const newThresholds = { ...prev, [level]: minutes };
+
+          // Ensure levels are monotonic
+          if (level === 'level2') {
+              newThresholds.level3 = Math.max(newThresholds.level3, minutes);
+              newThresholds.level4 = Math.max(newThresholds.level4, newThresholds.level3);
+          }
+          if (level === 'level3') {
+              newThresholds.level2 = Math.min(newThresholds.level2, minutes);
+              newThresholds.level4 = Math.max(newThresholds.level4, minutes);
+          }
+          if (level === 'level4') {
+              newThresholds.level3 = Math.min(newThresholds.level3, minutes);
+              newThresholds.level2 = Math.min(newThresholds.level2, newThresholds.level3);
+          }
+          return newThresholds;
+      });
   };
 
   // --- Curriculum Management Handlers ---
@@ -428,6 +458,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
           </div>
           
+          {/* --- SECTION: ANALYTICS SETTINGS --- */}
+          <div className="space-y-4">
+              <div className="flex items-center gap-2 text-lime-500 dark:text-lime-400 border-b border-lime-100 dark:border-lime-500/20 pb-2">
+                  <Activity size={16} />
+                  <span className="text-xs font-bold uppercase tracking-widest">Analytics</span>
+              </div>
+              <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl space-y-4">
+                  <label className="text-sm font-bold text-slate-900 dark:text-white">Activity Map Thresholds</label>
+                  
+                  {(['level2', 'level3', 'level4'] as const).map((level, index) => (
+                      <div key={level} className="space-y-2">
+                          <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-slate-500 dark:text-slate-400">Level {index + 2}</span>
+                              <span className="font-mono font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-md">{activityThresholds[level] / 60}hr+</span>
+                          </div>
+                          <input 
+                              type="range" 
+                              min="1" 
+                              max="12" 
+                              step="0.5"
+                              value={activityThresholds[level] / 60}
+                              onChange={(e) => handleThresholdChange(level, parseFloat(e.target.value))}
+                              className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-200 dark:bg-slate-700 accent-lime-500"
+                          />
+                      </div>
+                  ))}
+                  <p className="text-[10px] text-slate-400">Customize the time thresholds for colors on the activity heatmap.</p>
+              </div>
+          </div>
+
           {/* ... Rest of settings content ... */}
           {/* --- SECTION 1: APPEARANCE --- */}
           <div className="space-y-4">
