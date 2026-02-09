@@ -153,6 +153,7 @@ export interface StudyRoom {
   isSystem?: boolean; // If true, cannot be deleted by users
   status?: 'active' | 'closing'; // Soft delete state
   isPrivate?: boolean; // If true, hidden from lobby list
+  roomCode?: string; // Unique 6-digit code for private rooms
 }
 
 // --- FOCUS ROOM TYPES FOR TIMER HOOK ---

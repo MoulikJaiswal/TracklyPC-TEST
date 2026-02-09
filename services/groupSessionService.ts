@@ -17,11 +17,16 @@ import {
 } from 'firebase/firestore';
 import { StudyParticipant, StudyRoom } from '../types';
 
+const generateRoomCode = (): string => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
 export const groupSessionService = {
   
-  // 1. Subscribe to PUBLIC Rooms (Lobby)
+  // 1. Subscribe to ALL Rooms (Lobby)
   subscribeToRooms: (callback: (rooms: StudyRoom[]) => void) => {
-    const q = query(collection(db, 'rooms'), where('isPrivate', '!=', true), orderBy('isPrivate'), orderBy('createdAt', 'desc'));
+    // Fetches all rooms, public and private, ordering them so system/public rooms appear first.
+    const q = query(collection(db, 'rooms'), orderBy('isSystem', 'desc'), orderBy('isPrivate'), orderBy('createdAt', 'desc'));
     
     return onSnapshot(q, (snapshot) => {
         const rooms = snapshot.docs
@@ -51,18 +56,37 @@ export const groupSessionService = {
   },
 
   // 2. Create a Room
-  createRoom: async (roomData: Omit<StudyRoom, 'id' | 'activeCount' | 'createdAt'>): Promise<string> => {
+  createRoom: async (roomData: Omit<StudyRoom, 'id' | 'activeCount' | 'createdAt' | 'roomCode'>): Promise<{roomId: string, roomCode?: string}> => {
     try {
-        const docRef = await addDoc(collection(db, 'rooms'), {
+        const roomPayload: any = {
             ...roomData,
             activeCount: 0,
             createdAt: Date.now(),
             status: 'active'
-        });
-        return docRef.id;
+        };
+
+        let roomCode: string | undefined = undefined;
+        if (roomData.isPrivate) {
+            roomCode = generateRoomCode();
+            roomPayload.roomCode = roomCode;
+        }
+
+        const docRef = await addDoc(collection(db, 'rooms'), roomPayload);
+        return { roomId: docRef.id, roomCode };
     } catch (e) {
         console.error("Error creating room:", e);
         throw e;
+    }
+  },
+  
+  // 2.5 Verify Private Room Code
+  verifyRoomCode: async (roomId: string, code: string): Promise<boolean> => {
+    try {
+      const room = await groupSessionService.getRoom(roomId);
+      return !!(room && room.isPrivate && room.roomCode === code);
+    } catch (e) {
+      console.error("Error verifying room code:", e);
+      return false;
     }
   },
 
@@ -94,13 +118,48 @@ export const groupSessionService = {
           subject: subject as any,
           lastActivity: Date.now(),
           isAway: false,
+          dailyFocusTime: 0,
+          lastFocusDate: new Date().toISOString().split('T')[0],
       };
       
-      batch.set(participantRef, participantData);
+      batch.set(participantRef, participantData, { merge: true });
       batch.update(roomRef, { activeCount: increment(1) });
       batch.set(presenceRef, { currentRoomId: roomId });
 
       await batch.commit();
+  },
+
+  updateDailyFocusTime: async (roomId: string, userId: string, durationSeconds: number) => {
+    if (!userId || !roomId) return;
+    const participantRef = doc(db, `rooms/${roomId}/participants`, userId);
+    try {
+        const participantDoc = await getDoc(participantRef);
+        if (!participantDoc.exists()) return;
+
+        const participantData = participantDoc.data() as StudyParticipant;
+        const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+        const batch = writeBatch(db);
+
+        if (participantData.lastFocusDate === todayStr) {
+            // Same day, just increment
+            batch.update(participantRef, {
+                dailyFocusTime: increment(durationSeconds),
+                lastActivity: Date.now(),
+            });
+        } else {
+            // New day, reset time to current duration
+            batch.update(participantRef, {
+                dailyFocusTime: durationSeconds,
+                lastFocusDate: todayStr,
+                lastActivity: Date.now(),
+            });
+        }
+        await batch.commit();
+
+    } catch (e) {
+        console.error("Error updating daily focus time:", e);
+    }
   },
 
   // 4. Update Presence (Heartbeat)
