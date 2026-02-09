@@ -5,6 +5,8 @@
 
 
 
+
+
 export interface MistakeCounts {
   concept?: number;
   calculation?: number;
@@ -119,7 +121,7 @@ export interface Note {
   thumbnail?: string | null;
 }
 
-export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'privacy' | 'group-focus';
+export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'privacy' | 'group-focus' | 'friends';
 
 export type ThemeId = 'midnight' | 'obsidian' | 'void' | 'forest' | 'morning' | 'earth' | 'default-dark' | 'default-light';
 
@@ -190,4 +192,35 @@ export interface ActivityThresholds {
   level2: number; // in minutes
   level3: number; // in minutes
   level4: number; // in minutes
+}
+
+// --- STUDY BUDDY TYPES ---
+export interface UserProfile {
+  uid: string;
+  displayName: string;
+  photoURL: string | null;
+  friendCode: string;
+}
+
+export interface FriendRequest {
+  uid: string;
+  displayName: string;
+  photoURL: string | null;
+  friendCode: string;
+  timestamp: number;
+}
+
+export interface Friend {
+  uid: string;
+  displayName: string;
+  photoURL: string | null;
+  friendCode: string;
+}
+
+export interface PresenceState {
+  isOnline: boolean;
+  state: 'idle' | 'focus' | 'break';
+  subject?: string;
+  endTime?: number;
+  lastChanged: object; // serverTimestamp
 }

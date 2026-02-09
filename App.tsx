@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -33,9 +34,10 @@ import {
   Check, 
   Trash2, 
   X,
-  Activity as ActivityIcon
+  Activity as ActivityIcon,
+  Users
 } from 'lucide-react';
-import { ViewType, Session, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds, StudyRoom, TestResult } from './types';
+import { ViewType, Session, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds, StudyRoom, TestResult, UserProfile, PresenceState } from './types';
 import { QUOTES, THEME_CONFIG, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
@@ -57,9 +59,11 @@ import { WelcomePage } from './components/WelcomePage';
 import { ConfirmationModal } from './components/ConfirmationModal';
 
 // Firebase Imports
-import { auth, db, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
+import { auth, db, rtdb, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch, getDoc, runTransaction } from 'firebase/firestore';
+import { ref, onValue, set, onDisconnect, serverTimestamp } from 'firebase/database';
+
 
 // Lazy Load Components
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -68,6 +72,8 @@ const Planner = lazy(() => import('./components/Planner'));
 const Analytics = lazy(() => import('./components/Analytics'));
 const TestLog = lazy(() => import('./components/TestLog'));
 const VirtualLibrary = lazy(() => import('./components/VirtualLibrary'));
+const StudyBuddy = lazy(() => import('./components/StudyBuddy'));
+
 
 const MotionDiv = motion.div as any;
 
@@ -131,6 +137,7 @@ const TABS = [
   { id: 'focus', label: 'Focus', icon: Timer },
   { id: 'tests', label: 'Tests', icon: Trophy },
   { id: 'group-focus', label: 'Lounge', icon: Hammer },
+  { id: 'friends', label: 'Friends', icon: Users },
   { id: 'analytics', label: 'Stats', icon: BarChart3 },
 ];
 
@@ -258,6 +265,7 @@ export const App: React.FC = () => {
   
   // Auth State
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
@@ -455,18 +463,95 @@ export const App: React.FC = () => {
   // ... [Audio, DB Ready Effects unchanged] ...
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
           setIsGuest(false);
           setUserName(currentUser.displayName || 'User');
+          // Fetch or create user profile for Study Buddy feature
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+              setUserProfile(userDoc.data() as UserProfile);
+          } else {
+              // Create profile for new user
+              const createUniqueFriendCode = async (name: string, attempt = 0): Promise<string> => {
+                  const code = `${name.replace(/\s+/g, '')}#${Math.floor(1000 + Math.random() * 9000)}`;
+                  if (attempt > 10) throw new Error("Failed to create unique friend code.");
+                  const codeRef = doc(db, 'friendCodes', code);
+                  
+                  try {
+                      await runTransaction(db, async (transaction) => {
+                          const codeDoc = await transaction.get(codeRef);
+                          if (codeDoc.exists()) {
+                              throw new Error("Code already exists.");
+                          }
+                          transaction.set(codeRef, { uid: currentUser.uid });
+                      });
+                      return code;
+                  } catch (e) {
+                      return createUniqueFriendCode(name, attempt + 1);
+                  }
+              }
+
+              try {
+                  const friendCode = await createUniqueFriendCode(currentUser.displayName || 'user');
+                  const newProfile: UserProfile = {
+                      uid: currentUser.uid,
+                      displayName: currentUser.displayName || 'Anonymous User',
+                      photoURL: currentUser.photoURL,
+                      friendCode: friendCode,
+                  };
+                  await setDoc(userDocRef, newProfile);
+                  setUserProfile(newProfile);
+              } catch (e) {
+                  console.error("Error creating user profile:", e);
+              }
+          }
       } else {
           setUserName(null);
+          setUserProfile(null);
       }
       setIsAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
+
+  // Real-time Presence Management
+  const updatePresence = useCallback((status: Partial<PresenceState>) => {
+      if (!user) return;
+      const presenceRef = ref(rtdb, `/status/${user.uid}`);
+      set(presenceRef, {
+          isOnline: true,
+          ...status,
+          lastChanged: serverTimestamp(),
+      });
+  }, [user]);
+
+  useEffect(() => {
+      if (!user) return;
+      
+      const userStatusRef = ref(rtdb, `/status/${user.uid}`);
+      const connectedRef = ref(rtdb, '.info/connected');
+
+      const unsubscribe = onValue(connectedRef, (snap) => {
+          if (snap.val() === true) {
+              const con = onDisconnect(userStatusRef);
+              con.set({ isOnline: false, lastChanged: serverTimestamp() });
+
+              set(userStatusRef, {
+                  isOnline: true,
+                  state: 'idle',
+                  lastChanged: serverTimestamp(),
+              });
+          }
+      });
+
+      return () => {
+          unsubscribe();
+          set(userStatusRef, { isOnline: false, lastChanged: serverTimestamp() });
+      };
+  }, [user]);
 
   useEffect(() => {
       const storedGuest = localStorage.getItem('trackly_is_guest');
@@ -579,7 +664,7 @@ export const App: React.FC = () => {
   const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => { /* ... */ }, [user, isGuest, targets]);
 
   // Timer logic
-  const handleTimerReset = useCallback(() => { setTimerState('idle'); setTimeLeft(timerDurations[timerMode] * 60); }, [timerMode, timerDurations]);
+  const handleTimerReset = useCallback(() => { setTimerState('idle'); setTimeLeft(timerDurations[timerMode] * 60); updatePresence({ state: 'idle' }); }, [timerMode, timerDurations, updatePresence]);
   const handleCompleteSession = useCallback((elapsedTime?: number) => {
       const plannedDuration = timerDurations[timerMode] * 60;
       const effectiveDuration = elapsedTime !== undefined ? elapsedTime : plannedDuration;
@@ -588,6 +673,7 @@ export const App: React.FC = () => {
       }
       handleTimerReset();
   }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset]);
+  
   useEffect(() => {
       if (timerState === 'running') {
           timerRef.current = setInterval(() => {
@@ -601,11 +687,26 @@ export const App: React.FC = () => {
       }
       return () => clearInterval(timerRef.current);
   }, [timerState, timerDurations, timerMode, handleCompleteSession]);
+
   const handleTimerToggle = useCallback(() => {
-      if (timerState === 'idle' || timerState === 'paused') { setTimerState('running'); endTimeRef.current = Date.now() + timeLeft * 1000; } 
-      else { setTimerState('paused'); clearInterval(timerRef.current); }
-  }, [timerState, timeLeft]);
-  const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => { setTimerMode(mode); setTimerState('idle'); setTimeLeft(timerDurations[mode] * 60); }, [timerDurations]);
+      if (timerState === 'idle' || timerState === 'paused') { 
+          setTimerState('running'); 
+          endTimeRef.current = Date.now() + timeLeft * 1000;
+          updatePresence({ state: 'focus', subject: selectedSubject, endTime: endTimeRef.current });
+      } else { 
+          setTimerState('paused'); 
+          clearInterval(timerRef.current);
+          updatePresence({ state: 'idle' });
+      }
+  }, [timerState, timeLeft, updatePresence, selectedSubject]);
+
+  const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => { 
+      setTimerMode(mode); 
+      setTimerState('idle'); 
+      setTimeLeft(timerDurations[mode] * 60);
+      updatePresence({ state: mode === 'focus' ? 'idle' : 'break', endTime: Date.now() + timerDurations[mode] * 60 * 1000 });
+  }, [timerDurations, updatePresence]);
+
   const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus'|'short'|'long') => {
       setTimerDurations(prev => ({ ...prev, [modeKey]: newDuration }));
       if (timerMode === modeKey && timerState === 'idle') { setTimeLeft(newDuration * 60); }
@@ -650,8 +751,9 @@ export const App: React.FC = () => {
                         <AnimatePresence mode="wait" custom={direction}>
                             {view === 'daily' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="daily" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} /></MotionDiv></Suspense> )}
                             {view === 'planner' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="planner" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} /></MotionDiv></Suspense> )}
-                            {view === 'focus' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionsForStream.length} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} /></MotionDiv></Suspense> )}
+                            {view === 'focus' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionsForStream.length} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} /></MotionDiv></Suspense> )}
                             {view === 'tests' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="tests" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} /></MotionDiv></Suspense> )}
+                            {view === 'friends' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="friends" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><StudyBuddy user={user} userProfile={userProfile} /></MotionDiv></Suspense> )}
                             {view === 'analytics' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="analytics" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} /></MotionDiv></Suspense> )}
                             {view === 'group-focus' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="group-focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><VirtualLibrary user={user} userName={userName} onLogin={handleLogin} isPro={isPro} targets={targets} onCompleteTask={handleUpdateTarget} currentRoom={currentRoom} setCurrentRoom={setCurrentRoom} /></MotionDiv></Suspense> )}
                             {view === 'privacy' && ( <MotionDiv key="privacy" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}><PrivacyPolicy onBack={() => changeView('daily')} /></MotionDiv> )}

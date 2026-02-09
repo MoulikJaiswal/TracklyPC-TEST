@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useMemo, memo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,7 +41,7 @@ import {
   AlertCircle,
   Info
 } from 'lucide-react';
-import { Target as TargetType, Session, SyllabusData, ActivityThresholds } from '../types';
+import { Target as TargetType, Session, SyllabusData, ActivityThresholds, PresenceState } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 
 // --- Types & Interfaces ---
@@ -62,6 +63,7 @@ interface FocusTimerProps {
   onSelectSubject: (subject: string) => void;
   activityThresholds: ActivityThresholds;
   onOpenSettings: () => void;
+  onStatusChange: (status: Partial<PresenceState>) => void;
 }
 
 type TimeRange = 'weekly' | 'monthly' | 'yearly';
@@ -520,6 +522,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     onSelectSubject,
     activityThresholds,
     onOpenSettings,
+    onStatusChange
   } = props;
 
   const subjectKeys = useMemo(() => Object.keys(syllabus), [syllabus]);
@@ -688,6 +691,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
 
   const handleStopClick = () => {
       setShowStopConfirm(true);
+      onStatusChange({ state: 'idle' });
   };
 
   const handleConfirmStop = () => {
