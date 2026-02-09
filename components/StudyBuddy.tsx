@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { User } from 'firebase/auth';
 import { UserProfile, Friend, FriendRequest, PresenceState } from '../types';
 import { db, rtdb } from '../firebase';
-import { collection, query, where, getDocs, doc, onSnapshot, setDoc, deleteDoc, writeBatch, runTransaction } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, onSnapshot, setDoc, deleteDoc, writeBatch, runTransaction } from 'firebase/firestore';
 import { ref, onValue } from 'firebase/database';
 import { User as UserIcon, Users, UserPlus, Mail, Search, Copy, Check, X, Brain, Coffee, Loader2, Info, ArrowRight, Sparkles } from 'lucide-react';
 import { Card } from './Card';
@@ -56,7 +56,12 @@ const StudyBuddySetup = ({ user, userProfile }: { user: User, userProfile: UserP
                     if (!friendCodeDoc.exists()) {
                         friendCode = potentialCode;
                         isUnique = true;
-                        transaction.set(friendCodeRef, { uid: user.uid });
+                        // Store basic profile data here for easier searching
+                        transaction.set(friendCodeRef, { 
+                            uid: user.uid,
+                            displayName: userProfile?.displayName || trimmedUsername,
+                            photoURL: userProfile?.photoURL || null
+                        });
                         break;
                     }
                 }
@@ -106,7 +111,6 @@ const StudyBuddySetup = ({ user, userProfile }: { user: User, userProfile: UserP
     );
 };
 
-// FIX: Changed FriendCard to a React.FC with an interface to resolve key prop type error.
 interface FriendCardProps {
   friend: Friend;
   presence: PresenceState | null;
@@ -175,7 +179,7 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
       },
       (error) => {
         console.error("Error fetching friends:", error);
-        setIsLoading(false); // Ensure loading stops on error
+        setIsLoading(false);
       }
     );
 
@@ -189,6 +193,26 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
       requestsUnsub();
     };
   }, [user]);
+
+  // Sync profile to friendCode for searchability (Self-healing)
+  useEffect(() => {
+      if (user && userProfile?.friendCode) {
+          const syncProfile = async () => {
+              try {
+                  const codeRef = doc(db, 'friendCodes', userProfile.friendCode!);
+                  // We update blindly to ensure fresh data, but avoid overwrite if not needed in a real app (omitted check for brevity)
+                  await setDoc(codeRef, {
+                      uid: user.uid,
+                      displayName: userProfile.displayName || 'Anonymous',
+                      photoURL: userProfile.photoURL || null
+                  }, { merge: true });
+              } catch (e) {
+                  console.error("Error syncing profile to friend code:", e);
+              }
+          };
+          syncProfile();
+      }
+  }, [user, userProfile]);
 
   // Subscribe to friend presences
   useEffect(() => {
@@ -216,34 +240,75 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
     if (!searchQuery.trim() || !userProfile?.friendCode) return;
     setSearchResult('loading');
     
-    if (searchQuery.trim() === userProfile.friendCode) {
+    const code = searchQuery.trim();
+
+    if (code === userProfile.friendCode) {
       setSearchResult('self');
       return;
     }
 
-    const q = query(collection(db, 'friendCodes'), where('__name__', '==', searchQuery.trim()));
-    const querySnapshot = await getDocs(q);
+    try {
+        const codeRef = doc(db, 'friendCodes', code);
+        const codeSnap = await getDoc(codeRef);
 
-    if (querySnapshot.empty) {
-      setSearchResult('not_found');
-    } else {
-      const targetUid = querySnapshot.docs[0].data().uid;
-      
-      if (friends.some(f => f.uid === targetUid)) {
-        setSearchResult('already_friend');
-        return;
-      }
-      if (sentRequests.includes(targetUid)) {
-          setSearchResult('request_sent');
-          return;
-      }
+        if (!codeSnap.exists()) {
+            setSearchResult('not_found');
+            return;
+        }
 
-      const userDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', targetUid)));
-      if (!userDoc.empty) {
-        setSearchResult(userDoc.docs[0].data() as UserProfile);
-      } else {
+        const data = codeSnap.data();
+        const targetUid = data.uid;
+        
+        if (friends.some(f => f.uid === targetUid)) {
+            setSearchResult('already_friend');
+            return;
+        }
+        if (sentRequests.includes(targetUid)) {
+            setSearchResult('request_sent');
+            return;
+        }
+
+        // Fast Path: Use denormalized data if available
+        if (data.displayName) {
+            setSearchResult({
+                uid: targetUid,
+                displayName: data.displayName,
+                photoURL: data.photoURL,
+                friendCode: code,
+                studyBuddyUsername: 'User'
+            });
+            return;
+        }
+
+        // Slow Path: Fallback to querying user doc (might fail due to permissions)
+        try {
+            const userDocRef = doc(db, 'users', targetUid);
+            const userDocSnap = await getDoc(userDocRef);
+            
+            if (userDocSnap.exists()) {
+                setSearchResult(userDocSnap.data() as UserProfile);
+            } else {
+                // User exists but profile unreadable/empty, show placeholder
+                setSearchResult({
+                    uid: targetUid,
+                    displayName: 'Study Partner',
+                    photoURL: null,
+                    friendCode: code
+                });
+            }
+        } catch (permError) {
+            console.log("Permission denied reading user profile, using fallback.");
+            setSearchResult({
+                uid: targetUid,
+                displayName: 'Study Partner',
+                photoURL: null,
+                friendCode: code
+            });
+        }
+
+    } catch (error) {
+        console.error("Search error:", error);
         setSearchResult('not_found');
-      }
     }
   };
 
