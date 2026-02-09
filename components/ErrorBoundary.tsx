@@ -13,8 +13,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: Extend from `React.Component` to make this a valid React component.
-// This provides access to lifecycle methods, `this.props`, and `this.setState`, resolving the TypeScript errors.
+// FIX: The ErrorBoundary class must extend `React.Component` to be a valid class component and have access to `this.props` and `this.setState`.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
