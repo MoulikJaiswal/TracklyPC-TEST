@@ -36,7 +36,7 @@ import {
   X,
   Activity as ActivityIcon
 } from 'lucide-react';
-import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds, StudyRoom } from './types';
+import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds } from './types';
 import { QUOTES, THEME_CONFIG, JEE_SYLLABUS, NEET_SYLLABUS, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
@@ -324,9 +324,6 @@ export const App: React.FC = () => {
   // Focus Subject State (Lifted from FocusTimer)
   const [selectedSubject, setSelectedSubject] = useState<string>('');
 
-  // Group Session State (Lifted from VirtualLibrary)
-  const [currentRoom, setCurrentRoom] = useState<StudyRoom | null>(null);
-
   // Initial subject selection when subjects load
   useEffect(() => {
       if (currentSubjects.length > 0 && !currentSubjects.includes(selectedSubject)) {
@@ -608,28 +605,6 @@ export const App: React.FC = () => {
     }
   }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
 
-  // Sync Timer State with Focus Lounge
-  useEffect(() => {
-    if (!user || !currentRoom) return;
-
-    // FIX: Replaced 'mode' with 'timerMode' which is the correct state variable.
-    if (timerState === 'running' && timerMode === 'focus') {
-      const endTime = Date.now() + timeLeft * 1000;
-      groupSessionService.updatePresence(currentRoom.id, user.uid, {
-        status: 'focus',
-        focusEndTime: endTime,
-        subject: selectedSubject as any,
-      });
-    } else {
-      // For paused, idle, or break modes, show as idle in the lounge
-      groupSessionService.updatePresence(currentRoom.id, user.uid, {
-        status: 'idle',
-        focusEndTime: null, // Clear end time
-      });
-    }
-    // FIX: Replaced 'mode' with 'timerMode' in the dependency array.
-  }, [timerState, currentRoom, user, timeLeft, timerMode, selectedSubject]);
-
   const showWelcome = !isAuthLoading && !user && !isGuest;
 
   // --- Smart Recommendation Logic ---
@@ -761,11 +736,11 @@ export const App: React.FC = () => {
 
   // ... [Timer logic] ...
   const handleTimerReset = useCallback(() => { setTimerState('idle'); setTimeLeft(timerDurations[timerMode] * 60); }, [timerMode, timerDurations]);
-  const handleCompleteSession = useCallback(async (elapsedTime?: number) => {
+  const handleCompleteSession = useCallback((elapsedTime?: number) => {
       const plannedDuration = timerDurations[timerMode] * 60;
       const effectiveDuration = elapsedTime !== undefined ? elapsedTime : plannedDuration;
       
-      if (effectiveDuration > 60) { // Only log sessions longer than a minute
+      if (effectiveDuration > 60) {
          handleSaveSession({ 
            subject: selectedSubject, 
            topic: 'Focus Session', 
@@ -776,16 +751,8 @@ export const App: React.FC = () => {
            plannedDuration: plannedDuration
          });
       }
-      
-      // Update Focus Lounge daily time if in a room
-      // FIX: Replaced 'mode' with 'timerMode'.
-      if (user && currentRoom && timerMode === 'focus' && effectiveDuration > 60) {
-        await groupSessionService.updateDailyFocusTime(currentRoom.id, user.uid, effectiveDuration);
-      }
-
       handleTimerReset();
-      // FIX: Replaced 'mode' with 'timerMode' in dependency array.
-  }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset, user, currentRoom]);
+  }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset]);
   useEffect(() => {
       if (timerState === 'running') {
           timerRef.current = setInterval(() => {
@@ -1038,8 +1005,6 @@ export const App: React.FC = () => {
                                             isPro={isPro}
                                             targets={targets}
                                             onCompleteTask={handleUpdateTarget}
-                                            currentRoom={currentRoom}
-                                            setCurrentRoom={setCurrentRoom}
                                         />
                                     </MotionDiv>
                                 </Suspense>
