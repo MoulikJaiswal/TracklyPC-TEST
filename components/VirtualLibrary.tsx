@@ -226,8 +226,12 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     const unsubscribes = roomKeys.map(roomName => {
         const roomRef = ref(db, `rooms/${roomName}/presence`);
         return onValue(roomRef, (snapshot) => {
-            const presences = snapshot.val() || {};
-            const activeCount = Object.values(presences).filter((p: any) => p && p.isOnline).length;
+            const presences = snapshot.val();
+            let activeCount = 0;
+            // FIX: Prevent crash by checking if `presences` is a valid object before processing.
+            if (presences && typeof presences === 'object') {
+                activeCount = Object.values(presences).filter((p: any) => p && p.isOnline).length;
+            }
             setRoomCounts(prev => ({ ...prev, [roomName]: activeCount }));
         });
     });
@@ -245,26 +249,31 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     const db = rtdb;
     const roomPresenceRef = ref(db, `rooms/${selectedRoom}/presence/`);
     
-    // Set up a periodic check to clear out ghosts, supplementing onDisconnect
     const interval = setInterval(() => {
         setParticipants(prev => {
             const now = Date.now();
-            const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds, a bit more than 2x heartbeat
-            return prev.filter(p => p && p.isOnline && (now - p.lastActivity < PRESENCE_TIMEOUT));
+            const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds
+            // Add check for p.lastActivity to prevent NaN errors
+            return prev.filter(p => p && p.isOnline && p.lastActivity && (now - p.lastActivity < PRESENCE_TIMEOUT));
         });
-    }, 10000); // Check every 10 seconds
+    }, 10000);
 
     const unsubscribe = onValue(roomPresenceRef, (snapshot) => {
-        const presences = snapshot.val() || {};
-        const allInDB = Object.values(presences) as StudyParticipant[];
+        const presences = snapshot.val();
+        let activeParticipants: StudyParticipant[] = [];
         
-        const now = Date.now();
-        const PRESENCE_TIMEOUT = 70 * 1000;
+        // FIX: Prevent crash by checking if `presences` is a valid object before processing.
+        if (presences && typeof presences === 'object') {
+            const allInDB = Object.values(presences) as StudyParticipant[];
+            const now = Date.now();
+            const PRESENCE_TIMEOUT = 70 * 1000;
 
-        const activeParticipants = allInDB.filter(p => {
-            return p && p.isOnline && (p.lastActivity > (now - PRESENCE_TIMEOUT));
-        });
-
+            activeParticipants = allInDB.filter(p => {
+                // Add robust checks for object type and lastActivity
+                return p && typeof p === 'object' && p.isOnline && p.lastActivity && (p.lastActivity > (now - PRESENCE_TIMEOUT));
+            });
+        }
+        
         setParticipants(activeParticipants);
         setIsLoading(false);
     }, () => setIsLoading(false));
