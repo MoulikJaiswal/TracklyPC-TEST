@@ -1,115 +1,169 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Wifi, LogIn, User as UserIcon } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
+import { Users, Wifi, LogIn, User as UserIcon, Plus, ChevronRight, X, ArrowLeft, Loader2, Search, Coffee, Brain, Timer, Check, ListChecks } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { rtdb } from '../firebase';
-import { ref, onValue, onDisconnect, remove, set, serverTimestamp, off } from 'firebase/database';
-import { StudyParticipant } from '../types';
+import { StudyParticipant, StudyRoom, Target as TargetType } from '../types';
+import { groupSessionService } from '../services/groupSessionService';
 import { Card } from './Card';
 import { GoogleIcon } from './GoogleIcon';
+import { STREAM_SUBJECTS } from '../constants';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface VirtualLibraryProps {
   user: User | null;
   userName: string | null;
   onLogin: () => void;
   isPro: boolean;
+  targets: TargetType[];
+  onCompleteTask: (id: string, completed: boolean) => void;
 }
 
-const ParticipantCard = ({ participant, isCurrentUser }: { participant: StudyParticipant, isCurrentUser: boolean }) => {
+const ParticipantCard = memo(({ participant, isCurrentUser }: { participant: StudyParticipant, isCurrentUser: boolean }) => {
     const photoURL = participant.photoURL;
     const displayName = participant.displayName || 'Anonymous';
-    
+    const [timeLeft, setTimeLeft] = useState('');
+
+    useEffect(() => {
+        if (participant.status !== 'focus' || !participant.focusEndTime) {
+            setTimeLeft('');
+            return;
+        }
+
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const remaining = Math.max(0, participant.focusEndTime! - now);
+            const minutes = Math.floor(remaining / 60000);
+            const seconds = Math.floor((remaining % 60000) / 1000);
+            setTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [participant.status, participant.focusEndTime]);
+
+    const getStatusInfo = () => {
+        switch(participant.status) {
+            case 'focus': return { icon: <Brain size={12}/>, text: timeLeft, color: 'text-indigo-500 bg-indigo-500/10'};
+            case 'break': return { icon: <Coffee size={12}/>, text: 'Break', color: 'text-emerald-500 bg-emerald-500/10'};
+            default: return { icon: <UserIcon size={12}/>, text: 'Idle', color: 'text-slate-500 bg-slate-500/10'};
+        }
+    };
+    const statusInfo = getStatusInfo();
+
     return (
-        <div 
-            className={`relative flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300 transform-gpu ${isCurrentUser ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20' : 'bg-white dark:bg-slate-900/50 border-slate-200 dark:border-white/5'}`}
-        >
-            <div className="relative flex-shrink-0">
-                {photoURL ? (
-                    <img src={photoURL} alt={displayName} className="w-12 h-12 rounded-full object-cover" />
-                ) : (
-                    <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-                        <UserIcon size={24} className="text-slate-400" />
-                    </div>
-                )}
-                <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-800" />
+        <Card className={`flex flex-col gap-4 p-4 transition-all duration-300 transform-gpu ${isCurrentUser ? 'border-indigo-500/30' : ''}`}>
+            <div className="flex items-center gap-4">
+                <div className="relative flex-shrink-0">
+                    {photoURL ? (
+                        <img src={photoURL} alt={displayName} className="w-12 h-12 rounded-full object-cover shadow-sm" />
+                    ) : (
+                        <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                            <UserIcon size={24} className="text-slate-400" />
+                        </div>
+                    )}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="font-bold text-theme-text truncate flex items-center gap-2">{displayName} {isCurrentUser && <span className="text-[9px] font-bold text-indigo-500">(You)</span>}</p>
+                    <p className="text-xs text-theme-text-secondary font-bold uppercase tracking-wider">{participant.subject}</p>
+                </div>
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold ${statusInfo.color}`}>
+                    {statusInfo.icon}
+                    <span>{statusInfo.text}</span>
+                </div>
             </div>
-            <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-800 dark:text-white truncate">{displayName}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">In the zone...</p>
-            </div>
-            {isCurrentUser && (
-                <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-500/20 px-2 py-1 rounded-full">
-                    You
-                </span>
+            {participant.intention && (
+                 <div className="text-xs text-theme-text-secondary bg-theme-bg-tertiary p-2 rounded-lg border border-theme-border italic">
+                    "{participant.intention}"
+                 </div>
             )}
-        </div>
+        </Card>
     );
-};
+});
 
-
-const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin }) => {
+const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets, onCompleteTask }) => {
+  const [view, setView] = useState<'lobby' | 'room'>('lobby');
+  const [rooms, setRooms] = useState<StudyRoom[]>([]);
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
+  const [currentRoom, setCurrentRoom] = useState<StudyRoom | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showFocusModal, setShowFocusModal] = useState(false);
 
+  // Heartbeat timer
+  const heartbeatRef = useRef<any>(null);
+
+  // --- Data Fetching & Subscriptions ---
   useEffect(() => {
     if (!user) {
-        setIsLoading(false);
-        setParticipants([]);
-        return;
+      setIsLoading(false);
+      return;
     }
 
-    const db = rtdb;
-    const myPresenceRef = ref(db, 'presence/' + user.uid);
-
-    // This special path lets us know if we are connected to RTDB.
-    const connectedRef = ref(db, '.info/connected');
-
-    const unsubscribeConnected = onValue(connectedRef, (snap) => {
-        if (snap.val() === true) {
-            // We're connected. Set our presence.
-            const participantData: StudyParticipant = {
-                uid: user.uid,
-                displayName: user.displayName || 'Anonymous',
-                photoURL: user.photoURL,
-                lastActivity: serverTimestamp() as any, // Use server timestamp
-                isOnline: true,
-                status: 'idle',
-                subject: 'Other'
-            };
-            set(myPresenceRef, participantData);
-
-            // This is the magic. When the client disconnects, 
-            // the RTDB server will automatically remove this user's presence.
-            onDisconnect(myPresenceRef).remove();
-        }
-    });
-
-    // Now, listen for all users in the presence list.
-    const presenceRef = ref(db, 'presence/');
-    const unsubscribePresence = onValue(presenceRef, (snapshot) => {
-        const presences = snapshot.val() || {};
-        const activeParticipants = Object.values(presences) as StudyParticipant[];
-        setParticipants(activeParticipants);
-        setIsLoading(false);
-    });
-
-    // Cleanup function when the component unmounts or user logs out.
-    return () => {
-        unsubscribeConnected();
-        unsubscribePresence();
-        // Manually remove presence on clean exit
-        remove(myPresenceRef);
-    };
+    setIsLoading(true);
+    const unsub = groupSessionService.subscribeToRooms(setRooms);
+    setIsLoading(false);
+    return () => unsub();
   }, [user]);
 
-  const sortedParticipants = useMemo(() => {
-      // Sort to always show the current user first
-      return [...participants].sort((a, b) => {
-          if (a.uid === user?.uid) return -1;
-          if (b.uid === user?.uid) return 1;
-          return a.displayName.localeCompare(b.displayName);
-      });
-  }, [participants, user]);
+  // --- Room Management ---
+  const handleJoinRoom = async (roomId: string) => {
+      if (!user) return;
+      setIsLoading(true);
+      const roomData = await groupSessionService.getRoom(roomId);
+      if(roomData) {
+          await groupSessionService.joinSession(roomId, { uid: user.uid, displayName: user.displayName || 'User', photoURL: user.photoURL }, 'Other');
+          setCurrentRoom(roomData);
+          setView('room');
+      }
+      setIsLoading(false);
+  };
+  
+  const handleLeaveRoom = useCallback(async () => {
+      if (user && currentRoom) {
+          await groupSessionService.leaveRoom(currentRoom.id, user.uid);
+      }
+      setView('lobby');
+      setCurrentRoom(null);
+      setParticipants([]);
+  }, [user, currentRoom]);
+
+  // --- In-Room useEffect ---
+  useEffect(() => {
+    if (view !== 'room' || !user || !currentRoom) {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      return;
+    }
+
+    const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+
+    // Initial presence update
+    groupSessionService.updatePresence(currentRoom.id, user.uid, {});
+
+    // Heartbeat to keep user "online"
+    heartbeatRef.current = setInterval(() => {
+        groupSessionService.updatePresence(currentRoom.id, user.uid, {});
+    }, HEARTBEAT_INTERVAL);
+    
+    // Subscribe to room participants
+    const unsubParticipants = groupSessionService.subscribeToRoom(currentRoom.id, (parts) => {
+        // Filter out stale participants (inactive for > 1 minute)
+        const now = Date.now();
+        const active = parts.filter(p => (now - p.lastActivity) < 60000);
+        setParticipants(active);
+    });
+
+    const unsubRoomStatus = groupSessionService.subscribeToRoomStatus(currentRoom.id, (roomData) => {
+        if (!roomData) handleLeaveRoom();
+    });
+
+    // Cleanup on unmount or view change
+    return () => {
+      clearInterval(heartbeatRef.current);
+      unsubParticipants();
+      unsubRoomStatus();
+      if(view === 'room') { // only leave if we are still in room view
+        groupSessionService.leaveRoom(currentRoom.id, user.uid);
+      }
+    };
+  }, [view, user, currentRoom, handleLeaveRoom]);
 
   if (!user) {
       return (
@@ -117,8 +171,8 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin }) => {
             <div className="p-4 bg-indigo-500/10 rounded-full mb-6 border border-indigo-500/20">
                 <LogIn size={48} className="text-indigo-500" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Join the Focus Lounge</h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-sm">
+            <h2 className="text-2xl font-bold text-theme-text mb-2">Join the Focus Lounge</h2>
+            <p className="text-theme-text-secondary mb-8 max-w-sm">
                 Sign in to join live study sessions with other aspirants.
             </p>
             <button
@@ -134,6 +188,10 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin }) => {
 
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
+        <AnimatePresence>
+            {showFocusModal && <div className="fixed inset-0 z-[100] bg-black/50" />}
+        </AnimatePresence>
+
         <div>
             <h2 className="text-3xl font-bold text-theme-text tracking-tight flex items-center gap-3">
                 <Users className="text-indigo-400" /> Focus Lounge
@@ -143,31 +201,62 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin }) => {
             </p>
         </div>
 
-        <Card className="p-6">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Wifi size={16} className="text-emerald-500" /> Who's Online
-                </h3>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    {sortedParticipants.length} Studying
-                </span>
+        {view === 'lobby' ? (
+            <div className="space-y-4">
+                 <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-theme-text-secondary uppercase tracking-widest">Public Rooms</h3>
+                    <button onClick={() => {}} className="flex items-center gap-2 px-4 py-2 bg-theme-accent text-theme-text-on-accent rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg hover:opacity-90 transition-opacity active:scale-95">
+                        <Plus size={16} /> Create Room
+                    </button>
+                 </div>
+                 {isLoading ? (
+                     <div className="text-center py-10"><Loader2 className="animate-spin text-theme-accent mx-auto"/></div>
+                 ) : rooms.length === 0 ? (
+                     <div className="text-center py-10 text-theme-text-secondary">No public rooms available. Create one!</div>
+                 ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {rooms.map(room => (
+                            <Card key={room.id} onClick={() => handleJoinRoom(room.id)} className="hover:border-indigo-500/50">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h4 className="font-bold text-theme-text">{room.name}</h4>
+                                        <p className="text-xs text-theme-text-secondary mt-1">{room.topic}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-theme-text-secondary font-bold">
+                                        <Users size={14} /> {room.activeCount}
+                                    </div>
+                                </div>
+                                <p className="text-xs mt-4 text-theme-text-secondary">{room.description}</p>
+                            </Card>
+                        ))}
+                    </div>
+                 )}
             </div>
-            
-            {isLoading ? (
-                <div className="text-center py-10 text-slate-400 text-sm font-medium">Loading...</div>
-            ) : sortedParticipants.length === 0 ? (
-                <div className="text-center py-10">
-                    <p className="font-bold text-slate-700 dark:text-slate-300">It's quiet in here...</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">You're the first one to arrive!</p>
+        ) : (
+            currentRoom && (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <button onClick={handleLeaveRoom} className="flex items-center gap-2 text-sm text-theme-text-secondary font-bold hover:text-theme-text transition-colors">
+                            <ArrowLeft size={16}/> Back to Lobby
+                        </button>
+                        <div>
+                            <button onClick={() => {}} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider">
+                                Start Focus
+                            </button>
+                        </div>
+                    </div>
+                    <Card>
+                        <h3 className="text-lg font-bold text-theme-text">{currentRoom.name}</h3>
+                        <p className="text-sm text-theme-text-secondary mb-4">{currentRoom.topic}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {participants.map(p => (
+                                <ParticipantCard key={p.uid} participant={p} isCurrentUser={p.uid === user.uid} />
+                            ))}
+                        </div>
+                    </Card>
                 </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {sortedParticipants.map(p => (
-                        <ParticipantCard key={p.uid} participant={p} isCurrentUser={p.uid === user.uid} />
-                    ))}
-                </div>
-            )}
-        </Card>
+            )
+        )}
     </div>
   );
 };
