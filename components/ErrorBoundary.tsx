@@ -33,6 +33,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   }
 
+  // FIX: Converted to arrow function to correctly bind `this` context.
   handleReset = () => {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
@@ -40,6 +41,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   }
 
+  // FIX: Converted to arrow function for consistency.
   handleReload = () => {
     window.location.reload();
   }
