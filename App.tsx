@@ -36,8 +36,8 @@ import {
   X,
   Activity as ActivityIcon
 } from 'lucide-react';
-import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds } from './types';
-import { QUOTES, THEME_CONFIG, JEE_SYLLABUS, NEET_SYLLABUS, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
+import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds, StudyRoom } from './types';
+import { QUOTES, THEME_CONFIG, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
 import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
@@ -244,7 +244,7 @@ export const App: React.FC = () => {
   const [quoteIdx] = useState(() => Math.floor(Math.random() * QUOTES.length));
 
   // Stream State
-  const [stream, setStream] = useLocalStorage<StreamType>('trackly_stream', 'JEE');
+  const [stream, setStream] = useLocalStorage<StreamType>('trackly_stream', 'General');
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionStream, setTransitionStream] = useState<StreamType>(stream);
   
@@ -299,6 +299,9 @@ export const App: React.FC = () => {
     level3: 240, // 4 hours in minutes
     level4: 360, // 6 hours in minutes
   });
+  
+  // Group Focus State (Lifted Up)
+  const [currentRoom, setCurrentRoom] = useState<StudyRoom | null>(null);
 
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -485,8 +488,8 @@ export const App: React.FC = () => {
       if (s.stream) {
         return s.stream === stream;
       }
-      // Backwards compatibility: Assume old, untagged data belongs to JEE stream.
-      if (!s.stream && stream === 'JEE') {
+      // Backwards compatibility: Assume old, untagged data belongs to General stream.
+      if (!s.stream && stream === 'General') {
         return true;
       }
       return false;
@@ -498,7 +501,8 @@ export const App: React.FC = () => {
       if (t.stream) {
         return t.stream === stream;
       }
-      if (!t.stream && stream === 'JEE') {
+      // Backwards compatibility: Assume old, untagged data belongs to General stream.
+      if (!t.stream && stream === 'General') {
         return true;
       }
       return false;
@@ -902,6 +906,7 @@ export const App: React.FC = () => {
                                             tests={testsForStream}
                                             onSave={handleSaveTest}
                                             onDelete={handleDeleteTest}
+                                            syllabus={currentSyllabus}
                                         />
                                     </MotionDiv>
                                 </Suspense>
@@ -946,6 +951,8 @@ export const App: React.FC = () => {
                                             isPro={isPro}
                                             targets={targets}
                                             onCompleteTask={handleUpdateTarget}
+                                            currentRoom={currentRoom}
+                                            setCurrentRoom={setCurrentRoom}
                                         />
                                     </MotionDiv>
                                 </Suspense>

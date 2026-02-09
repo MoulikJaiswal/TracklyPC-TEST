@@ -1,5 +1,5 @@
-// FIX: Changed React import to explicitly import and extend `Component` to resolve type errors where `props` and `state` were not being recognized.
-import React, { Component } from "react";
+// FIX: Updated React import to use namespace import (`import * as React`) and changed class to extend `React.Component` to resolve type resolution errors for class components.
+import * as React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {
@@ -13,7 +13,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
