@@ -94,13 +94,48 @@ export const groupSessionService = {
           subject: subject as any,
           lastActivity: Date.now(),
           isAway: false,
+          dailyFocusTime: 0,
+          lastFocusDate: new Date().toISOString().split('T')[0],
       };
       
-      batch.set(participantRef, participantData);
+      batch.set(participantRef, participantData, { merge: true });
       batch.update(roomRef, { activeCount: increment(1) });
       batch.set(presenceRef, { currentRoomId: roomId });
 
       await batch.commit();
+  },
+
+  updateDailyFocusTime: async (roomId: string, userId: string, durationSeconds: number) => {
+    if (!userId || !roomId) return;
+    const participantRef = doc(db, `rooms/${roomId}/participants`, userId);
+    try {
+        const participantDoc = await getDoc(participantRef);
+        if (!participantDoc.exists()) return;
+
+        const participantData = participantDoc.data() as StudyParticipant;
+        const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+        const batch = writeBatch(db);
+
+        if (participantData.lastFocusDate === todayStr) {
+            // Same day, just increment
+            batch.update(participantRef, {
+                dailyFocusTime: increment(durationSeconds),
+                lastActivity: Date.now(),
+            });
+        } else {
+            // New day, reset time to current duration
+            batch.update(participantRef, {
+                dailyFocusTime: durationSeconds,
+                lastFocusDate: todayStr,
+                lastActivity: Date.now(),
+            });
+        }
+        await batch.commit();
+
+    } catch (e) {
+        console.error("Error updating daily focus time:", e);
+    }
   },
 
   // 4. Update Presence (Heartbeat)

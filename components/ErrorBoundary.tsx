@@ -1,5 +1,3 @@
-// FIX: Import `Component` as a named import from 'react' to resolve issues with type inference for class components.
-// FIX: Using a named import for Component resolves type inference issues for class components.
 import React, { Component } from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
@@ -14,13 +12,15 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: Extend from the imported Component directly.
-// FIX: Extending from `Component` directly ensures correct type inference for props and state.
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+  // FIX: Replaced class property initializer with a constructor to ensure `this.state`, `this.props`, and `this.setState` are correctly bound.
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };

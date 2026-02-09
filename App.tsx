@@ -36,7 +36,7 @@ import {
   X,
   Activity as ActivityIcon
 } from 'lucide-react';
-import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds } from './types';
+import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds, StudyRoom } from './types';
 import { QUOTES, THEME_CONFIG, JEE_SYLLABUS, NEET_SYLLABUS, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
@@ -324,6 +324,13 @@ export const App: React.FC = () => {
   // Focus Subject State (Lifted from FocusTimer)
   const [selectedSubject, setSelectedSubject] = useState<string>('');
 
+  // Group Session State (Lifted from VirtualLibrary)
+  const [currentRoom, setCurrentRoom] = useState<StudyRoom | null>(null);
+
+  // Anti-cheat State
+  const [showInactivityModal, setShowInactivityModal] = useState(false);
+  const inactivityTimerRef = useRef<any>(null);
+
   // Initial subject selection when subjects load
   useEffect(() => {
       if (currentSubjects.length > 0 && !currentSubjects.includes(selectedSubject)) {
@@ -605,6 +612,63 @@ export const App: React.FC = () => {
     }
   }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
 
+  // Sync Timer State with Focus Lounge
+  useEffect(() => {
+    if (!user || !currentRoom) return;
+
+    if (timerState === 'running' && timerMode === 'focus') {
+      const endTime = Date.now() + timeLeft * 1000;
+      groupSessionService.updatePresence(currentRoom.id, user.uid, {
+        status: 'focus',
+        focusEndTime: endTime,
+        subject: selectedSubject as any,
+      });
+    } else {
+      // For paused, idle, or break modes, show as idle in the lounge
+      groupSessionService.updatePresence(currentRoom.id, user.uid, {
+        status: 'idle',
+        focusEndTime: null, // Clear end time
+      });
+    }
+  }, [timerState, currentRoom, user, timeLeft, timerMode, selectedSubject]);
+
+  // Anti-cheat: Inactivity and Tab Visibility Detection
+  useEffect(() => {
+    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+    const handlePauseForInactivity = () => {
+        if (timerState === 'running') {
+            setTimerState('paused');
+            setShowInactivityModal(true);
+        }
+    };
+    
+    const resetInactivityTimer = () => {
+        clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = setTimeout(handlePauseForInactivity, INACTIVITY_TIMEOUT);
+    };
+
+    const handleVisibilityChange = () => {
+        if (document.hidden && timerState === 'running') {
+            handlePauseForInactivity();
+        }
+    };
+
+    if (timerState === 'running') {
+        resetInactivityTimer();
+        window.addEventListener('mousemove', resetInactivityTimer);
+        window.addEventListener('keydown', resetInactivityTimer);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+        clearTimeout(inactivityTimerRef.current);
+        window.removeEventListener('mousemove', resetInactivityTimer);
+        window.removeEventListener('keydown', resetInactivityTimer);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [timerState]);
+
   const showWelcome = !isAuthLoading && !user && !isGuest;
 
   // --- Smart Recommendation Logic ---
@@ -736,23 +800,34 @@ export const App: React.FC = () => {
 
   // ... [Timer logic] ...
   const handleTimerReset = useCallback(() => { setTimerState('idle'); setTimeLeft(timerDurations[timerMode] * 60); }, [timerMode, timerDurations]);
-  const handleCompleteSession = useCallback((elapsedTime?: number) => {
+  const handleCompleteSession = useCallback(async (elapsedTime?: number) => {
+      const MAX_SESSION_SECONDS = 120 * 60; // 120 minutes
       const plannedDuration = timerDurations[timerMode] * 60;
       const effectiveDuration = elapsedTime !== undefined ? elapsedTime : plannedDuration;
       
-      if (effectiveDuration > 60) {
+      // Anti-cheat: Clamp duration to a maximum value
+      const clampedDuration = Math.min(effectiveDuration, MAX_SESSION_SECONDS);
+      
+      if (clampedDuration > 60) { // Only log sessions longer than a minute
          handleSaveSession({ 
            subject: selectedSubject, 
            topic: 'Focus Session', 
            attempted: 0, 
            correct: 0, 
            mistakes: {}, 
-           duration: effectiveDuration,
+           duration: clampedDuration,
            plannedDuration: plannedDuration
          });
       }
+      
+      // Update Focus Lounge daily time if in a room
+      if (user && currentRoom && timerMode === 'focus' && clampedDuration > 60) {
+        await groupSessionService.updateDailyFocusTime(currentRoom.id, user.uid, clampedDuration);
+      }
+
       handleTimerReset();
-  }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset]);
+  }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset, user, currentRoom]);
+
   useEffect(() => {
       if (timerState === 'running') {
           timerRef.current = setInterval(() => {
@@ -768,10 +843,12 @@ export const App: React.FC = () => {
       }
       return () => clearInterval(timerRef.current);
   }, [timerState, timerDurations, timerMode, handleCompleteSession]);
+
   const handleTimerToggle = useCallback(() => {
       if (timerState === 'idle' || timerState === 'paused') { setTimerState('running'); endTimeRef.current = Date.now() + timeLeft * 1000; } 
       else { setTimerState('paused'); clearInterval(timerRef.current); }
   }, [timerState, timeLeft]);
+
   const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => { setTimerMode(mode); setTimerState('idle'); setTimeLeft(timerDurations[mode] * 60); }, [timerDurations]);
   const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus'|'short'|'long') => {
       setTimerDurations(prev => ({ ...prev, [modeKey]: newDuration }));
@@ -808,15 +885,35 @@ export const App: React.FC = () => {
   }, [guestNameInput]);
 
   const handleLogout = useCallback(async () => {
+    if (currentRoom && user) {
+        await groupSessionService.leaveRoom(currentRoom.id, user.uid);
+    }
+    setCurrentRoom(null);
     if (user) await signOut(auth);
     else if (isGuest) { setIsGuest(false); localStorage.removeItem('trackly_is_guest'); localStorage.removeItem('trackly_guest_name'); setUserName(null); }
-  }, [user, isGuest]);
+  }, [user, isGuest, currentRoom]);
 
   const toggleSidebar = useCallback(() => setSidebarCollapsed(p => !p), [setSidebarCollapsed]);
   const toggleSettings = useCallback(() => setIsSettingsOpen(p => !p), []);
   const toggleTutorial = useCallback(() => { setIsTutorialActive(true); setTutorialStep(0); }, []);
   const handleUpgrade = useCallback(() => { setHasPaid(true); }, [setHasPaid]);
   const activateLiteMode = useCallback(() => { setGraphicsEnabled(false); setAnimationsEnabled(false); dismissLag(); }, [dismissLag, setGraphicsEnabled, setAnimationsEnabled]);
+  
+  const InactivityModal = ({ isOpen, onResume }: { isOpen: boolean, onResume: () => void }) => {
+    if (!isOpen) return null;
+    return createPortal(
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+        <Card className="w-full max-w-sm text-center">
+          <h3 className="text-lg font-bold text-theme-text mb-2">Are you still there?</h3>
+          <p className="text-sm text-theme-text-secondary mb-6">The timer was paused due to inactivity.</p>
+          <button onClick={onResume} className="w-full py-3 bg-theme-accent hover:opacity-90 text-theme-text-on-accent rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg transition-all active:scale-95">
+            Resume Session
+          </button>
+        </Card>
+      </div>,
+      document.body
+    );
+  };
 
   return (
     <>
@@ -1005,6 +1102,8 @@ export const App: React.FC = () => {
                                             isPro={isPro}
                                             targets={targets}
                                             onCompleteTask={handleUpdateTarget}
+                                            currentRoom={currentRoom}
+                                            setCurrentRoom={setCurrentRoom}
                                         />
                                     </MotionDiv>
                                 </Suspense>
@@ -1083,6 +1182,14 @@ export const App: React.FC = () => {
                 isOpen={showUpgradeModal} 
                 onClose={() => setShowUpgradeModal(false)} 
                 onUpgrade={handleUpgrade} 
+            />
+            
+            <InactivityModal 
+                isOpen={showInactivityModal}
+                onResume={() => {
+                    setShowInactivityModal(false);
+                    handleTimerToggle();
+                }}
             />
 
             <OverdueTasksModal
