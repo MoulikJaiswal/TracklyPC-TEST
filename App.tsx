@@ -1,3 +1,8 @@
+
+
+
+
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -460,58 +465,58 @@ export const App: React.FC = () => {
   // ... [Audio, DB Ready Effects unchanged] ...
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let profileUnsubscribe: (() => void) | null = null;
+
+    const authUnsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (profileUnsubscribe) {
+        profileUnsubscribe();
+        profileUnsubscribe = null;
+      }
+
       setUser(currentUser);
       if (currentUser) {
-          setAuthStatus('loading_profile');
-          setIsGuest(false);
-          setUserName(currentUser.displayName || 'User');
-          const userDocRef = doc(db, 'users', currentUser.uid);
+        setAuthStatus('loading_profile');
+        setIsGuest(false);
+        setUserName(currentUser.displayName || 'User');
+        const userDocRef = doc(db, 'users', currentUser.uid);
 
-          try {
-            const userDoc = await getDoc(userDocRef);
+        profileUnsubscribe = onSnapshot(userDocRef,
+          async (userDoc) => {
             if (userDoc.exists()) {
-                setUserProfile(userDoc.data() as UserProfile);
+              setUserProfile(userDoc.data() as UserProfile);
             } else {
-                const createUniqueFriendCode = async (name: string, attempt = 0): Promise<string> => {
-                    const code = `${name.replace(/\s+/g, '')}#${Math.floor(1000 + Math.random() * 9000)}`;
-                    if (attempt > 10) throw new Error("Failed to create unique friend code.");
-                    const codeRef = doc(db, 'friendCodes', code);
-                    try {
-                        await runTransaction(db, async (transaction) => {
-                            const codeDoc = await transaction.get(codeRef);
-                            if (codeDoc.exists()) throw new Error("Code already exists.");
-                            transaction.set(codeRef, { uid: currentUser.uid });
-                        });
-                        return code;
-                    } catch (e) {
-                        return createUniqueFriendCode(name, attempt + 1);
-                    }
-                }
-                const friendCode = await createUniqueFriendCode(currentUser.displayName || 'user');
-                const newProfile: UserProfile = {
-                    uid: currentUser.uid,
-                    displayName: currentUser.displayName || 'Anonymous User',
-                    photoURL: currentUser.photoURL,
-                    friendCode: friendCode,
-                };
+              const newProfile: UserProfile = {
+                uid: currentUser.uid,
+                displayName: currentUser.displayName || 'Anonymous User',
+                photoURL: currentUser.photoURL,
+              };
+              try {
                 await setDoc(userDocRef, newProfile);
-                setUserProfile(newProfile);
+              } catch (e) {
+                 console.error("Error creating user profile:", e);
+              }
             }
-          } catch (error) {
-              console.error("Critical error fetching/creating user profile:", error);
-              alert("There was a problem loading your user profile. Please try signing in again.");
-              await signOut(auth);
-          } finally {
-              setAuthStatus('loaded');
+            setAuthStatus('loaded');
+          },
+          (error) => {
+            console.error("Error with user profile subscription:", error);
+            signOut(auth);
+            setAuthStatus('loaded');
           }
+        );
       } else {
-          setUserName(null);
-          setUserProfile(null);
-          setAuthStatus('loaded');
+        setUserName(null);
+        setUserProfile(null);
+        setAuthStatus('loaded');
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      authUnsubscribe();
+      if (profileUnsubscribe) {
+        profileUnsubscribe();
+      }
+    };
   }, []);
 
   // Real-time Presence Management

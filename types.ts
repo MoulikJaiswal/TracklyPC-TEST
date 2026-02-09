@@ -7,6 +7,8 @@
 
 
 
+
+
 export interface MistakeCounts {
   concept?: number;
   calculation?: number;
@@ -199,7 +201,8 @@ export interface UserProfile {
   uid: string;
   displayName: string;
   photoURL: string | null;
-  friendCode: string;
+  studyBuddyUsername?: string;
+  friendCode?: string;
 }
 
 export interface FriendRequest {
