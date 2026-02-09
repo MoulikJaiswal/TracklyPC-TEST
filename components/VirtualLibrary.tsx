@@ -157,6 +157,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
   useEffect(() => {
     if (!user) return;
 
+    // Use the user's selected stream to determine which room's presence list they belong to.
     const myPresenceRef = ref(rtdb, `rooms/${stream}/presence/${user.uid}`);
     const connectedRef = ref(rtdb, '.info/connected');
 
@@ -177,7 +178,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
 
     return () => {
       unsubscribe();
-      remove(myPresenceRef);
+      remove(myPresenceRef); // Clean up on component unmount or stream change
     };
   }, [user, stream]);
 
@@ -195,7 +196,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
       : null;
     
     const updates: Partial<StudyParticipant> = {
-      isOnline: true,
+      isOnline: true, // Always assert online status
       lastActivity: serverTimestamp() as any,
       status: status,
       subject: status === 'focus' ? selectedSubject : (status === 'break' ? 'On Break' : 'In Lounge'),
@@ -206,22 +207,22 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
 
   }, [user, stream, timerState, timeLeft, timerMode, durations, selectedSubject]);
 
-  // Effect 3: A periodic heartbeat to keep the user's `lastActivity` fresh, ensuring they don't appear offline.
+  // Effect 3: A periodic heartbeat to keep the user's `lastActivity` fresh.
   useEffect(() => {
       if (!user) return;
       const myPresenceRef = ref(rtdb, `rooms/${stream}/presence/${user.uid}`);
       const interval = setInterval(() => {
           update(myPresenceRef, {
               lastActivity: serverTimestamp()
-          }).catch(() => {}); // Heartbeat can fail silently if connection is lost.
-      }, 30000); // 30-second heartbeat.
+          }).catch(() => {}); // Heartbeat can fail silently.
+      }, 30000); // 30-second heartbeat is robust enough.
 
       return () => clearInterval(interval);
   }, [user, stream]);
 
   // --- LOBBY & ROOM DATA EFFECTS (REBUILT FOR STABILITY) ---
 
-  // Effect 4: Listen to room counts for the lobby view with robust data handling.
+  // Effect 4: Listen to room counts for the lobby view.
   useEffect(() => {
     if (!user) {
         setIsLoading(false);
@@ -234,10 +235,9 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
         return onValue(roomRef, (snapshot) => {
             const presences = snapshot.val();
             let activeCount = 0;
-            // Robustness check: only process if data is a valid object.
             if (presences && typeof presences === 'object') {
                 const now = Date.now();
-                const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds
+                const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds for safety margin
                 activeCount = Object.values(presences).filter((p: any) => 
                     p && typeof p === 'object' && p.isOnline === true &&
                     typeof p.lastActivity === 'number' && (p.lastActivity > (now - PRESENCE_TIMEOUT))
@@ -259,29 +259,28 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     setIsLoading(true);
     const roomPresenceRef = ref(rtdb, `rooms/${selectedRoom}/presence/`);
     
-    // onValue is the single source of truth for the participant list.
     const unsubscribe = onValue(roomPresenceRef, (snapshot) => {
         const presences = snapshot.val();
 
-        // **CRITICAL GUARD:** This prevents crashes when a room is empty (snapshot.val() is null)
-        // or if the data is malformed. This was the primary source of the crashes.
+        // **CRITICAL CRASH PREVENTION**
+        // If snapshot is null (empty room) or not an object, exit gracefully.
         if (!presences || typeof presences !== 'object') {
             setParticipants([]);
             setIsLoading(false);
-            return; // Exit gracefully.
+            return;
         }
 
         const allInDB = Object.values(presences);
         const now = Date.now();
         const PRESENCE_TIMEOUT = 70 * 1000;
 
-        // Filter and sanitize the data to ensure only valid, active users are processed.
-        // This is a second line of defense against corrupted data making it to the render stage.
         const activeParticipants: StudyParticipant[] = allInDB
             .filter((p: any): p is Partial<StudyParticipant> => 
                 p && typeof p === 'object' && p.isOnline === true && 
                 typeof p.lastActivity === 'number' && p.lastActivity > (now - PRESENCE_TIMEOUT)
             )
+            // **PARANOID SANITIZATION**
+            // Ensure every field is the correct type before it enters the state.
             .map((p: any): StudyParticipant => ({
                 uid: String(p.uid || 'unknown'),
                 displayName: String(p.displayName || 'Anonymous'),
@@ -309,13 +308,13 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
         setParticipants([]); // Clear participants on error
     });
 
-    // The listener is cleaned up automatically when the effect re-runs or component unmounts.
     return () => unsubscribe();
   }, [user, selectedRoom]);
 
+  // --- DERIVED STATE & HANDLERS ---
   const sortedParticipants = useMemo(() => {
     return [...participants].sort((a, b) => {
-      // Crash-proof sorting logic as a final safeguard.
+      // Crash-proof sorting with optional chaining and nullish coalescing.
       if (a?.uid === user?.uid) return -1;
       if (b?.uid === user?.uid) return 1;
       return (a?.displayName ?? '').localeCompare(b?.displayName ?? '');
@@ -332,6 +331,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     setSelectedRoom(null);
   };
   
+  // --- RENDER LOGIC ---
   if (!user) {
       return (
           <div className="flex flex-col items-center justify-center h-full min-h-[500px] text-center p-6 animate-in fade-in duration-500">
