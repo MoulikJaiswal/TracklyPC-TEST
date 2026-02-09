@@ -1,6 +1,5 @@
 
 
-
 export interface MistakeCounts {
   concept?: number;
   formula?: number;
@@ -106,74 +105,11 @@ export interface Note {
   thumbnail?: string | null;
 }
 
-export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'privacy' | 'group-focus';
+export type ViewType = 'daily' | 'planner' | 'focus' | 'tests' | 'analytics' | 'log' | 'privacy' | 'rooms';
 
 export type ThemeId = 'midnight' | 'obsidian' | 'void' | 'forest' | 'morning' | 'earth' | 'default-dark' | 'default-light';
 
 export type StreamType = 'JEE' | 'NEET' | 'General';
-
-// --- VIRTUAL LIBRARY TYPES ---
-
-export interface StudyParticipant {
-  uid: string;
-  displayName: string;
-  photoURL?: string | null;
-  // We use this timestamp to filter out "ghosts" (people who closed the tab hours ago)
-  lastActivity: number; 
-  isOnline?: boolean; // New flag for RTDB presence
-  
-  // Real-time State (Event Based)
-  status: 'focus' | 'break' | 'idle';
-  subject: string;
-  
-  // If focusing
-  focusEndTime?: number; // Timestamp when their timer rings
-  focusDuration?: number; // Total minutes (for progress bar calc)
-  intention?: string; // The specific task/goal they are working on
-  accumulatedFocusTime?: number; // Total minutes focused in this session
-  
-  // New Engagement Fields
-  isAway?: boolean; // True if AFK > 5 mins
-  
-  // New fields for leaderboard
-  dailyFocusTime?: number;
-  weeklyFocusTime?: number;
-  lastFocusDate?: string; // YYYY-MM-DD
-  lastFocusWeek?: number; // Week number of the year
-}
-
-export interface StudyRoom {
-  id: string;
-  name: string;
-  topic: string;
-  description: string;
-  color: string;
-  activeCount: number;
-  createdBy?: string; // User ID who created it
-  createdAt?: number;
-  isSystem?: boolean; // If true, cannot be deleted by users
-  status?: 'active' | 'closing'; // Soft delete state
-  isPrivate?: boolean; // If true, hidden from lobby list
-}
-
-// --- FOCUS ROOM TYPES FOR TIMER HOOK ---
-
-export interface FocusRoomState {
-  status: 'waiting' | 'break' | 'completed';
-  startTime?: number;
-  endTime?: number;
-  pausedAt?: number;
-}
-
-export interface FocusRoomConfig {
-  focusDuration: number;
-}
-
-export interface FocusRoom {
-  id: string;
-  state: FocusRoomState;
-  config: FocusRoomConfig;
-}
 
 export type SyllabusData = Record<string, string[]>;
 
@@ -181,4 +117,51 @@ export interface ActivityThresholds {
   level2: number; // in minutes
   level3: number; // in minutes
   level4: number; // in minutes
+}
+
+// --- New Types for Focus Rooms (RTDB) ---
+export type ParticipantStatus = 'idle' | 'focus' | 'break';
+
+export interface StudyParticipant {
+  uid: string;
+  displayName: string;
+  photoURL: string | null;
+  lastActivity: number;
+  isOnline: boolean;
+  status: ParticipantStatus;
+  subject?: string;
+  focusEndTime?: number;
+  focusDuration?: number;
+  intention?: string;
+  accumulatedFocusTime?: number;
+  isAway?: boolean;
+  dailyFocusTime?: number;
+  weeklyFocusTime?: number;
+  lastFocusDate?: string;
+  lastFocusWeek?: number;
+}
+// FIX: Added missing StudyRoom interface for Firestore-based rooms.
+export interface StudyRoom {
+  id: string;
+  name: string;
+  stream: StreamType;
+  isPrivate: boolean;
+  password?: string;
+  createdBy: string;
+  createdAt: number;
+  activeCount: number;
+  status: 'active' | 'closing';
+}
+
+// FIX: Added missing FocusRoom interface for RTDB group timer.
+export interface FocusRoom {
+  config: {
+    focusDuration: number;
+  };
+  state: {
+    status: 'waiting' | 'running' | 'paused' | 'completed';
+    startTime?: number;
+    endTime?: number;
+    pausedAt?: number;
+  };
 }

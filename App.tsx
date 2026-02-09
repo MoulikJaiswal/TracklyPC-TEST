@@ -33,8 +33,8 @@ import {
   Check, 
   Trash2, 
   X,
-  Activity as ActivityIcon,
-  Users
+  Users,
+  Activity as ActivityIcon
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds } from './types';
 import { QUOTES, THEME_CONFIG, JEE_SYLLABUS, NEET_SYLLABUS, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
@@ -68,7 +68,7 @@ const FocusTimer = lazy(() => import('./components/FocusTimer'));
 const Planner = lazy(() => import('./components/Planner'));
 const TestLog = lazy(() => import('./components/TestLog'));
 const Analytics = lazy(() => import('./components/Analytics'));
-const VirtualLibrary = lazy(() => import('./components/VirtualLibrary'));
+const FocusRooms = lazy(() => import('./components/FocusRooms'));
 
 const MotionDiv = motion.div as any;
 
@@ -130,7 +130,7 @@ const TABS = [
   { id: 'daily', label: 'Home', icon: LayoutDashboard },
   { id: 'planner', label: 'Plan', icon: CalendarIcon },
   { id: 'focus', label: 'Focus', icon: Timer },
-  { id: 'group-focus', label: 'Focus Lounge', icon: Users },
+  { id: 'rooms', label: 'Rooms', icon: Users },
   { id: 'tests', label: 'Tests', icon: PenTool },
   { id: 'analytics', label: 'Stats', icon: BarChart3 },
 ];
@@ -887,6 +887,32 @@ export const App: React.FC = () => {
                                     </MotionDiv>
                                 </Suspense>
                             )}
+                            {view === 'rooms' && (
+                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
+                                    <MotionDiv
+                                        key="rooms"
+                                        custom={direction}
+                                        variants={effectiveSwipe ? slideVariants : fadeVariants}
+                                        initial="enter"
+                                        animate="center"
+                                        exit="exit"
+                                        transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
+                                    >
+                                       <FocusRooms
+                                          user={user}
+                                          userName={userName}
+                                          onLogin={handleLogin}
+                                          isPro={isPro}
+                                          timerState={timerState}
+                                          timeLeft={timeLeft}
+                                          timerMode={timerMode}
+                                          durations={timerDurations}
+                                          selectedSubject={selectedSubject}
+                                          stream={stream}
+                                       />
+                                    </MotionDiv>
+                                </Suspense>
+                            )}
                             {view === 'tests' && (
                                 <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
                                     <MotionDiv
@@ -924,32 +950,6 @@ export const App: React.FC = () => {
                                             onOpenUpgrade={() => setShowUpgradeModal(true)}
                                             stream={stream}
                                             syllabus={currentSyllabus}
-                                        />
-                                    </MotionDiv>
-                                </Suspense>
-                            )}
-                            {view === 'group-focus' && (
-                                <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
-                                    <MotionDiv
-                                        key="group-focus"
-                                        custom={direction}
-                                        variants={effectiveSwipe ? slideVariants : fadeVariants}
-                                        initial="enter"
-                                        animate="center"
-                                        exit="exit"
-                                        transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
-                                    >
-                                        <VirtualLibrary 
-                                            user={user}
-                                            userName={userName}
-                                            onLogin={handleLogin}
-                                            isPro={isPro}
-                                            timerState={timerState}
-                                            timeLeft={timeLeft}
-                                            timerMode={timerMode}
-                                            durations={timerDurations}
-                                            selectedSubject={selectedSubject}
-                                            stream={stream}
                                         />
                                     </MotionDiv>
                                 </Suspense>
