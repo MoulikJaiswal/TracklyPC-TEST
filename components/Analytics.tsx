@@ -6,14 +6,13 @@ import {
   Target, Trophy, Brain, TrendingUp, Zap, Atom, Calculator, Grid, Lock, Crown,
   X, CheckCircle2, AlertCircle, Clock, PieChart, Activity, Calendar, Dna, BookOpen, Globe, Landmark, Feather, Info
 } from 'lucide-react';
-import { Session, TestResult, MistakeCounts, StreamType, SyllabusData } from '../types';
+import { Session, MistakeCounts, StreamType, SyllabusData } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES, ALL_SYLLABUS, STREAM_SUBJECTS } from '../constants';
 import { AdUnit } from './AdUnit';
 
 interface AnalyticsProps {
   sessions: Session[];
-  tests: TestResult[];
   isPro: boolean;
   onOpenUpgrade: () => void;
   stream: StreamType;
@@ -338,7 +337,7 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream, syllabus
   );
 });
 
-const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPro, onOpenUpgrade, stream, syllabus }: AnalyticsProps) => {
+const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, isPro, onOpenUpgrade, stream, syllabus }) => {
     return (
         <div id="analytics-container" className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20">
             <div>

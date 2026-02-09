@@ -1,4 +1,4 @@
-// FIX: Changed React import from namespace (`import * as React`) to default (`import React`) to resolve type resolution errors for class component properties like `this.props` and `this.setState`.
+
 import React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
@@ -13,11 +13,17 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+// FIX: Rewrote methods to use constructor binding to ensure `this` is correctly scoped, as arrow function properties were causing type errors.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+    this.handleReset = this.handleReset.bind(this);
+    this.handleReload = this.handleReload.bind(this);
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -33,16 +39,16 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   }
 
-  handleReset = () => {
+  handleReset() {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
     }
-  };
+  }
 
-  handleReload = () => {
+  handleReload() {
     window.location.reload();
-  };
+  }
 
   render() {
     if (this.state.hasError) {

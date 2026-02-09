@@ -1,12 +1,15 @@
 
 
+
+
+
+
+
 export interface MistakeCounts {
   concept?: number;
-  formula?: number;
-  calc?: number;
-  read?: number;
-  panic?: number;
-  overthink?: number;
+  calculation?: number;
+  silly?: number;
+  time?: number;
 }
 
 export interface Session {
@@ -34,9 +37,16 @@ export interface SubjectBreakdown {
   correct: number;
   incorrect: number;
   unattempted: number;
-  calcErrors: number;
-  otherErrors: number;
+  timeSpent?: number; // in minutes
   mistakes?: MistakeCounts;
+  marks?: number; // For custom mark entry
+  total?: number; // For custom mark entry
+}
+
+export interface MarkingScheme {
+  correct: number;
+  incorrect: number;
+  unattempted: number;
 }
 
 export interface TestResult {
@@ -45,21 +55,27 @@ export interface TestResult {
   date: string;
   marks: number;
   total: number;
+  duration?: number; // in minutes
   temperament: 'Calm' | 'Anxious' | 'Focused' | 'Fatigued';
-  type?: 'full' | 'part'; // New field
-  syllabus?: SyllabusData;
-  testType?: 'Generic' | 'PYP' | 'Coaching Mock';
-  pypYear?: number;
-  pypSession?: string;
-  coachingName?: string;
-  analysis?: string; // Legacy field
+  
+  examType: 'JEE Main' | 'JEE Advanced' | 'NEET' | 'Custom / General';
+  markingScheme?: MarkingScheme;
+
+  testScope?: 'Full' | 'Part';
+  partTestChapters?: Record<string, string[]>;
+  
   breakdown?: Record<string, SubjectBreakdown>;
+  
+  weakTopics?: string[];
+  postTestNotes?: string;
+
   timestamp: number;
+  stream?: StreamType;
+
   attachment?: string | null;
   attachmentType?: 'image' | 'pdf' | null;
   fileName?: string | null;
-  thumbnail?: string | null;
-  stream?: StreamType;
+  coachingName?: string;
 }
 
 export interface Target {
@@ -95,10 +111,8 @@ export interface Note {
   tags?: string[];
   type?: 'text' | 'image' | 'pdf';
 
-  // For type='text' notes
   attachments?: Attachment[];
 
-  // For type='image' or 'pdf' notes
   attachment?: string | null;
   fileName?: string | null;
   
@@ -117,28 +131,23 @@ export interface StudyParticipant {
   uid: string;
   displayName: string;
   photoURL?: string | null;
-  // We use this timestamp to filter out "ghosts" (people who closed the tab hours ago)
   lastActivity: number; 
-  isOnline?: boolean; // New flag for RTDB presence
+  isOnline?: boolean;
   
-  // Real-time State (Event Based)
   status: 'focus' | 'break' | 'idle';
   subject: 'Physics' | 'Chemistry' | 'Maths' | 'Biology' | 'Other';
   
-  // If focusing
-  focusEndTime?: number; // Timestamp when their timer rings
-  focusDuration?: number; // Total minutes (for progress bar calc)
-  intention?: string; // The specific task/goal they are working on
-  accumulatedFocusTime?: number; // Total minutes focused in this session
+  focusEndTime?: number;
+  focusDuration?: number;
+  intention?: string;
+  accumulatedFocusTime?: number;
   
-  // New Engagement Fields
-  isAway?: boolean; // True if AFK > 5 mins
+  isAway?: boolean;
   
-  // New fields for leaderboard
   dailyFocusTime?: number;
   weeklyFocusTime?: number;
-  lastFocusDate?: string; // YYYY-MM-DD
-  lastFocusWeek?: number; // Week number of the year
+  lastFocusDate?: string;
+  lastFocusWeek?: number;
 }
 
 export interface StudyRoom {
@@ -148,12 +157,12 @@ export interface StudyRoom {
   description: string;
   color: string;
   activeCount: number;
-  createdBy?: string; // User ID who created it
+  createdBy?: string;
   createdAt?: number;
-  isSystem?: boolean; // If true, cannot be deleted by users
-  status?: 'active' | 'closing'; // Soft delete state
-  isPrivate?: boolean; // If true, hidden from lobby list
-  roomCode?: string; // Unique 6-digit code for private rooms
+  isSystem?: boolean;
+  status?: 'active' | 'closing';
+  isPrivate?: boolean;
+  roomCode?: string;
 }
 
 // --- FOCUS ROOM TYPES FOR TIMER HOOK ---

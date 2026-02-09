@@ -1,5 +1,6 @@
 
 
+
 import React from 'react';
 import { 
   Zap, 
@@ -160,7 +161,6 @@ export const NEET_SYLLABUS = {
   Biology: BIOLOGY_SYLLABUS
 };
 
-// General Syllabus defaults - user can override
 export const GENERAL_DEFAULT_SYLLABUS = {
     'Maths': ['Algebra', 'Calculus', 'Geometry', 'Statistics', 'Trigonometry'],
     'Physics': ['Mechanics', 'Thermodynamics', 'Electromagnetism', 'Optics', 'Modern Physics'],
@@ -182,13 +182,27 @@ export const STREAM_SUBJECTS = {
   General: ['Maths', 'Physics', 'Chemistry', 'English', 'History', 'Geography']
 };
 
+export const EXAM_PRESETS = {
+  'JEE Main': {
+    markingScheme: { correct: 4, incorrect: -1, unattempted: 0 },
+  },
+  'JEE Advanced': {
+    // Simplified; real advanced has variable marking. This is a good default.
+    markingScheme: { correct: 3, incorrect: -1, unattempted: 0 },
+  },
+  'NEET': {
+    markingScheme: { correct: 4, incorrect: -1, unattempted: 0 },
+  },
+  'Custom / General': {
+    markingScheme: { correct: 1, incorrect: 0, unattempted: 0 },
+  }
+};
+
 export const MISTAKE_TYPES = [
   { id: 'concept', label: 'Concept Gap', color: 'text-orange-400', icon: <Brain size={14} /> },
-  { id: 'formula', label: 'Formula Recall', color: 'text-blue-400', icon: <Zap size={14} /> },
-  { id: 'calc', label: 'Calculation/Algebra', color: 'text-rose-400', icon: <Divide size={14} /> },
-  { id: 'read', label: 'Misread Question', color: 'text-emerald-400', icon: <Eye size={14} /> },
-  { id: 'panic', label: 'Time Pressure', color: 'text-purple-400', icon: <Timer size={14} /> },
-  { id: 'overthink', label: 'Overthinking', color: 'text-yellow-400', icon: <AlertCircle size={14} /> },
+  { id: 'calculation', label: 'Calculation Error', color: 'text-rose-400', icon: <Divide size={14} /> },
+  { id: 'silly', label: 'Silly Mistake', color: 'text-yellow-400', icon: <Wind size={14} /> },
+  { id: 'time', label: 'Time Pressure', color: 'text-purple-400', icon: <Timer size={14} /> },
 ] as const;
 
 export const THEME_CONFIG: Record<ThemeId, {
