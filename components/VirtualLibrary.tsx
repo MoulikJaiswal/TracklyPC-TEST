@@ -151,7 +151,9 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Effect 1: Manages joining/leaving a room and setting up the onDisconnect handler.
+  // --- PRESENCE & STATUS EFFECTS ---
+
+  // Effect 1: Core RTDB connection and onDisconnect handler for user's own presence.
   useEffect(() => {
     if (!user) return;
 
@@ -179,7 +181,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     };
   }, [user, stream]);
 
-  // Effect 2: Updates the user's real-time status based on timer activity.
+  // Effect 2: Update user's own status in RTDB based on timer activity.
   useEffect(() => {
     if (!user) return;
 
@@ -193,7 +195,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
       : null;
     
     const updates: Partial<StudyParticipant> = {
-      isOnline: true, // Always assert online status on any update
+      isOnline: true,
       lastActivity: serverTimestamp() as any,
       status: status,
       subject: status === 'focus' ? selectedSubject : (status === 'break' ? 'On Break' : 'In Lounge'),
@@ -204,20 +206,22 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
 
   }, [user, stream, timerState, timeLeft, timerMode, durations, selectedSubject]);
 
-  // Effect 3: A periodic heartbeat to keep the user's `lastActivity` fresh.
+  // Effect 3: A periodic heartbeat to keep the user's `lastActivity` fresh, ensuring they don't appear offline.
   useEffect(() => {
       if (!user) return;
       const myPresenceRef = ref(rtdb, `rooms/${stream}/presence/${user.uid}`);
       const interval = setInterval(() => {
           update(myPresenceRef, {
               lastActivity: serverTimestamp()
-          }).catch(() => {}); // Heartbeat can fail silently
-      }, 30000); // Send heartbeat every 30 seconds
+          }).catch(() => {}); // Heartbeat can fail silently if connection is lost.
+      }, 30000); // 30-second heartbeat.
 
       return () => clearInterval(interval);
   }, [user, stream]);
 
-  // Effect to listen to room counts for the lobby view
+  // --- LOBBY & ROOM DATA EFFECTS (REBUILT FOR STABILITY) ---
+
+  // Effect 4: Listen to room counts for the lobby view with robust data handling.
   useEffect(() => {
     if (!user) {
         setIsLoading(false);
@@ -230,15 +234,13 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
         return onValue(roomRef, (snapshot) => {
             const presences = snapshot.val();
             let activeCount = 0;
+            // Robustness check: only process if data is a valid object.
             if (presences && typeof presences === 'object') {
                 const now = Date.now();
                 const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds
                 activeCount = Object.values(presences).filter((p: any) => 
-                    p && 
-                    typeof p === 'object' &&
-                    p.isOnline === true &&
-                    typeof p.lastActivity === 'number' && 
-                    (p.lastActivity > (now - PRESENCE_TIMEOUT))
+                    p && typeof p === 'object' && p.isOnline === true &&
+                    typeof p.lastActivity === 'number' && (p.lastActivity > (now - PRESENCE_TIMEOUT))
                 ).length;
             }
             setRoomCounts(prev => ({ ...prev, [roomName]: activeCount }));
@@ -248,83 +250,75 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     return () => unsubscribes.forEach(unsub => unsub());
   }, [user]);
 
-  // Effect to fetch participants when a room is selected
+  // Effect 5: Rebuilt logic to fetch participants for a selected room.
   useEffect(() => {
     if (!user || !selectedRoom) {
       setParticipants([]);
       return;
     }
     setIsLoading(true);
-    const db = rtdb;
-    const roomPresenceRef = ref(db, `rooms/${selectedRoom}/presence/`);
+    const roomPresenceRef = ref(rtdb, `rooms/${selectedRoom}/presence/`);
     
-    const interval = setInterval(() => {
-        setParticipants(prev => {
-            const now = Date.now();
-            const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds
-            return prev.filter(p => p && typeof p === 'object' && p.isOnline && p.lastActivity && (now - p.lastActivity < PRESENCE_TIMEOUT));
-        });
-    }, 10000);
-
+    // onValue is the single source of truth for the participant list.
     const unsubscribe = onValue(roomPresenceRef, (snapshot) => {
         const presences = snapshot.val();
-        let activeParticipants: StudyParticipant[] = [];
-        
-        if (presences && typeof presences === 'object') {
-            const allInDB = Object.values(presences);
-            const now = Date.now();
-            const PRESENCE_TIMEOUT = 70 * 1000;
 
-            activeParticipants = allInDB
-                .filter((p: any): p is Partial<StudyParticipant> => 
-                    p && 
-                    typeof p === 'object' &&
-                    p.isOnline === true && 
-                    typeof p.lastActivity === 'number' &&
-                    p.lastActivity > (now - PRESENCE_TIMEOUT)
-                )
-                .map((p: any): StudyParticipant => ({
-                    uid: String(p.uid || 'unknown'),
-                    displayName: String(p.displayName || 'Anonymous'),
-                    photoURL: typeof p.photoURL === 'string' ? p.photoURL : null,
-                    lastActivity: p.lastActivity,
-                    isOnline: true,
-                    status: ['focus', 'break', 'idle'].includes(p.status) ? p.status : 'idle',
-                    subject: String(p.subject || ''),
-                    focusEndTime: typeof p.focusEndTime === 'number' ? p.focusEndTime : undefined,
-                    focusDuration: typeof p.focusDuration === 'number' ? p.focusDuration : undefined,
-                    // FIX: Sanitize all remaining fields to prevent bad data from reaching the state.
-                    intention: typeof p.intention === 'string' ? p.intention : undefined,
-                    accumulatedFocusTime: typeof p.accumulatedFocusTime === 'number' ? p.accumulatedFocusTime : undefined,
-                    isAway: typeof p.isAway === 'boolean' ? p.isAway : undefined,
-                    dailyFocusTime: typeof p.dailyFocusTime === 'number' ? p.dailyFocusTime : undefined,
-                    weeklyFocusTime: typeof p.weeklyFocusTime === 'number' ? p.weeklyFocusTime : undefined,
-                    lastFocusDate: typeof p.lastFocusDate === 'string' ? p.lastFocusDate : undefined,
-                    lastFocusWeek: typeof p.lastFocusWeek === 'number' ? p.lastFocusWeek : undefined,
-                }));
+        // **CRITICAL GUARD:** This prevents crashes when a room is empty (snapshot.val() is null)
+        // or if the data is malformed. This was the primary source of the crashes.
+        if (!presences || typeof presences !== 'object') {
+            setParticipants([]);
+            setIsLoading(false);
+            return; // Exit gracefully.
         }
+
+        const allInDB = Object.values(presences);
+        const now = Date.now();
+        const PRESENCE_TIMEOUT = 70 * 1000;
+
+        // Filter and sanitize the data to ensure only valid, active users are processed.
+        // This is a second line of defense against corrupted data making it to the render stage.
+        const activeParticipants: StudyParticipant[] = allInDB
+            .filter((p: any): p is Partial<StudyParticipant> => 
+                p && typeof p === 'object' && p.isOnline === true && 
+                typeof p.lastActivity === 'number' && p.lastActivity > (now - PRESENCE_TIMEOUT)
+            )
+            .map((p: any): StudyParticipant => ({
+                uid: String(p.uid || 'unknown'),
+                displayName: String(p.displayName || 'Anonymous'),
+                photoURL: typeof p.photoURL === 'string' ? p.photoURL : null,
+                lastActivity: p.lastActivity,
+                isOnline: true,
+                status: ['focus', 'break', 'idle'].includes(p.status) ? p.status : 'idle',
+                subject: String(p.subject || ''),
+                focusEndTime: typeof p.focusEndTime === 'number' ? p.focusEndTime : undefined,
+                focusDuration: typeof p.focusDuration === 'number' ? p.focusDuration : undefined,
+                intention: typeof p.intention === 'string' ? p.intention : undefined,
+                accumulatedFocusTime: typeof p.accumulatedFocusTime === 'number' ? p.accumulatedFocusTime : undefined,
+                isAway: typeof p.isAway === 'boolean' ? p.isAway : undefined,
+                dailyFocusTime: typeof p.dailyFocusTime === 'number' ? p.dailyFocusTime : undefined,
+                weeklyFocusTime: typeof p.weeklyFocusTime === 'number' ? p.weeklyFocusTime : undefined,
+                lastFocusDate: typeof p.lastFocusDate === 'string' ? p.lastFocusDate : undefined,
+                lastFocusWeek: typeof p.lastFocusWeek === 'number' ? p.lastFocusWeek : undefined,
+            }));
         
         setParticipants(activeParticipants);
         setIsLoading(false);
-    }, () => setIsLoading(false));
+    }, (error) => {
+        console.error("Firebase RTDB error in Focus Lounge:", error);
+        setIsLoading(false);
+        setParticipants([]); // Clear participants on error
+    });
 
-    return () => {
-      unsubscribe();
-      clearInterval(interval);
-    };
+    // The listener is cleaned up automatically when the effect re-runs or component unmounts.
+    return () => unsubscribe();
   }, [user, selectedRoom]);
 
   const sortedParticipants = useMemo(() => {
     return [...participants].sort((a, b) => {
-      // FIX: Add optional chaining (?.) and nullish coalescing (??) to prevent crashes
-      // if participant objects (a, b) or their properties are malformed (null/undefined).
-      // This makes the sorting logic robust against unexpected data shapes.
+      // Crash-proof sorting logic as a final safeguard.
       if (a?.uid === user?.uid) return -1;
       if (b?.uid === user?.uid) return 1;
-      
-      const nameA = a?.displayName ?? '';
-      const nameB = b?.displayName ?? '';
-      return nameA.localeCompare(nameB);
+      return (a?.displayName ?? '').localeCompare(b?.displayName ?? '');
     });
   }, [participants, user]);
 
