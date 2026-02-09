@@ -1,14 +1,4 @@
 
-
-
-
-
-
-
-
-
-
-
 export interface MistakeCounts {
   concept?: number;
   calculation?: number;

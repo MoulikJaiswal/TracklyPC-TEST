@@ -1,8 +1,4 @@
 
-
-
-
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -485,6 +481,7 @@ export const App: React.FC = () => {
             if (userDoc.exists()) {
               setUserProfile(userDoc.data() as UserProfile);
             } else {
+              // Creating a minimal profile if it doesn't exist
               const newProfile: UserProfile = {
                 uid: currentUser.uid,
                 displayName: currentUser.displayName || 'Anonymous User',

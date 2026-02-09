@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { User } from 'firebase/auth';
 import { UserProfile, Friend, FriendRequest, PresenceState } from '../types';
