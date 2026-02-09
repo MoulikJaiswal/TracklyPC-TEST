@@ -716,7 +716,16 @@ export const App: React.FC = () => {
   const migrateGuestDataToFirebase = useCallback(async (uid: string) => {
     // ... migration logic
   }, [customSyllabus]);
-  const handleLogin = useCallback(async () => { /* ... */ }, []);
+
+  const handleLogin = useCallback(async () => {
+      try {
+          const result = await signInWithPopup(auth, googleProvider);
+          // User state is handled by onAuthStateChanged observer
+      } catch (error) {
+          console.error("Login failed:", error);
+      }
+  }, []);
+
   const handleGuestLogin = useCallback((name: string) => {
       if (!name.trim()) return;
       localStorage.setItem('trackly_guest_name', name.trim());
@@ -724,7 +733,33 @@ export const App: React.FC = () => {
       localStorage.setItem('trackly_is_guest', 'true');
       setUserName(name.trim());
   }, []);
-  const handleLogout = useCallback(async () => { /* ... */ }, [user, isGuest]);
+
+  const handleLogout = useCallback(async () => {
+      try {
+        if (user) {
+          // Set offline status in RTDB before signing out
+          const userStatusRef = ref(rtdb, `/status/${user.uid}`);
+          await set(userStatusRef, { isOnline: false, lastChanged: serverTimestamp() });
+          await signOut(auth);
+        }
+        
+        // Clear Local State
+        setIsGuest(false);
+        setUser(null);
+        setUserProfile(null);
+        setUserName(null);
+        
+        // Clear Guest Markers
+        localStorage.removeItem('trackly_is_guest');
+        localStorage.removeItem('trackly_guest_name');
+        
+        // Reset View
+        setView('daily');
+        
+      } catch (error) {
+        console.error("Error signing out:", error);
+      }
+  }, [user]);
 
   const toggleSidebar = useCallback(() => setSidebarCollapsed(p => !p), [setSidebarCollapsed]);
   const toggleSettings = useCallback(() => setIsSettingsOpen(p => !p), []);
