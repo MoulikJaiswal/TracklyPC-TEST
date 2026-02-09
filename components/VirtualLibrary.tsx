@@ -165,8 +165,6 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
           displayName: user.displayName || 'Anonymous',
           photoURL: user.photoURL,
           isOnline: true,
-          // FIX: Add lastActivity and initial status on connection.
-          // This ensures new users are immediately visible and not filtered out as inactive.
           lastActivity: serverTimestamp() as any,
           status: 'idle',
         };
@@ -233,12 +231,15 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
             const presences = snapshot.val();
             let activeCount = 0;
             if (presences && typeof presences === 'object') {
-                // FIX: Filter by lastActivity to remove "ghost" users from the count,
-                // ensuring the online count is accurate.
                 const now = Date.now();
                 const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds
+                // FIX: Add stricter type checks to prevent errors when calculating count.
                 activeCount = Object.values(presences).filter((p: any) => 
-                    p && p.isOnline && p.lastActivity && (p.lastActivity > (now - PRESENCE_TIMEOUT))
+                    p && 
+                    typeof p === 'object' &&
+                    p.isOnline === true &&
+                    typeof p.lastActivity === 'number' && 
+                    (p.lastActivity > (now - PRESENCE_TIMEOUT))
                 ).length;
             }
             setRoomCounts(prev => ({ ...prev, [roomName]: activeCount }));
@@ -262,8 +263,8 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
         setParticipants(prev => {
             const now = Date.now();
             const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds
-            // Add check for p.lastActivity to prevent NaN errors
-            return prev.filter(p => p && p.isOnline && p.lastActivity && (now - p.lastActivity < PRESENCE_TIMEOUT));
+            // FIX: Add robust check to periodic cleanup filter.
+            return prev.filter(p => p && typeof p === 'object' && p.isOnline && p.lastActivity && (now - p.lastActivity < PRESENCE_TIMEOUT));
         });
     }, 10000);
 
@@ -272,13 +273,38 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
         let activeParticipants: StudyParticipant[] = [];
         
         if (presences && typeof presences === 'object') {
-            const allInDB = Object.values(presences) as StudyParticipant[];
+            const allInDB = Object.values(presences);
             const now = Date.now();
             const PRESENCE_TIMEOUT = 70 * 1000;
 
-            activeParticipants = allInDB.filter(p => {
-                return p && typeof p === 'object' && p.isOnline && p.lastActivity && (p.lastActivity > (now - PRESENCE_TIMEOUT));
-            });
+            // FIX: Implement robust data sanitization to prevent crashes from invalid data types.
+            // This filters out invalid records and then maps the valid ones to a clean, typed object.
+            activeParticipants = allInDB
+                .filter((p: any): p is Partial<StudyParticipant> => 
+                    p && 
+                    typeof p === 'object' &&
+                    p.isOnline === true && 
+                    typeof p.lastActivity === 'number' &&
+                    p.lastActivity > (now - PRESENCE_TIMEOUT)
+                )
+                .map((p: any): StudyParticipant => ({
+                    uid: String(p.uid || 'unknown'),
+                    displayName: String(p.displayName || 'Anonymous'),
+                    photoURL: typeof p.photoURL === 'string' ? p.photoURL : null,
+                    lastActivity: p.lastActivity,
+                    isOnline: true,
+                    status: ['focus', 'break', 'idle'].includes(p.status) ? p.status : 'idle',
+                    subject: String(p.subject || ''),
+                    focusEndTime: typeof p.focusEndTime === 'number' ? p.focusEndTime : undefined,
+                    focusDuration: typeof p.focusDuration === 'number' ? p.focusDuration : undefined,
+                    intention: p.intention,
+                    accumulatedFocusTime: p.accumulatedFocusTime,
+                    isAway: p.isAway,
+                    dailyFocusTime: p.dailyFocusTime,
+                    weeklyFocusTime: p.weeklyFocusTime,
+                    lastFocusDate: p.lastFocusDate,
+                    lastFocusWeek: p.lastFocusWeek,
+                }));
         }
         
         setParticipants(activeParticipants);
