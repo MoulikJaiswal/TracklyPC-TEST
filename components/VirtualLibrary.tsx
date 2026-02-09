@@ -152,7 +152,6 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   // Effect 1: Manages joining/leaving a room and setting up the onDisconnect handler.
-  // This runs ONLY when the user or their selected stream changes.
   useEffect(() => {
     if (!user) return;
 
@@ -161,8 +160,6 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
 
     const unsubscribe = onValue(connectedRef, (snap) => {
       if (snap.val() === true) {
-        // We're connected (or reconnected). Set initial presence and onDisconnect handler.
-        // This object contains the core, slowly-changing user info.
         const initialPresence: Partial<StudyParticipant> = {
           uid: user.uid,
           displayName: user.displayName || 'Anonymous',
@@ -174,16 +171,13 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
       }
     });
 
-    // Cleanup function for this effect.
-    // Runs when component unmounts OR when `stream` changes (user switches rooms).
     return () => {
-      unsubscribe(); // Detach the `connected` listener.
-      remove(myPresenceRef); // Cleanly remove user from the room.
+      unsubscribe();
+      remove(myPresenceRef);
     };
   }, [user, stream]);
 
-  // Effect 2: Updates the user's real-time status (focusing, break, subject).
-  // This runs when the timer state changes. It uses `update` to prevent flickering.
+  // Effect 2: Updates the user's real-time status based on timer activity.
   useEffect(() => {
     if (!user) return;
 
@@ -192,25 +186,34 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     const isSessionActive = timerState === 'running';
     const status = isSessionActive ? (timerMode === 'focus' ? 'focus' : 'break') : 'idle';
     
-    // `focusEndTime` is only set when a session STARTS or RESUMES.
-    // It's a fixed timestamp. Other clients use this to calculate the countdown.
     const focusEndTime = (timerState === 'running' && timeLeft > 0)
       ? Date.now() + timeLeft * 1000
       : null;
     
     const updates: Partial<StudyParticipant> = {
+      isOnline: true, // Always assert online status on any update
       lastActivity: serverTimestamp() as any,
       status: status,
       subject: status === 'focus' ? selectedSubject : (status === 'break' ? 'On Break' : 'In Lounge'),
       focusEndTime: focusEndTime,
-      focusDuration: isSessionActive ? durations[timerMode] * 60 : null,
+      focusDuration: isSessionActive ? durations[timerMode] * 60 : undefined,
     };
-
-    // Use `update` to change only specific fields without removing/re-adding the user.
-    // This is the fix for the flickering/disappearing issue.
     update(myPresenceRef, updates);
 
   }, [user, stream, timerState, timeLeft, timerMode, durations, selectedSubject]);
+
+  // Effect 3: A periodic heartbeat to keep the user's `lastActivity` fresh.
+  useEffect(() => {
+      if (!user) return;
+      const myPresenceRef = ref(rtdb, `rooms/${stream}/presence/${user.uid}`);
+      const interval = setInterval(() => {
+          update(myPresenceRef, {
+              lastActivity: serverTimestamp()
+          }).catch(() => {}); // Heartbeat can fail silently
+      }, 30000); // Send heartbeat every 30 seconds
+
+      return () => clearInterval(interval);
+  }, [user, stream]);
 
   // Effect to listen to room counts for the lobby view
   useEffect(() => {
@@ -223,7 +226,9 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     const unsubscribes = roomKeys.map(roomName => {
         const roomRef = ref(db, `rooms/${roomName}/presence`);
         return onValue(roomRef, (snapshot) => {
-            setRoomCounts(prev => ({ ...prev, [roomName]: snapshot.size }));
+            const presences = snapshot.val() || {};
+            const activeCount = Object.values(presences).filter((p: any) => p && p.isOnline).length;
+            setRoomCounts(prev => ({ ...prev, [roomName]: activeCount }));
         });
     });
     setIsLoading(false);
@@ -239,14 +244,35 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     setIsLoading(true);
     const db = rtdb;
     const roomPresenceRef = ref(db, `rooms/${selectedRoom}/presence/`);
+    
+    // Set up a periodic check to clear out ghosts, supplementing onDisconnect
+    const interval = setInterval(() => {
+        setParticipants(prev => {
+            const now = Date.now();
+            const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds, a bit more than 2x heartbeat
+            return prev.filter(p => p && p.isOnline && (now - p.lastActivity < PRESENCE_TIMEOUT));
+        });
+    }, 10000); // Check every 10 seconds
+
     const unsubscribe = onValue(roomPresenceRef, (snapshot) => {
         const presences = snapshot.val() || {};
-        const activeParticipants = Object.values(presences) as StudyParticipant[];
-        setParticipants(activeParticipants.filter(p => p.isOnline)); // Ensure we only show online users
+        const allInDB = Object.values(presences) as StudyParticipant[];
+        
+        const now = Date.now();
+        const PRESENCE_TIMEOUT = 70 * 1000;
+
+        const activeParticipants = allInDB.filter(p => {
+            return p && p.isOnline && (p.lastActivity > (now - PRESENCE_TIMEOUT));
+        });
+
+        setParticipants(activeParticipants);
         setIsLoading(false);
     }, () => setIsLoading(false));
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
   }, [user, selectedRoom]);
 
   const sortedParticipants = useMemo(() => {
