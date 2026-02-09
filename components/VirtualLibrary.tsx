@@ -230,9 +230,6 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
       clearInterval(heartbeatRef.current);
       unsubParticipants();
       unsubRoomStatus();
-      if(currentRoom && user) {
-        groupSessionService.leaveRoom(currentRoom.id, user.uid);
-      }
     };
   }, [view, user, currentRoom, handleLeaveRoom]);
 

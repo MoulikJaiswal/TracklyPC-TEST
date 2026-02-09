@@ -1,5 +1,5 @@
-// FIX: Updated React import to use namespace import (`import * as React`) and changed class to extend `React.Component` to resolve type resolution errors for class components.
-import * as React from "react";
+// FIX: Changed React import from namespace (`import * as React`) to default (`import React`) to resolve type resolution errors for class component properties like `this.props` and `this.setState`.
+import React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {
