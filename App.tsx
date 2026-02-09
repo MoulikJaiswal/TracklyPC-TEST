@@ -60,7 +60,8 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 // Firebase Imports
 import { auth, db, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch, getDoc, where, getDocs } from 'firebase/firestore';
+import { groupSessionService } from './services/groupSessionService';
 
 // Lazy Load Components
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -479,6 +480,64 @@ export const App: React.FC = () => {
   useEffect(() => {
     dbReadyPromise.then(() => setIsFirebaseReady(true));
   }, []);
+
+  // Seed system rooms
+  useEffect(() => {
+    // Only run this check once per user login on a device
+    if (isFirebaseReady && user) {
+      const seedSystemRooms = async () => {
+        const flagKey = `system_rooms_seeded_v1`;
+        if (localStorage.getItem(flagKey)) {
+            return;
+        }
+
+        const roomsRef = collection(db, 'rooms');
+        const q = query(roomsRef, where('isSystem', '==', true));
+        
+        try {
+            const querySnapshot = await getDocs(q);
+            
+            // If there are no system rooms, create them.
+            if (querySnapshot.empty) {
+                console.log("No system rooms found. Creating default rooms...");
+                await Promise.all([
+                    groupSessionService.createRoom({
+                        name: "JEE Aspirants",
+                        topic: "Physics, Chemistry, Maths",
+                        description: "A dedicated room for students preparing for the Joint Entrance Examination.",
+                        color: "indigo",
+                        isSystem: true,
+                        isPrivate: false,
+                    }),
+                    groupSessionService.createRoom({
+                        name: "NEET Warriors",
+                        topic: "Physics, Chemistry, Biology",
+                        description: "A focused space for future doctors preparing for the National Eligibility cum Entrance Test.",
+                        color: "emerald",
+                        isSystem: true,
+                        isPrivate: false,
+                    }),
+                    groupSessionService.createRoom({
+                        name: "General Study Hall",
+                        topic: "All Subjects",
+                        description: "A quiet place for anyone to study, regardless of their stream or goal.",
+                        color: "slate",
+                        isSystem: true,
+                        isPrivate: false,
+                    })
+                ]);
+                console.log("Default system rooms created successfully.");
+            }
+            // Mark as seeded even if they already existed to prevent future checks.
+            localStorage.setItem(flagKey, 'true');
+        } catch (error) {
+            console.error("Error seeding system rooms:", error);
+        }
+      };
+      
+      seedSystemRooms();
+    }
+  }, [isFirebaseReady, user]);
 
   const sessionsForStream = useMemo(() => {
     return sessions.filter(s => {
