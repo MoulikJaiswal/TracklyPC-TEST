@@ -1,4 +1,3 @@
-// FIX: Import React to use its `Component` class and other types.
 import React from 'react';
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
@@ -13,7 +12,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: The ErrorBoundary class must extend `React.Component` to be a valid class component and have access to `this.props` and `this.setState`.
+// Fix: The ErrorBoundary class must extend `React.Component` to be a valid class component and have access to `this.props` and `this.setState`.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,

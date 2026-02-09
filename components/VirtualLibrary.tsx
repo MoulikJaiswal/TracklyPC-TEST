@@ -233,7 +233,6 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
             if (presences && typeof presences === 'object') {
                 const now = Date.now();
                 const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds
-                // FIX: Add stricter type checks to prevent errors when calculating count.
                 activeCount = Object.values(presences).filter((p: any) => 
                     p && 
                     typeof p === 'object' &&
@@ -263,7 +262,6 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
         setParticipants(prev => {
             const now = Date.now();
             const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds
-            // FIX: Add robust check to periodic cleanup filter.
             return prev.filter(p => p && typeof p === 'object' && p.isOnline && p.lastActivity && (now - p.lastActivity < PRESENCE_TIMEOUT));
         });
     }, 10000);
@@ -277,8 +275,6 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
             const now = Date.now();
             const PRESENCE_TIMEOUT = 70 * 1000;
 
-            // FIX: Implement robust data sanitization to prevent crashes from invalid data types.
-            // This filters out invalid records and then maps the valid ones to a clean, typed object.
             activeParticipants = allInDB
                 .filter((p: any): p is Partial<StudyParticipant> => 
                     p && 
@@ -297,13 +293,14 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
                     subject: String(p.subject || ''),
                     focusEndTime: typeof p.focusEndTime === 'number' ? p.focusEndTime : undefined,
                     focusDuration: typeof p.focusDuration === 'number' ? p.focusDuration : undefined,
-                    intention: p.intention,
-                    accumulatedFocusTime: p.accumulatedFocusTime,
-                    isAway: p.isAway,
-                    dailyFocusTime: p.dailyFocusTime,
-                    weeklyFocusTime: p.weeklyFocusTime,
-                    lastFocusDate: p.lastFocusDate,
-                    lastFocusWeek: p.lastFocusWeek,
+                    // FIX: Sanitize all remaining fields to prevent bad data from reaching the state.
+                    intention: typeof p.intention === 'string' ? p.intention : undefined,
+                    accumulatedFocusTime: typeof p.accumulatedFocusTime === 'number' ? p.accumulatedFocusTime : undefined,
+                    isAway: typeof p.isAway === 'boolean' ? p.isAway : undefined,
+                    dailyFocusTime: typeof p.dailyFocusTime === 'number' ? p.dailyFocusTime : undefined,
+                    weeklyFocusTime: typeof p.weeklyFocusTime === 'number' ? p.weeklyFocusTime : undefined,
+                    lastFocusDate: typeof p.lastFocusDate === 'string' ? p.lastFocusDate : undefined,
+                    lastFocusWeek: typeof p.lastFocusWeek === 'number' ? p.lastFocusWeek : undefined,
                 }));
         }
         
@@ -319,9 +316,15 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
 
   const sortedParticipants = useMemo(() => {
     return [...participants].sort((a, b) => {
-      if (a.uid === user?.uid) return -1;
-      if (b.uid === user?.uid) return 1;
-      return (a.displayName || '').localeCompare(b.displayName || '');
+      // FIX: Add optional chaining (?.) and nullish coalescing (??) to prevent crashes
+      // if participant objects (a, b) or their properties are malformed (null/undefined).
+      // This makes the sorting logic robust against unexpected data shapes.
+      if (a?.uid === user?.uid) return -1;
+      if (b?.uid === user?.uid) return 1;
+      
+      const nameA = a?.displayName ?? '';
+      const nameB = b?.displayName ?? '';
+      return nameA.localeCompare(nameB);
     });
   }, [participants, user]);
 
