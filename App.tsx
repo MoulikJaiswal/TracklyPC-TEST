@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -34,7 +33,8 @@ import {
   Check, 
   Trash2, 
   X,
-  Activity as ActivityIcon
+  Activity as ActivityIcon,
+  Users
 } from 'lucide-react';
 import { ViewType, Session, TestResult, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds } from './types';
 import { QUOTES, THEME_CONFIG, JEE_SYLLABUS, NEET_SYLLABUS, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
@@ -130,7 +130,7 @@ const TABS = [
   { id: 'daily', label: 'Home', icon: LayoutDashboard },
   { id: 'planner', label: 'Plan', icon: CalendarIcon },
   { id: 'focus', label: 'Focus', icon: Timer },
-  { id: 'group-focus', label: 'Focus Lounge', icon: Hammer },
+  { id: 'group-focus', label: 'Focus Lounge', icon: Users },
   { id: 'tests', label: 'Tests', icon: PenTool },
   { id: 'analytics', label: 'Stats', icon: BarChart3 },
 ];
@@ -944,8 +944,11 @@ export const App: React.FC = () => {
                                             userName={userName}
                                             onLogin={handleLogin}
                                             isPro={isPro}
-                                            targets={targets}
-                                            onCompleteTask={handleUpdateTarget}
+                                            timerState={timerState}
+                                            timeLeft={timeLeft}
+                                            timerMode={timerMode}
+                                            durations={timerDurations}
+                                            selectedSubject={selectedSubject}
                                         />
                                     </MotionDiv>
                                 </Suspense>
