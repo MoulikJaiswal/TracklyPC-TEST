@@ -1,5 +1,6 @@
 
 
+
 export interface MistakeCounts {
   concept?: number;
   formula?: number;
@@ -123,7 +124,7 @@ export interface StudyParticipant {
   
   // Real-time State (Event Based)
   status: 'focus' | 'break' | 'idle';
-  subject: 'Physics' | 'Chemistry' | 'Maths' | 'Biology' | 'Other';
+  subject: string;
   
   // If focusing
   focusEndTime?: number; // Timestamp when their timer rings

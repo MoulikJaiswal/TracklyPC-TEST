@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Wifi, LogIn, User as UserIcon } from 'lucide-react';
+import { Users, Wifi, LogIn, User as UserIcon, Atom, Dna, GraduationCap, ArrowLeft } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { rtdb } from '../firebase';
-import { ref, onValue, onDisconnect, remove, set, serverTimestamp, off } from 'firebase/database';
-import { StudyParticipant } from '../types';
+import { ref, onValue, onDisconnect, remove, set, serverTimestamp } from 'firebase/database';
+import { StudyParticipant, StreamType } from '../types';
 import { Card } from './Card';
 import { GoogleIcon } from './GoogleIcon';
 
@@ -18,6 +18,7 @@ interface VirtualLibraryProps {
   timerMode: 'focus' | 'short' | 'long';
   durations: { focus: number; short: number; long: number };
   selectedSubject: string;
+  stream: StreamType;
 }
 
 // A simple hook to manage countdown logic for timers
@@ -49,7 +50,6 @@ const useCountdown = (endTime?: number) => {
 
     return remaining;
 };
-
 
 const ParticipantCard = React.memo(({ participant, isCurrentUser }: { participant: StudyParticipant, isCurrentUser: boolean }) => {
     const photoURL = participant.photoURL;
@@ -108,6 +108,32 @@ const ParticipantCard = React.memo(({ participant, isCurrentUser }: { participan
     );
 });
 
+const roomDetails = {
+    JEE: { name: "JEE Lounge", icon: Atom, description: "Join fellow JEE aspirants." },
+    NEET: { name: "NEET Lounge", icon: Dna, description: "Join fellow NEET aspirants." },
+    General: { name: "General Study", icon: GraduationCap, description: "For all other exams." },
+};
+
+const colorClasses: Record<StreamType, { border: string; iconBg: string; iconText: string; headerText: string; }> = {
+    JEE: {
+      border: 'hover:!border-indigo-500/50',
+      iconBg: 'bg-indigo-500/10',
+      iconText: 'text-indigo-500',
+      headerText: 'text-indigo-400',
+    },
+    NEET: {
+      border: 'hover:!border-emerald-500/50',
+      iconBg: 'bg-emerald-500/10',
+      iconText: 'text-emerald-500',
+      headerText: 'text-emerald-400',
+    },
+    General: {
+      border: 'hover:!border-violet-500/50',
+      iconBg: 'bg-violet-500/10',
+      iconText: 'text-violet-500',
+      headerText: 'text-violet-400',
+    },
+};
 
 const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ 
     user, 
@@ -116,72 +142,104 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     timeLeft,
     timerMode,
     durations,
-    selectedSubject 
+    selectedSubject,
+    stream
 }) => {
+  const [view, setView] = useState<'lobby' | 'room'>('lobby');
+  const [selectedRoom, setSelectedRoom] = useState<StreamType | null>(null);
+  const [roomCounts, setRoomCounts] = useState({ JEE: 0, NEET: 0, General: 0 });
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Effect to manage the user's own presence in their stream's room
+  useEffect(() => {
+    if (!user) return;
+
+    const db = rtdb;
+    const myPresenceRef = ref(db, `rooms/${stream}/presence/${user.uid}`);
+    const connectedRef = ref(db, '.info/connected');
+
+    const unsubscribe = onValue(connectedRef, (snap) => {
+      if (snap.val() === true) {
+        const isSessionActive = timerState === 'running';
+        const status = isSessionActive ? (timerMode === 'focus' ? 'focus' : 'break') : 'idle';
+        const participantData: StudyParticipant = {
+          uid: user.uid,
+          displayName: user.displayName || 'Anonymous',
+          photoURL: user.photoURL,
+          lastActivity: serverTimestamp() as any,
+          isOnline: true,
+          status: status,
+          subject: status === 'focus' ? selectedSubject : 'Other',
+          focusEndTime: isSessionActive ? Date.now() + timeLeft * 1000 : undefined,
+          focusDuration: isSessionActive ? durations[timerMode] * 60 : undefined,
+        };
+        set(myPresenceRef, participantData);
+        onDisconnect(myPresenceRef).remove();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      remove(myPresenceRef);
+    };
+  }, [user, stream, timerState, timeLeft, timerMode, durations, selectedSubject]);
+
+  // Effect to listen to room counts for the lobby view
   useEffect(() => {
     if (!user) {
         setIsLoading(false);
-        setParticipants([]);
         return;
     }
-
     const db = rtdb;
-    const myPresenceRef = ref(db, 'presence/' + user.uid);
-
-    // This special path lets us know if we are connected to RTDB.
-    const connectedRef = ref(db, '.info/connected');
-
-    const unsubscribeConnected = onValue(connectedRef, (snap) => {
-        if (snap.val() === true) {
-            const isSessionActive = timerState === 'running';
-            const status = isSessionActive
-                ? (timerMode === 'focus' ? 'focus' : 'break')
-                : 'idle';
-
-            const participantData: StudyParticipant = {
-                uid: user.uid,
-                displayName: user.displayName || 'Anonymous',
-                photoURL: user.photoURL,
-                lastActivity: serverTimestamp() as any,
-                isOnline: true,
-                status: status,
-                subject: status === 'focus' ? selectedSubject : 'Other',
-                focusEndTime: isSessionActive ? Date.now() + timeLeft * 1000 : undefined,
-                focusDuration: isSessionActive ? durations[timerMode] * 60 : undefined,
-            };
-            
-            set(myPresenceRef, participantData);
-
-            onDisconnect(myPresenceRef).remove();
-        }
+    const roomKeys: StreamType[] = ['JEE', 'NEET', 'General'];
+    const unsubscribes = roomKeys.map(roomName => {
+        const roomRef = ref(db, `rooms/${roomName}/presence`);
+        return onValue(roomRef, (snapshot) => {
+            setRoomCounts(prev => ({ ...prev, [roomName]: snapshot.size }));
+        });
     });
+    setIsLoading(false);
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, [user]);
 
-    const presenceRef = ref(db, 'presence/');
-    const unsubscribePresence = onValue(presenceRef, (snapshot) => {
+  // Effect to fetch participants when a room is selected
+  useEffect(() => {
+    if (!user || !selectedRoom) {
+      setParticipants([]);
+      return;
+    }
+    setIsLoading(true);
+    const db = rtdb;
+    const roomPresenceRef = ref(db, `rooms/${selectedRoom}/presence/`);
+    const unsubscribe = onValue(roomPresenceRef, (snapshot) => {
         const presences = snapshot.val() || {};
         const activeParticipants = Object.values(presences) as StudyParticipant[];
         setParticipants(activeParticipants);
         setIsLoading(false);
-    });
+    }, () => setIsLoading(false));
 
-    return () => {
-        unsubscribeConnected();
-        unsubscribePresence();
-        remove(myPresenceRef);
-    };
-  }, [user, timerState, timeLeft, timerMode, durations, selectedSubject]);
+    return () => unsubscribe();
+  }, [user, selectedRoom]);
 
   const sortedParticipants = useMemo(() => {
-      return [...participants].sort((a, b) => {
-          if (a.uid === user?.uid) return -1;
-          if (b.uid === user?.uid) return 1;
-          return a.displayName.localeCompare(b.displayName);
-      });
+    return [...participants].sort((a, b) => {
+      if (a.uid === user?.uid) return -1;
+      if (b.uid === user?.uid) return 1;
+      return (a.displayName || '').localeCompare(b.displayName || '');
+    });
   }, [participants, user]);
 
+  const handleRoomSelect = (roomName: StreamType) => {
+    setSelectedRoom(roomName);
+    setView('room');
+  };
+
+  const handleBackToLobby = () => {
+    setView('lobby');
+    setSelectedRoom(null);
+  };
+  
   if (!user) {
       return (
           <div className="flex flex-col items-center justify-center h-full min-h-[500px] text-center p-6 animate-in fade-in duration-500">
@@ -202,43 +260,89 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
           </div>
       );
   }
-
+  
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
-        <div>
-            <h2 className="text-3xl font-bold text-theme-text tracking-tight flex items-center gap-3">
-                <Users className="text-indigo-400" /> Focus Lounge
-            </h2>
-            <p className="text-xs text-theme-accent uppercase tracking-widest mt-1 font-bold">
-                Study live with others
-            </p>
-        </div>
+        {view === 'lobby' ? (
+            <>
+                <div>
+                    <h2 className="text-3xl font-bold text-theme-text tracking-tight flex items-center gap-3">
+                        <Users className="text-indigo-400" /> Focus Lounge
+                    </h2>
+                    <p className="text-xs text-theme-accent uppercase tracking-widest mt-1 font-bold">
+                        Choose a room to study live with others
+                    </p>
+                </div>
 
-        <Card className="p-6">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Wifi size={16} className="text-emerald-500" /> Who's Online
-                </h3>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                    {sortedParticipants.length} Studying
-                </span>
-            </div>
-            
-            {isLoading ? (
-                <div className="text-center py-10 text-slate-400 text-sm font-medium">Loading...</div>
-            ) : sortedParticipants.length === 0 ? (
-                <div className="text-center py-10">
-                    <p className="font-bold text-slate-700 dark:text-slate-300">It's quiet in here...</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">You're the first one to arrive!</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {(['JEE', 'NEET', 'General'] as StreamType[]).map(roomName => {
+                        const details = roomDetails[roomName];
+                        const Icon = details.icon;
+                        const count = roomCounts[roomName];
+                        const classes = colorClasses[roomName];
+
+                        return (
+                            <Card 
+                                key={roomName}
+                                onClick={() => handleRoomSelect(roomName)}
+                                className={`group !p-6 flex flex-col justify-between aspect-[4/3.5] md:aspect-square ${classes.border} transition-all`}
+                            >
+                                <div className="flex justify-between items-start">
+                                    <div className={`p-3 rounded-2xl ${classes.iconBg} ${classes.iconText} group-hover:scale-110 transition-transform`}>
+                                        <Icon size={28} />
+                                    </div>
+                                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
+                                        <Wifi size={10} /> {count} ONLINE
+                                    </div>
+                                </div>
+                                <div className="text-left">
+                                    <h3 className="text-lg font-bold text-theme-text">{details.name}</h3>
+                                    <p className="text-xs text-theme-text-secondary">{details.description}</p>
+                                </div>
+                            </Card>
+                        )
+                    })}
                 </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {sortedParticipants.map(p => (
-                        <ParticipantCard key={p.uid} participant={p} isCurrentUser={p.uid === user.uid} />
-                    ))}
+            </>
+        ) : (
+            <>
+                 <div>
+                    <button onClick={handleBackToLobby} className="flex items-center gap-2 text-sm font-bold text-theme-text-secondary hover:text-theme-text mb-4">
+                        <ArrowLeft size={16} /> Back to Rooms
+                    </button>
+                    <h2 className="text-3xl font-bold text-theme-text tracking-tight flex items-center gap-3">
+                        <Users className={selectedRoom ? colorClasses[selectedRoom].headerText : 'text-indigo-400'} /> 
+                        {selectedRoom ? roomDetails[selectedRoom].name : 'Lounge'}
+                    </h2>
                 </div>
-            )}
-        </Card>
+
+                <Card className="p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <Wifi size={16} className="text-emerald-500" /> Who's Online
+                        </h3>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            {sortedParticipants.length} Studying
+                        </span>
+                    </div>
+                    
+                    {isLoading ? (
+                        <div className="text-center py-10 text-slate-400 text-sm font-medium">Loading...</div>
+                    ) : sortedParticipants.length === 0 ? (
+                        <div className="text-center py-10">
+                            <p className="font-bold text-slate-700 dark:text-slate-300">It's quiet in here...</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">You're the first one to arrive!</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {sortedParticipants.map(p => (
+                                <ParticipantCard key={p.uid} participant={p} isCurrentUser={p.uid === user.uid} />
+                            ))}
+                        </div>
+                    )}
+                </Card>
+            </>
+        )}
     </div>
   );
 };

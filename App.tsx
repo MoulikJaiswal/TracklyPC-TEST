@@ -949,6 +949,7 @@ export const App: React.FC = () => {
                                             timerMode={timerMode}
                                             durations={timerDurations}
                                             selectedSubject={selectedSubject}
+                                            stream={stream}
                                         />
                                     </MotionDiv>
                                 </Suspense>
