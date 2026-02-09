@@ -56,10 +56,9 @@ const StudyBuddySetup = ({ user, userProfile }: { user: User, userProfile: UserP
                     if (!friendCodeDoc.exists()) {
                         friendCode = potentialCode;
                         isUnique = true;
-                        // Store basic profile data here for easier searching
                         transaction.set(friendCodeRef, { 
                             uid: user.uid,
-                            displayName: userProfile?.displayName || trimmedUsername,
+                            displayName: trimmedUsername,
                             photoURL: userProfile?.photoURL || null
                         });
                         break;
@@ -79,6 +78,7 @@ const StudyBuddySetup = ({ user, userProfile }: { user: User, userProfile: UserP
 
         } catch (err: any) {
             setError(err.message || 'An unexpected error occurred.');
+        } finally {
             setIsLoading(false);
         }
     };
@@ -200,10 +200,9 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
           const syncProfile = async () => {
               try {
                   const codeRef = doc(db, 'friendCodes', userProfile.friendCode!);
-                  // We update blindly to ensure fresh data, but avoid overwrite if not needed in a real app (omitted check for brevity)
                   await setDoc(codeRef, {
                       uid: user.uid,
-                      displayName: userProfile.displayName || 'Anonymous',
+                      displayName: userProfile.studyBuddyUsername || userProfile.displayName || 'Anonymous',
                       photoURL: userProfile.photoURL || null
                   }, { merge: true });
               } catch (e) {
@@ -268,43 +267,14 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
             return;
         }
 
-        // Fast Path: Use denormalized data if available
-        if (data.displayName) {
-            setSearchResult({
-                uid: targetUid,
-                displayName: data.displayName,
-                photoURL: data.photoURL,
-                friendCode: code,
-                studyBuddyUsername: 'User'
-            });
-            return;
-        }
-
-        // Slow Path: Fallback to querying user doc (might fail due to permissions)
-        try {
-            const userDocRef = doc(db, 'users', targetUid);
-            const userDocSnap = await getDoc(userDocRef);
-            
-            if (userDocSnap.exists()) {
-                setSearchResult(userDocSnap.data() as UserProfile);
-            } else {
-                // User exists but profile unreadable/empty, show placeholder
-                setSearchResult({
-                    uid: targetUid,
-                    displayName: 'Study Partner',
-                    photoURL: null,
-                    friendCode: code
-                });
-            }
-        } catch (permError) {
-            console.log("Permission denied reading user profile, using fallback.");
-            setSearchResult({
-                uid: targetUid,
-                displayName: 'Study Partner',
-                photoURL: null,
-                friendCode: code
-            });
-        }
+        const resultProfile: UserProfile = {
+            uid: targetUid,
+            displayName: data.displayName || 'User',
+            photoURL: data.photoURL || null,
+            friendCode: code,
+            studyBuddyUsername: data.displayName || 'User'
+        };
+        setSearchResult(resultProfile);
 
     } catch (error) {
         console.error("Search error:", error);
@@ -318,7 +288,7 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
       
       await setDoc(requestRef, {
           uid: user.uid,
-          displayName: userProfile.displayName,
+          displayName: userProfile.studyBuddyUsername || userProfile.displayName,
           photoURL: userProfile.photoURL,
           friendCode: userProfile.friendCode,
           timestamp: Date.now(),
@@ -340,14 +310,14 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
         
         batch.set(myFriendRef, {
             uid: requestor.uid,
-            displayName: requestor.displayName,
+            displayName: requestor.displayName, 
             photoURL: requestor.photoURL,
             friendCode: requestor.friendCode,
         });
 
         batch.set(theirFriendRef, {
-            uid: userProfile?.uid,
-            displayName: userProfile?.displayName,
+            uid: user.uid,
+            displayName: userProfile?.studyBuddyUsername || userProfile?.displayName,
             photoURL: userProfile?.photoURL,
             friendCode: userProfile?.friendCode,
         });

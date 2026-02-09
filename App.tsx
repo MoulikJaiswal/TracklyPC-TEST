@@ -173,7 +173,7 @@ const Sidebar = React.memo(({ view, setView, onOpenSettings, isCollapsed, toggle
           <div className="p-2 rounded-xl transition-all duration-300 flex-shrink-0 relative z-10 group-hover:text-theme-accent group-hover:bg-theme-accent/10 group-hover:shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.2)] will-change-transform">
              <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500" />
           </div>
-          <span className={`text-sm font-bold transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? 'w-0 opacity-0 translate-x-4' : 'w-auto opacity-100 translate-x-0'}`}>Settings</span>
+          <span className={`text-sm font-bold transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? 'w-0 opacity-0 translate-x-4' : 'w-auto opacity-100 translate-x-0'}`}>{userName}</span>
         </button>
       </div>
     </aside>
@@ -267,7 +267,6 @@ export const App: React.FC = () => {
   const [isGuest, setIsGuest] = useState(false);
   const [authStatus, setAuthStatus] = useState<'loading' | 'loading_profile' | 'loaded'>('loading');
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
-  const [userName, setUserName] = useState<string | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -329,6 +328,12 @@ export const App: React.FC = () => {
 
   // Focus Subject State (Lifted from FocusTimer)
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  
+  // DERIVED STATE
+  const userName = useMemo(() => {
+    if (isGuest) return localStorage.getItem('trackly_guest_name') || 'Guest';
+    return userProfile?.studyBuddyUsername || userProfile?.displayName || user?.displayName || 'User';
+  }, [user, userProfile, isGuest]);
 
   // Initial subject selection when subjects load
   useEffect(() => {
@@ -473,7 +478,6 @@ export const App: React.FC = () => {
       if (currentUser) {
         setAuthStatus('loading_profile');
         setIsGuest(false);
-        setUserName(currentUser.displayName || 'User');
         const userDocRef = doc(db, 'users', currentUser.uid);
 
         profileUnsubscribe = onSnapshot(userDocRef,
@@ -502,7 +506,6 @@ export const App: React.FC = () => {
           }
         );
       } else {
-        setUserName(null);
         setUserProfile(null);
         setAuthStatus('loaded');
       }
@@ -556,7 +559,6 @@ export const App: React.FC = () => {
       const storedGuest = localStorage.getItem('trackly_is_guest');
       if (storedGuest === 'true' && !user) {
           setIsGuest(true);
-          setUserName(localStorage.getItem('trackly_guest_name') || 'Guest');
       }
   }, [user]);
 
@@ -731,7 +733,6 @@ export const App: React.FC = () => {
       localStorage.setItem('trackly_guest_name', name.trim());
       setIsGuest(true);
       localStorage.setItem('trackly_is_guest', 'true');
-      setUserName(name.trim());
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -747,7 +748,6 @@ export const App: React.FC = () => {
         setIsGuest(false);
         setUser(null);
         setUserProfile(null);
-        setUserName(null);
         
         // Clear Guest Markers
         localStorage.removeItem('trackly_is_guest');
@@ -792,6 +792,7 @@ export const App: React.FC = () => {
                         <AnimatePresence mode="wait" custom={direction}>
                             {view === 'daily' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="daily" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} /></MotionDiv></Suspense> )}
                             {view === 'planner' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="planner" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} /></MotionDiv></Suspense> )}
+                            {/* FIX: Pass timerMode and timerDurations to FocusTimer instead of undefined variables 'mode' and 'durations' */}
                             {view === 'focus' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionsForStream.length} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} /></MotionDiv></Suspense> )}
                             {view === 'tests' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="tests" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} /></MotionDiv></Suspense> )}
                             {view === 'friends' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="friends" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><StudyBuddy user={user} userProfile={userProfile} /></MotionDiv></Suspense> )}
@@ -807,7 +808,7 @@ export const App: React.FC = () => {
 
         {!isAuthLoading && (
           <>
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} />
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} />
             <ProUpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} onUpgrade={handleUpgrade} />
             <OverdueTasksModal isOpen={showOverdueModal} tasks={overdueTasks} onClose={() => setShowOverdueModal(false)} onComplete={(id) => handleUpdateTarget(id, true)} onDelete={handleDeleteTarget} />
             <PerformanceToast isVisible={isLagging} onSwitch={activateLiteMode} onDismiss={dismissLag} />

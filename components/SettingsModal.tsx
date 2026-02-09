@@ -1,14 +1,14 @@
 
-
-
-import React, { useRef, useState } from 'react';
-import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye, Activity } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye, Activity, User as UserIcon } from 'lucide-react';
 import { Card } from './Card';
-import { ThemeId, StreamType, SyllabusData, ActivityThresholds } from '../types';
+import { ThemeId, StreamType, SyllabusData, ActivityThresholds, UserProfile } from '../types';
 import { THEME_CONFIG } from '../constants';
 import { User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfirmationModal } from './ConfirmationModal';
+import { db } from '../firebase';
+import { doc, runTransaction, getDoc } from 'firebase/firestore';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -50,6 +50,7 @@ interface SettingsModalProps {
   setCustomBackgroundAlign: (align: 'center' | 'top' | 'bottom') => void;
 
   user: User | null;
+  userProfile: UserProfile | null;
   isGuest: boolean;
   onLogout: () => void;
   onForceSync: () => void;
@@ -107,6 +108,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   setCustomBackgroundAlign,
 
   user,
+  userProfile,
   isGuest,
   onLogout,
   onForceSync,
@@ -133,6 +135,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Rename State
   const [editingSubject, setEditingSubject] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+
+  // Profile Management State
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState(false);
+
+  useEffect(() => {
+      if (isOpen && userProfile?.studyBuddyUsername) {
+          setNewUsername(userProfile.studyBuddyUsername);
+      }
+  }, [isOpen, userProfile]);
 
   if (!isOpen) return null;
 
@@ -284,6 +299,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }));
   };
 
+  const handleUpdateUsername = async () => {
+      if (!user || !userProfile || !newUsername.trim()) return;
+      if (newUsername.trim() === userProfile.studyBuddyUsername) {
+          setEditingUsername(false);
+          return;
+      }
+      
+      const trimmedUsername = newUsername.trim();
+      if (trimmedUsername.length < 3 || trimmedUsername.length > 15) {
+          setProfileError('3-15 characters required.');
+          return;
+      }
+      if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+          setProfileError('Letters, numbers, & underscores only.');
+          return;
+      }
+
+      setIsUpdatingProfile(true);
+      setProfileError('');
+
+      try {
+          const usernameLower = trimmedUsername.toLowerCase();
+          const oldUsernameLower = userProfile.studyBuddyUsername?.toLowerCase();
+          const usernameRef = doc(db, 'studyBuddyUsernames', usernameLower);
+          const userRef = doc(db, 'users', user.uid);
+          const friendCodeRef = userProfile.friendCode ? doc(db, 'friendCodes', userProfile.friendCode) : null;
+
+          await runTransaction(db, async (transaction) => {
+              const usernameDoc = await transaction.get(usernameRef);
+              if (usernameDoc.exists()) {
+                  throw new Error('Username is already taken.');
+              }
+
+              if (oldUsernameLower) {
+                  const oldUsernameRef = doc(db, 'studyBuddyUsernames', oldUsernameLower);
+                  transaction.delete(oldUsernameRef);
+              }
+
+              transaction.set(usernameRef, { uid: user.uid });
+              transaction.update(userRef, { studyBuddyUsername: trimmedUsername });
+              
+              if (friendCodeRef) {
+                  transaction.update(friendCodeRef, { displayName: trimmedUsername });
+              }
+          });
+
+          setProfileSuccess(true);
+          setEditingUsername(false);
+          setTimeout(() => setProfileSuccess(false), 3000);
+      } catch (err: any) {
+          setProfileError(err.message || 'Update failed.');
+      } finally {
+          setIsUpdatingProfile(false);
+      }
+  };
+
   const syncButtonContent = () => {
     switch (syncStatus) {
       case 'syncing':
@@ -331,6 +402,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="space-y-8 overflow-y-auto pr-2 pb-4 flex-1 min-h-0 custom-scrollbar">
           
+          {/* --- SECTION: STUDY PROFILE --- */}
+          {user && userProfile && !isGuest && (
+              <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
+                      <UserIcon size={16} />
+                      <span className="text-xs font-bold uppercase tracking-widest">Study Profile</span>
+                  </div>
+                  <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl space-y-4">
+                      <div className="flex justify-between items-center">
+                          <div>
+                              <p className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Friend Code</p>
+                              <p className="text-lg font-mono font-bold text-slate-700 dark:text-slate-200">{userProfile.friendCode || 'N/A'}</p>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Username</p>
+                              {editingUsername ? (
+                                  <div className="flex items-center gap-2 mt-1">
+                                      <input 
+                                          type="text" 
+                                          value={newUsername}
+                                          onChange={e => setNewUsername(e.target.value)}
+                                          className="w-28 bg-white dark:bg-black/30 border border-slate-200 dark:border-white/10 rounded px-2 py-1 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                          autoFocus
+                                      />
+                                      <button onClick={handleUpdateUsername} disabled={isUpdatingProfile} className="p-1.5 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors disabled:opacity-50">
+                                          {isUpdatingProfile ? <Loader2 size={14} className="animate-spin"/> : <Check size={14} />}
+                                      </button>
+                                      <button onClick={() => { setEditingUsername(false); setNewUsername(userProfile.studyBuddyUsername || ''); setProfileError(''); }} className="p-1.5 bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400 rounded hover:bg-slate-300 dark:hover:bg-white/20 transition-colors">
+                                          <X size={14} />
+                                      </button>
+                                  </div>
+                              ) : (
+                                  <div className="flex items-center gap-2 justify-end">
+                                      <p className="text-lg font-bold text-slate-900 dark:text-white">{userProfile.studyBuddyUsername || 'Not Set'}</p>
+                                      <button onClick={() => setEditingUsername(true)} className="p-1 text-slate-400 hover:text-indigo-500 transition-colors"><Pencil size={12} /></button>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                      {profileError && <p className="text-xs text-rose-500">{profileError}</p>}
+                      {profileSuccess && <p className="text-xs text-emerald-500 flex items-center gap-1"><Check size={12} /> Username updated!</p>}
+                      <p className="text-[10px] text-slate-400">Your unique ID (Friend Code) never changes, even if you update your username.</p>
+                  </div>
+              </div>
+          )}
+
           {/* --- SECTION 0: STUDY STREAM --- */}
           <div className="space-y-4">
              <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>

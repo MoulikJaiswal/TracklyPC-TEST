@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
-import { Users, LogIn, User as UserIcon, Plus, ArrowLeft, Loader2, Coffee, Brain, Trophy, Crown, Info, Lock, Copy, Check, X, Shield, Globe, Pencil, Trash2 } from 'lucide-react';
+import { Users, LogIn, User as UserIcon, Plus, ArrowLeft, Loader2, Coffee, Brain, Trophy, Crown, Info, Lock, Copy, Check, X, Shield, Globe, Pencil, Trash2, Hammer, Clock, Rocket } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { StudyParticipant, StudyRoom, Target as TargetType } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
@@ -18,6 +19,8 @@ interface VirtualLibraryProps {
   currentRoom: StudyRoom | null;
   setCurrentRoom: (room: StudyRoom | null) => void;
 }
+
+const MAINTENANCE_MODE = true;
 
 const ParticipantCard = memo(({ participant, isCurrentUser, isCreator }: { participant: StudyParticipant, isCurrentUser: boolean, isCreator: boolean }) => {
     const photoURL = participant.photoURL;
@@ -139,6 +142,44 @@ const Leaderboard = ({ participants, currentUser }: { participants: StudyPartici
 };
 
 const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets, onCompleteTask, currentRoom, setCurrentRoom }) => {
+  if (MAINTENANCE_MODE) {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 animate-in fade-in zoom-in duration-500">
+            <div className="relative mb-8">
+                <div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-10 rounded-full"></div>
+                <div className="p-6 bg-indigo-500/10 rounded-full border border-indigo-500/20 relative z-10">
+                    <Rocket size={64} className="text-indigo-500" />
+                </div>
+            </div>
+            
+            <h2 className="text-3xl md:text-4xl font-bold text-theme-text mb-4 tracking-tight">
+                Focus Lounge Under Development
+            </h2>
+            
+            <p className="text-theme-text-secondary mb-10 max-w-md mx-auto text-base leading-relaxed">
+                We are rebuilding the lounge to support more users and better real-time collaboration features.
+            </p>
+            
+            <div className="flex flex-col w-full max-w-xs gap-3">
+                <div className="flex items-center gap-4 p-4 bg-theme-bg-tertiary border border-theme-border rounded-2xl">
+                    <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><Hammer size={20} /></div>
+                    <div className="text-left">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary">Status</p>
+                        <p className="font-bold text-theme-text">Major Upgrades In Progress</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4 p-4 bg-theme-bg-tertiary border border-theme-border rounded-2xl">
+                    <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-500"><Clock size={20} /></div>
+                    <div className="text-left">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary">Estimated Return</p>
+                        <p className="font-bold text-theme-text">Coming Soon</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+  }
+
   const [view, setView] = useState<'lobby' | 'room'>('lobby');
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
@@ -577,7 +618,7 @@ const CodeEntryModal = ({ room, onClose, onJoin, isLoading }: { room: StudyRoom,
                 <h3 className="text-lg font-bold text-theme-text">Enter Access Code</h3>
                 <p className="text-xs text-theme-text-secondary mb-4">This room is private. Please enter the 6-digit code.</p>
                 <form onSubmit={handleSubmit}>
-                    <input ref={inputRef} type="text" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/[^0-9]/g, ''))} className="w-full text-center text-4xl font-mono tracking-[0.5em] bg-theme-bg-tertiary border border-theme-border rounded-xl p-4 mb-2" />
+                    <input ref={inputRef} type="text" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} className="w-full text-center text-4xl font-mono tracking-[0.5em] bg-theme-bg-tertiary border border-theme-border rounded-xl p-4 mb-2" />
                     {error && <p className="text-xs text-rose-500 animate-in fade-in">{error}</p>}
                     <button type="submit" disabled={code.length !== 6 || isLoading} className="mt-4 w-full py-3 bg-theme-accent text-theme-text-on-accent rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:opacity-90 disabled:opacity-50">
                         {isLoading ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Join Room'}
