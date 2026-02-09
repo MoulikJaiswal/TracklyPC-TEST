@@ -1,5 +1,5 @@
 // FIX: Import React to use its `Component` class and other types.
-import React from "react";
+import React from 'react';
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {
