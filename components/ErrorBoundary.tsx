@@ -13,12 +13,19 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Converted state to a class property and removed the constructor.
-  // This is a more modern syntax and can help with 'this' context issues in some environments.
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+  // FIX: Reverted to using a constructor for state initialization and method binding.
+  // The previous implementation with class properties and arrow functions was causing 'this' context issues,
+  // likely due to a build configuration problem, preventing access to 'this.props' and 'this.setState'.
+  // This more traditional approach is guaranteed to work.
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+    this.handleReset = this.handleReset.bind(this);
+    this.handleReload = this.handleReload.bind(this);
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -34,19 +41,16 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   }
 
-  // FIX: Removed 'private' keyword which might not be supported in all TypeScript configurations.
-  // Arrow function syntax correctly binds 'this' to the component instance, fixing access to 'this.props' and 'this.setState'.
-  handleReset = () => {
+  handleReset() {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
     }
-  };
+  }
 
-  // FIX: Removed 'private' keyword and converted to arrow function to correctly bind 'this'.
-  handleReload = () => {
+  handleReload() {
     window.location.reload();
-  };
+  }
 
   render() {
     if (this.state.hasError) {

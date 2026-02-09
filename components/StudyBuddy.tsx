@@ -117,6 +117,21 @@ interface FriendCardProps {
 }
 
 const FriendCard: React.FC<FriendCardProps> = ({ friend, presence }) => {
+  const [liveProfile, setLiveProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (!friend.uid) return;
+    const unsub = onSnapshot(doc(db, 'users', friend.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setLiveProfile(docSnap.data() as UserProfile);
+      }
+    });
+    return () => unsub();
+  }, [friend.uid]);
+
+  const displayName = liveProfile?.studyBuddyUsername || friend.displayName;
+  const photoURL = liveProfile?.photoURL || friend.photoURL;
+
   const getStatus = () => {
     if (!presence || !presence.isOnline) {
       return { text: 'Offline', color: 'text-slate-500 bg-slate-100 dark:bg-slate-800', icon: <div className="w-2 h-2 rounded-full bg-slate-500" /> };
@@ -136,9 +151,9 @@ const FriendCard: React.FC<FriendCardProps> = ({ friend, presence }) => {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-4">
-        <img src={friend.photoURL || `https://ui-avatars.com/api/?name=${friend.displayName}&background=random`} alt={friend.displayName} className="w-12 h-12 rounded-full object-cover" />
+        <img src={photoURL || `https://ui-avatars.com/api/?name=${displayName}&background=random`} alt={displayName} className="w-12 h-12 rounded-full object-cover" />
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-theme-text truncate">{friend.displayName}</p>
+          <p className="font-bold text-theme-text truncate">{displayName}</p>
           <div className={`mt-1 flex items-center gap-1.5 text-xs font-bold px-2 py-1 rounded-full w-fit ${status.color}`}>
             {status.icon}
             <span>{status.text}</span>
