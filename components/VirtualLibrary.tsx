@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
-import { Users, LogIn, User as UserIcon, Plus, ArrowLeft, Loader2, Coffee, Brain, Trophy, Crown, Info, Lock, Copy, Check, X, Shield, Globe } from 'lucide-react';
+import { Users, LogIn, User as UserIcon, Plus, ArrowLeft, Loader2, Coffee, Brain, Trophy, Crown, Info, Lock, Copy, Check, X, Shield, Globe, Pencil, Trash2 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { StudyParticipant, StudyRoom, Target as TargetType } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
 import { Card } from './Card';
 import { GoogleIcon } from './GoogleIcon';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface VirtualLibraryProps {
   user: User | null;
@@ -18,7 +19,7 @@ interface VirtualLibraryProps {
   setCurrentRoom: (room: StudyRoom | null) => void;
 }
 
-const ParticipantCard = memo(({ participant, isCurrentUser }: { participant: StudyParticipant, isCurrentUser: boolean }) => {
+const ParticipantCard = memo(({ participant, isCurrentUser, isCreator }: { participant: StudyParticipant, isCurrentUser: boolean, isCreator: boolean }) => {
     const photoURL = participant.photoURL;
     const displayName = participant.displayName || 'Anonymous';
     const [timeLeft, setTimeLeft] = useState('');
@@ -62,7 +63,11 @@ const ParticipantCard = memo(({ participant, isCurrentUser }: { participant: Stu
                     )}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="font-bold text-theme-text truncate flex items-center gap-2">{displayName} {isCurrentUser && <span className="text-[9px] font-bold text-indigo-500">(You)</span>}</p>
+                    <p className="font-bold text-theme-text truncate flex items-center gap-1.5">
+                        {isCreator && <Crown size={14} className="text-amber-400 shrink-0" />}
+                        {displayName} 
+                        {isCurrentUser && <span className="text-[9px] font-bold text-indigo-500 shrink-0">(You)</span>}
+                    </p>
                     <p className="text-xs text-theme-text-secondary font-bold uppercase tracking-wider">{participant.subject}</p>
                 </div>
                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold ${statusInfo.color}`}>
@@ -140,6 +145,8 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
   const [isLoading, setIsLoading] = useState(true);
   
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [roomToDelete, setRoomToDelete] = useState<StudyRoom | null>(null);
   const [showCodeEntryModal, setShowCodeEntryModal] = useState<StudyRoom | null>(null);
   const [showRoomCodeDisplayModal, setShowRoomCodeDisplayModal] = useState<{ room: StudyRoom, code: string } | null>(null);
 
@@ -257,6 +264,37 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
     }
   };
 
+  const handleUpdateRoom = async (data: { name: string; description: string; }) => {
+    if (!currentRoom || !user) return;
+    
+    // Optimistic update
+    setCurrentRoom(prev => (prev ? { ...prev, ...data } : null));
+    setShowEditModal(false);
+
+    try {
+        await groupSessionService.updateRoom(currentRoom.id, user.uid, data);
+    } catch (e) {
+        console.error("Room update failed:", e);
+        // Optionally, revert the optimistic update here or show an error toast
+    }
+  };
+  
+  const confirmDeleteRoom = async () => {
+    if (!roomToDelete || !user) return;
+    try {
+        await groupSessionService.deleteRoom(roomToDelete.id, user.uid);
+        // If the deleted room is the current room, leave it
+        if (currentRoom?.id === roomToDelete.id) {
+            setCurrentRoom(null);
+        }
+    } catch(e) {
+        console.error("Failed to delete room", e);
+        // Show error to user
+    } finally {
+        setRoomToDelete(null);
+    }
+  };
+
   const handleJoinPrivateRoom = async (roomId: string, code: string) => {
     if (!code.trim() || code.length !== 6) return false;
     setIsLoading(true);
@@ -272,7 +310,8 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
   };
   
   const handleRoomClick = (room: StudyRoom) => {
-    if (room.isPrivate) {
+    // Creator of private room bypasses code entry
+    if (room.isPrivate && user?.uid !== room.createdBy) {
         setShowCodeEntryModal(room);
     } else {
         handleJoinRoom(room.id);
@@ -299,6 +338,8 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
           </div>
       );
   }
+  
+  const isCreator = user?.uid === currentRoom?.createdBy;
 
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
@@ -308,6 +349,14 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
                     isOpen={showCreateModal}
                     onClose={() => setShowCreateModal(false)}
                     onCreate={handleCreateRoom}
+                />
+            )}
+            {showEditModal && currentRoom && (
+                <EditRoomModal
+                    isOpen={showEditModal}
+                    onClose={() => setShowEditModal(false)}
+                    onUpdate={handleUpdateRoom}
+                    room={currentRoom}
                 />
             )}
             {showCodeEntryModal && (
@@ -329,6 +378,16 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
                 />
             )}
         </AnimatePresence>
+        
+        <ConfirmationModal
+            isOpen={!!roomToDelete}
+            onClose={() => setRoomToDelete(null)}
+            onConfirm={confirmDeleteRoom}
+            title="Delete Room?"
+            message="Are you sure you want to delete this room? This action is permanent and cannot be undone."
+            confirmText="Delete"
+            confirmVariant="danger"
+        />
 
         <div>
             <h2 className="text-3xl font-bold text-theme-text tracking-tight flex items-center gap-3">
@@ -383,12 +442,22 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                         <div className="lg:col-span-2">
                            <Card>
-                                <h3 className="text-lg font-bold text-theme-text">{currentRoom.name}</h3>
-                                <p className="text-sm text-theme-text-secondary mb-4">{currentRoom.topic}</p>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-theme-text">{currentRoom.name}</h3>
+                                        <p className="text-sm text-theme-text-secondary">{currentRoom.topic}</p>
+                                    </div>
+                                    {isCreator && (
+                                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/5 p-1 rounded-lg border border-slate-200 dark:border-white/10">
+                                            <button onClick={() => setShowEditModal(true)} className="p-2 rounded-md text-slate-500 hover:text-indigo-500 hover:bg-indigo-500/10 transition-colors"><Pencil size={14} /></button>
+                                            <button onClick={() => setRoomToDelete(currentRoom)} className="p-2 rounded-md text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"><Trash2 size={14} /></button>
+                                        </div>
+                                    )}
+                                </div>
                                 {participants.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {participants.map(p => (
-                                            <ParticipantCard key={p.uid} participant={p} isCurrentUser={p.uid === user.uid} />
+                                            <ParticipantCard key={p.uid} participant={p} isCurrentUser={p.uid === user.uid} isCreator={p.uid === currentRoom.createdBy} />
                                         ))}
                                     </div>
                                 ) : (
@@ -453,6 +522,37 @@ const CreateRoomModal = ({ isOpen, onClose, onCreate }: { isOpen: boolean, onClo
                   </div>
               </form>
           </Card>
+        </div>
+    );
+};
+
+const EditRoomModal = ({ isOpen, onClose, onUpdate, room }: { isOpen: boolean, onClose: () => void, onUpdate: (data: any) => void, room: StudyRoom }) => {
+    const [name, setName] = useState(room.name);
+    const [description, setDescription] = useState(room.description);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if(!name.trim()) return;
+        onUpdate({ name, description });
+    };
+
+    return (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+            <Card className="w-full max-w-lg shadow-2xl">
+                <form onSubmit={handleSubmit}>
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-theme-text">Edit Room</h3>
+                        <button type="button" onClick={onClose} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-theme-text-secondary"><X size={18} /></button>
+                    </div>
+                    <div className="space-y-4">
+                        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Room Name" required className="w-full p-3 bg-theme-bg-tertiary border border-theme-border rounded-xl text-sm" />
+                        <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Short description..." className="w-full p-3 bg-theme-bg-tertiary border border-theme-border rounded-xl text-sm min-h-[80px]" />
+                    </div>
+                    <div className="mt-6">
+                        <button type="submit" disabled={!name.trim()} className="w-full py-3 bg-theme-accent text-theme-text-on-accent rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:opacity-90 disabled:opacity-50">Save Changes</button>
+                    </div>
+                </form>
+            </Card>
         </div>
     );
 };

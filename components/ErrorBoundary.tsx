@@ -1,5 +1,5 @@
-// FIX: Use default React import and extend React.Component to ensure correct type inference for class components.
-import React from "react";
+// FIX: Changed React import to explicitly import and extend `Component` to resolve type errors where `props` and `state` were not being recognized.
+import React, { Component } from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {
@@ -13,8 +13,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: Extend from React.Component to inherit component properties like 'props' and 'state'.
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,

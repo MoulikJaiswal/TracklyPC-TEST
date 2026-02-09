@@ -94,6 +94,25 @@ export const groupSessionService = {
         throw e;
     }
   },
+
+  // 2.2 Update a Room
+  updateRoom: async (roomId: string, userId: string, data: { name: string; description: string }) => {
+    const roomRef = doc(db, 'rooms', roomId);
+    try {
+      const roomSnap = await getDoc(roomRef);
+      if (roomSnap.exists() && roomSnap.data().createdBy === userId) {
+        await updateDoc(roomRef, {
+          name: data.name,
+          description: data.description,
+        });
+      } else {
+        throw new Error("Permission denied or room not found.");
+      }
+    } catch (e) {
+      console.error("Error updating room:", e);
+      throw e;
+    }
+  },
   
   // 2.5 Verify Private Room Code
   verifyRoomCode: async (roomId: string, code: string): Promise<boolean> => {
@@ -232,21 +251,28 @@ export const groupSessionService = {
   },
 
   // 7. Delete Room
-  deleteRoom: async (roomId: string) => {
-      const roomRef = doc(db, 'rooms', roomId);
-      try {
-          await updateDoc(roomRef, { status: 'closing' }); // Soft delete
-          const participantsRef = collection(db, 'rooms', roomId, 'participants');
-          const snapshot = await getDocs(participantsRef);
-          
-          const batch = writeBatch(db);
-          snapshot.docs.forEach(doc => batch.delete(doc.ref));
-          batch.delete(roomRef);
+  deleteRoom: async (roomId: string, userId: string) => {
+    const roomRef = doc(db, 'rooms', roomId);
+    try {
+        const roomSnap = await getDoc(roomRef);
+        if (!roomSnap.exists() || roomSnap.data().createdBy !== userId) {
+            console.error("Permission denied to delete room or room not found.");
+            throw new Error("You do not have permission to delete this room.");
+        }
 
-          await batch.commit();
-      } catch (e) {
-          console.error("Error deleting room:", e);
-      }
+        await updateDoc(roomRef, { status: 'closing' }); // Soft delete
+        const participantsRef = collection(db, 'rooms', roomId, 'participants');
+        const snapshot = await getDocs(participantsRef);
+        
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(doc => batch.delete(doc.ref));
+        batch.delete(roomRef);
+
+        await batch.commit();
+    } catch (e) {
+        console.error("Error deleting room:", e);
+        throw e;
+    }
   },
 
   subscribeToRoomStatus: (roomId: string, onUpdate: (data: StudyRoom | null) => void) => {
