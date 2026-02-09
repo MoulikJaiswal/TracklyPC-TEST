@@ -156,10 +156,17 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
       setIsLoading(false);
       return;
     }
-
+    
+    let isInitialLoad = true;
     setIsLoading(true);
-    const unsub = groupSessionService.subscribeToRooms(setRooms);
-    setIsLoading(false);
+    const unsub = groupSessionService.subscribeToRooms((fetchedRooms) => {
+        setRooms(fetchedRooms);
+        if (isInitialLoad) {
+            setIsLoading(false);
+            isInitialLoad = false;
+        }
+    });
+    
     return () => unsub();
   }, [user]);
 

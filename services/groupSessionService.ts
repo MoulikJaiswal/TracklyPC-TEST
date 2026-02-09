@@ -25,16 +25,32 @@ export const groupSessionService = {
   
   // 1. Subscribe to ALL Rooms (Lobby)
   subscribeToRooms: (callback: (rooms: StudyRoom[]) => void) => {
-    // Fetches all rooms, public and private, ordering them so system/public rooms appear first.
-    const q = query(collection(db, 'rooms'), orderBy('isSystem', 'desc'), orderBy('isPrivate'), orderBy('createdAt', 'desc'));
+    // Use a simpler query that doesn't require a composite index, then sort on the client for robustness.
+    const q = query(collection(db, 'rooms'), orderBy('createdAt', 'desc'));
     
     return onSnapshot(q, (snapshot) => {
         const rooms = snapshot.docs
             .map(d => ({ id: d.id, ...d.data() } as StudyRoom))
-            .filter(r => r.status !== 'closing'); 
+            .filter(r => r.status !== 'closing');
+
+        // Client-side sorting for robustness
+        rooms.sort((a, b) => {
+            // System rooms first
+            if (a.isSystem && !b.isSystem) return -1;
+            if (!a.isSystem && b.isSystem) return 1;
+
+            // Then public rooms before private
+            if (!a.isPrivate && b.isPrivate) return -1;
+            if (a.isPrivate && !b.isPrivate) return 1;
+
+            // createdAt is the primary sort from the query, this is a fallback
+            return (b.createdAt || 0) - (a.createdAt || 0);
+        });
+
         callback(rooms);
     }, (error) => {
         console.error("Error subscribing to rooms:", error);
+        callback([]); // Return empty array on error to prevent loading state lock
     });
   },
 
