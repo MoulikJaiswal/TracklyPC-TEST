@@ -152,6 +152,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   // Effect 1: Manages joining/leaving a room and setting up the onDisconnect handler.
+  // This runs ONLY when the user or their selected stream changes.
   useEffect(() => {
     if (!user) return;
 
@@ -160,6 +161,8 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
 
     const unsubscribe = onValue(connectedRef, (snap) => {
       if (snap.val() === true) {
+        // We're connected (or reconnected). Set initial presence and onDisconnect handler.
+        // This object contains the core, slowly-changing user info.
         const initialPresence: Partial<StudyParticipant> = {
           uid: user.uid,
           displayName: user.displayName || 'Anonymous',
@@ -171,13 +174,16 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
       }
     });
 
+    // Cleanup function for this effect.
+    // Runs when component unmounts OR when `stream` changes (user switches rooms).
     return () => {
-      unsubscribe();
-      remove(myPresenceRef);
+      unsubscribe(); // Detach the `connected` listener.
+      remove(myPresenceRef); // Cleanly remove user from the room.
     };
   }, [user, stream]);
 
-  // Effect 2: Updates the user's real-time status based on timer activity.
+  // Effect 2: Updates the user's real-time status (focusing, break, subject).
+  // This runs when the timer state changes. It uses `update` to prevent flickering.
   useEffect(() => {
     if (!user) return;
 
@@ -186,34 +192,25 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     const isSessionActive = timerState === 'running';
     const status = isSessionActive ? (timerMode === 'focus' ? 'focus' : 'break') : 'idle';
     
+    // `focusEndTime` is only set when a session STARTS or RESUMES.
+    // It's a fixed timestamp. Other clients use this to calculate the countdown.
     const focusEndTime = (timerState === 'running' && timeLeft > 0)
       ? Date.now() + timeLeft * 1000
       : null;
     
     const updates: Partial<StudyParticipant> = {
-      isOnline: true, // Always assert online status on any update
       lastActivity: serverTimestamp() as any,
       status: status,
       subject: status === 'focus' ? selectedSubject : (status === 'break' ? 'On Break' : 'In Lounge'),
       focusEndTime: focusEndTime,
-      focusDuration: isSessionActive ? durations[timerMode] * 60 : undefined,
+      focusDuration: isSessionActive ? durations[timerMode] * 60 : null,
     };
+
+    // Use `update` to change only specific fields without removing/re-adding the user.
+    // This is the fix for the flickering/disappearing issue.
     update(myPresenceRef, updates);
 
   }, [user, stream, timerState, timeLeft, timerMode, durations, selectedSubject]);
-
-  // Effect 3: A periodic heartbeat to keep the user's `lastActivity` fresh.
-  useEffect(() => {
-      if (!user) return;
-      const myPresenceRef = ref(rtdb, `rooms/${stream}/presence/${user.uid}`);
-      const interval = setInterval(() => {
-          update(myPresenceRef, {
-              lastActivity: serverTimestamp()
-          }).catch(() => {}); // Heartbeat can fail silently
-      }, 30000); // Send heartbeat every 30 seconds
-
-      return () => clearInterval(interval);
-  }, [user, stream]);
 
   // Effect to listen to room counts for the lobby view
   useEffect(() => {
@@ -226,13 +223,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     const unsubscribes = roomKeys.map(roomName => {
         const roomRef = ref(db, `rooms/${roomName}/presence`);
         return onValue(roomRef, (snapshot) => {
-            const presences = snapshot.val();
-            let activeCount = 0;
-            // FIX: Prevent crash by checking if `presences` is a valid object before processing.
-            if (presences && typeof presences === 'object') {
-                activeCount = Object.values(presences).filter((p: any) => p && p.isOnline).length;
-            }
-            setRoomCounts(prev => ({ ...prev, [roomName]: activeCount }));
+            setRoomCounts(prev => ({ ...prev, [roomName]: snapshot.size }));
         });
     });
     setIsLoading(false);
@@ -248,40 +239,14 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({
     setIsLoading(true);
     const db = rtdb;
     const roomPresenceRef = ref(db, `rooms/${selectedRoom}/presence/`);
-    
-    const interval = setInterval(() => {
-        setParticipants(prev => {
-            const now = Date.now();
-            const PRESENCE_TIMEOUT = 70 * 1000; // 70 seconds
-            // Add check for p.lastActivity to prevent NaN errors
-            return prev.filter(p => p && p.isOnline && p.lastActivity && (now - p.lastActivity < PRESENCE_TIMEOUT));
-        });
-    }, 10000);
-
     const unsubscribe = onValue(roomPresenceRef, (snapshot) => {
-        const presences = snapshot.val();
-        let activeParticipants: StudyParticipant[] = [];
-        
-        // FIX: Prevent crash by checking if `presences` is a valid object before processing.
-        if (presences && typeof presences === 'object') {
-            const allInDB = Object.values(presences) as StudyParticipant[];
-            const now = Date.now();
-            const PRESENCE_TIMEOUT = 70 * 1000;
-
-            activeParticipants = allInDB.filter(p => {
-                // Add robust checks for object type and lastActivity
-                return p && typeof p === 'object' && p.isOnline && p.lastActivity && (p.lastActivity > (now - PRESENCE_TIMEOUT));
-            });
-        }
-        
-        setParticipants(activeParticipants);
+        const presences = snapshot.val() || {};
+        const activeParticipants = Object.values(presences) as StudyParticipant[];
+        setParticipants(activeParticipants.filter(p => p.isOnline)); // Ensure we only show online users
         setIsLoading(false);
     }, () => setIsLoading(false));
 
-    return () => {
-      unsubscribe();
-      clearInterval(interval);
-    };
+    return () => unsubscribe();
   }, [user, selectedRoom]);
 
   const sortedParticipants = useMemo(() => {
