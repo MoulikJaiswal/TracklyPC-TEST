@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Atom, Dna, ArrowRight, User, ShieldCheck, GraduationCap } from 'lucide-react';
+import { Atom, Dna, ArrowRight, User, ShieldCheck, GraduationCap, Brain, BarChart3, Timer, ListChecks, Cloud, Users } from 'lucide-react';
 import { StreamType } from '../types';
 import { TracklyLogo } from './TracklyLogo';
 import { GoogleIcon } from './GoogleIcon';
@@ -12,6 +12,39 @@ interface WelcomePageProps {
   stream: StreamType;
   setStream: (stream: StreamType) => void;
 }
+
+const features = [
+    { icon: Brain, title: "Deep Mistake Analysis", description: "Tag every error by type to find your weakest points." },
+    { icon: BarChart3, title: "Powerful Analytics", description: "Visualize progress with heatmaps and proficiency charts." },
+    { icon: Timer, title: "Intelligent Focus Timer", description: "A smart Pomodoro timer integrated with your analytics." },
+    { icon: ListChecks, title: "Daily & Weekly Planner", description: "Schedule tasks, revisions, and mock tests to stay organized." },
+    { icon: Cloud, title: "Cross-Device Sync", description: "Securely sync your progress across all your devices." },
+    { icon: Users, title: "Focus Lounge (Soon)", description: "Join live group study sessions with fellow aspirants." },
+];
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      delayChildren: 0.5,
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 100
+    }
+  }
+};
+
 
 export const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin, onGuestLogin, stream, setStream }) => {
   const [guestName, setGuestName] = useState('');
@@ -28,9 +61,9 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin, onGuestLogin,
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative z-50 overflow-hidden">
       
       {/* Main Content Container */}
-      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center">
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center">
         
-        {/* Left Side: Hero Text (Hidden on small mobile if needed, but good to keep) */}
+        {/* Left Side: Hero Text & Features */}
         <div className="text-center lg:text-left space-y-8 order-2 lg:order-1">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -51,25 +84,29 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin, onGuestLogin,
           </motion.div>
 
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-            className="flex flex-wrap justify-center lg:justify-start gap-4"
+             variants={containerVariants}
+             initial="hidden"
+             animate="visible"
+             className="grid grid-cols-2 md:grid-cols-3 gap-4"
           >
-             <div className="flex items-center gap-2 px-4 py-3 bg-slate-900/40 border border-white/10 rounded-2xl backdrop-blur-sm">
-                <ShieldCheck className="text-emerald-400" size={20} />
-                <div className="text-left">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Privacy First</p>
-                    <p className="text-xs font-bold text-white">Local & Cloud Sync</p>
-                </div>
-             </div>
-             <div className="flex items-center gap-2 px-4 py-3 bg-slate-900/40 border border-white/10 rounded-2xl backdrop-blur-sm">
-                <Atom className="text-blue-400" size={20} />
-                <div className="text-left">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Stream</p>
-                    <p className="text-xs font-bold text-white">JEE, NEET & Gen</p>
-                </div>
-             </div>
+             {features.map((feature, index) => {
+                 const Icon = feature.icon;
+                 return (
+                     <motion.div
+                         key={index}
+                         variants={itemVariants}
+                         className="flex items-start gap-3 p-3 bg-slate-900/40 border border-white/10 rounded-2xl backdrop-blur-sm"
+                     >
+                         <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg">
+                             <Icon size={16} />
+                         </div>
+                         <div>
+                             <p className="text-xs font-bold text-white">{feature.title}</p>
+                             <p className="text-[10px] text-slate-400 leading-snug mt-0.5">{feature.description}</p>
+                         </div>
+                     </motion.div>
+                 );
+             })}
           </motion.div>
         </div>
 
@@ -141,7 +178,7 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin, onGuestLogin,
 
                         <div className="relative py-2">
                             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0f1523] px-2 text-slate-500 font-bold">Or</span></div>
+                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-slate-900/60 px-2 text-slate-500 font-bold">Or</span></div>
                         </div>
 
                         <button 

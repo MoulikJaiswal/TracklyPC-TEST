@@ -382,7 +382,7 @@ const SubjectDetailModal = memo(({
   );
 });
 
-export const Dashboard = memo(({ 
+const Dashboard = memo(({ 
   sessions, 
   targets, 
   quote, 
@@ -498,7 +498,7 @@ export const Dashboard = memo(({
                 </div>
             </div>
         ) : (
-            <div id="dashboard-subjects" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            <div id="dashboard-subjects" className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
               {subjects.map(subject => (
                 <SubjectPod 
                     key={subject}
@@ -606,3 +606,5 @@ export const Dashboard = memo(({
     </>
   );
 });
+
+export default Dashboard;

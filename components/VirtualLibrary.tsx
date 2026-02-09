@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Rocket, Users } from 'lucide-react';
 import { User } from 'firebase/auth';
@@ -13,7 +14,7 @@ interface VirtualLibraryProps {
   onCompleteTask: (id: string, completed: boolean) => void;
 }
 
-export const VirtualLibrary: React.FC<VirtualLibraryProps> = () => {
+const VirtualLibrary: React.FC<VirtualLibraryProps> = () => {
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[500px] text-center p-6 animate-in fade-in duration-500">
         <div className="p-4 bg-indigo-500/10 rounded-full mb-6 border border-indigo-500/20 relative overflow-hidden">
@@ -31,3 +32,5 @@ export const VirtualLibrary: React.FC<VirtualLibraryProps> = () => {
     </div>
   );
 };
+
+export default VirtualLibrary;

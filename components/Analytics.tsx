@@ -338,7 +338,7 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream, syllabus
   );
 });
 
-export const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPro, onOpenUpgrade, stream, syllabus }: AnalyticsProps) => {
+const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPro, onOpenUpgrade, stream, syllabus }: AnalyticsProps) => {
     return (
         <div id="analytics-container" className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20">
             <div>
@@ -378,3 +378,5 @@ export const Analytics: React.FC<AnalyticsProps> = memo(({ sessions, tests, isPr
         </div>
     );
 });
+
+export default Analytics;

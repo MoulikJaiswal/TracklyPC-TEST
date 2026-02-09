@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, memo, useRef } from 'react';
 import { Plus, Trash2, CheckCircle2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Target, Trophy } from 'lucide-react';
 import { Target as TargetType } from '../types';
@@ -28,7 +29,7 @@ interface PlannerProps {
   onDelete: (id: string) => void;
 }
 
-export const Planner: React.FC<PlannerProps> = memo(({ 
+const Planner: React.FC<PlannerProps> = memo(({ 
     targets, onAdd, onToggle, onDelete 
 }) => {
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
@@ -169,7 +170,7 @@ export const Planner: React.FC<PlannerProps> = memo(({
               )}
 
               {viewMode === 'week' ? (
-                  <div className="grid grid-cols-7 gap-2 md:gap-4">
+                  <div className="grid grid-cols-7 gap-1 sm:gap-2 md:gap-4">
                       {weekDays.map((dateStr) => {
                           const [y, m, day] = dateStr.split('-').map(Number);
                           const d = new Date(y, m - 1, day);
@@ -184,7 +185,7 @@ export const Planner: React.FC<PlannerProps> = memo(({
                               key={dateStr}
                               onClick={() => handleDateClick(dateStr)}
                               className={`
-                              relative flex flex-col items-center justify-center py-6 rounded-2xl transition-all duration-300 group
+                              relative flex flex-col items-center justify-center py-4 sm:py-6 rounded-2xl transition-all duration-300 group
                               ${isSelected 
                                   ? 'scale-110 z-10' 
                                   : 'bg-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200'
@@ -199,7 +200,7 @@ export const Planner: React.FC<PlannerProps> = memo(({
                               } : {}}
                           >
                               <span className="text-xs font-bold uppercase tracking-wider mb-2">{d.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 1)}</span>
-                              <span className={`text-xl font-mono font-bold ${isSelected ? '' : 'text-slate-700 dark:text-slate-200'}`}>{d.getDate()}</span>
+                              <span className={`text-lg sm:text-xl font-mono font-bold ${isSelected ? '' : 'text-slate-700 dark:text-slate-200'}`}>{d.getDate()}</span>
                               
                               <div className="flex gap-1 mt-3">
                                   {hasTest && <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-amber-300' : 'bg-amber-500'}`} />}
@@ -353,3 +354,5 @@ export const Planner: React.FC<PlannerProps> = memo(({
     </div>
   );
 });
+
+export default Planner;

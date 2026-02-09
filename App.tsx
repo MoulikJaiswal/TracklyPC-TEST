@@ -63,12 +63,12 @@ import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/aut
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch, getDoc } from 'firebase/firestore';
 
 // Lazy Load Components
-const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
-const FocusTimer = lazy(() => import('./components/FocusTimer').then(module => ({ default: module.FocusTimer })));
-const Planner = lazy(() => import('./components/Planner').then(module => ({ default: module.Planner })));
-const TestLog = lazy(() => import('./components/TestLog').then(module => ({ default: module.TestLog })));
-const Analytics = lazy(() => import('./components/Analytics').then(module => ({ default: module.Analytics })));
-const VirtualLibrary = lazy(() => import('./components/VirtualLibrary').then(module => ({ default: module.VirtualLibrary })));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const FocusTimer = lazy(() => import('./components/FocusTimer'));
+const Planner = lazy(() => import('./components/Planner'));
+const TestLog = lazy(() => import('./components/TestLog'));
+const Analytics = lazy(() => import('./components/Analytics'));
+const VirtualLibrary = lazy(() => import('./components/VirtualLibrary'));
 
 const MotionDiv = motion.div as any;
 
@@ -176,7 +176,30 @@ const Sidebar = React.memo(({ view, setView, onOpenSettings, isCollapsed, toggle
   );
 });
 
-// ... Slide Variants and OverdueTasksModal (Unchanged) ...
+const BottomNavBar = React.memo(({ view, setView }: { view: ViewType, setView: (v: ViewType) => void }) => {
+  return (
+    <footer className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-theme-border bg-theme-card/80 backdrop-blur-xl">
+      <nav className="flex justify-around items-center h-16 px-2 safe-area-bottom">
+        {TABS.map(tab => {
+          const isActive = view === tab.id;
+          return (
+            <button 
+              key={tab.id} 
+              onClick={() => setView(tab.id as ViewType)}
+              className={`flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-2xl transition-all duration-300 relative ${isActive ? 'text-theme-accent' : 'text-theme-text-secondary hover:text-theme-text'}`}
+            >
+              <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-theme-accent/10' : ''}`}>
+                <tab.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+              </div>
+              <span className="text-[9px] font-bold tracking-wide">{tab.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+    </footer>
+  );
+});
+
 const slideVariants = {
   enter: (direction: number) => ({ x: direction > 0 ? 30 : -30, opacity: 0, position: 'absolute' as 'absolute' }),
   center: { zIndex: 1, x: 0, opacity: 1, position: 'relative' as 'relative' },
@@ -531,17 +554,19 @@ export const App: React.FC = () => {
   const [plannerPrompt, setPlannerPrompt] = useState<Recommendation | null>(null);
 
   useEffect(() => {
-    if (showWelcome) return;
+    // Only show recommendations when logged in AND on the dashboard.
+    if (isAuthLoading || showWelcome || view !== 'daily') return;
     
-    const hasShownToast = sessionStorage.getItem('recommendationToastShown');
-    if (recommendation && !hasShownToast) {
-        const timer = setTimeout(() => {
+    if (recommendation) {
+        // Only show if it hasn't been shown this session for this specific recommendation
+        const key = `recommendationToastShown_${recommendation.subject}_${recommendation.topic}`;
+        const hasShownToast = sessionStorage.getItem(key);
+        if (!hasShownToast) {
             setShowRecommendationToast(true);
-            sessionStorage.setItem('recommendationToastShown', 'true');
-        }, 3000); // Show toast 3 seconds after app load
-        return () => clearTimeout(timer);
+            sessionStorage.setItem(key, 'true');
+        }
     }
-  }, [recommendation, showWelcome]);
+  }, [recommendation, showWelcome, view, isAuthLoading]);
   
   const handleSaveTarget = useCallback(async (target: Target) => {
     const newTargets = [target, ...targets.filter(t => t.id !== target.id)];
@@ -747,7 +772,12 @@ export const App: React.FC = () => {
             customBackgroundAlign={customBackgroundAlign}
         />
 
-        {showWelcome ? (
+        {isAuthLoading ? (
+            <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-theme-bg gap-4">
+                <TracklyLogo />
+                <Loader2 size={24} className="animate-spin text-theme-accent" />
+            </div>
+        ) : showWelcome ? (
             <WelcomePage 
                 onLogin={handleLogin}
                 onGuestLogin={handleGuestLogin}
@@ -776,7 +806,7 @@ export const App: React.FC = () => {
                 <main 
                     className={`flex-1 overflow-y-auto overflow-x-hidden relative transition-all duration-500 ${sidebarCollapsed ? 'ml-0 md:ml-20' : 'ml-0 md:ml-64'}`}
                 >
-                    <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen pb-24">
+                    <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen pb-28 md:pb-24">
                         <AnimatePresence mode="wait" custom={direction}>
                             {view === 'daily' && (
                                 <Suspense fallback={<div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-theme-accent" /></div>}>
@@ -933,95 +963,100 @@ export const App: React.FC = () => {
                         </AnimatePresence>
                     </div>
                 </main>
+                <BottomNavBar view={view} setView={changeView} />
             </div>
         )}
 
-        <SettingsModal 
-            isOpen={isSettingsOpen} 
-            onClose={() => setIsSettingsOpen(false)}
-            animationsEnabled={animationsEnabled}
-            toggleAnimations={() => setAnimationsEnabled(p => !p)}
-            graphicsEnabled={graphicsEnabled}
-            toggleGraphics={() => setGraphicsEnabled(p => !p)}
-            lagDetectionEnabled={lagDetectionEnabled}
-            toggleLagDetection={() => setLagDetectionEnabled(p => !p)}
-            theme={theme}
-            setTheme={setTheme}
-            onStartTutorial={toggleTutorial}
-            showAurora={showAurora}
-            toggleAurora={() => setShowAurora(p => !p)}
-            parallaxEnabled={parallaxEnabled}
-            toggleParallax={() => setParallaxEnabled(p => !p)}
-            showParticles={showParticles}
-            toggleParticles={() => setShowParticles(p => !p)}
-            swipeAnimationEnabled={swipeAnimationEnabled}
-            toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)}
-            swipeStiffness={swipeStiffness}
-            setSwipeStiffness={setSwipeStiffness}
-            swipeDamping={swipeDamping}
-            setSwipeDamping={setSwipeDamping}
-            soundEnabled={soundEnabled}
-            toggleSound={() => setSoundEnabled(p => !p)}
-            soundPitch={soundPitch}
-            setSoundPitch={setSoundPitch}
-            soundVolume={soundVolume}
-            setSoundVolume={setSoundVolume}
-            customBackground={customBackground}
-            setCustomBackground={setCustomBackground}
-            customBackgroundEnabled={customBackgroundEnabled}
-            toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)}
-            customBackgroundAlign={customBackgroundAlign}
-            setCustomBackgroundAlign={setCustomBackgroundAlign}
-            user={user}
-            isGuest={isGuest}
-            onLogout={handleLogout}
-            onForceSync={handleForceSync}
-            syncStatus={syncStatus}
-            syncError={syncError}
-            onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }}
-            stream={stream}
-            setStream={handleChangeStream}
-            customSyllabus={customSyllabus}
-            setCustomSyllabus={setCustomSyllabus}
-            activityThresholds={activityThresholds}
-            setActivityThresholds={setActivityThresholds}
-        />
+        {!isAuthLoading && (
+          <>
+            <SettingsModal 
+                isOpen={isSettingsOpen} 
+                onClose={() => setIsSettingsOpen(false)}
+                animationsEnabled={animationsEnabled}
+                toggleAnimations={() => setAnimationsEnabled(p => !p)}
+                graphicsEnabled={graphicsEnabled}
+                toggleGraphics={() => setGraphicsEnabled(p => !p)}
+                lagDetectionEnabled={lagDetectionEnabled}
+                toggleLagDetection={() => setLagDetectionEnabled(p => !p)}
+                theme={theme}
+                setTheme={setTheme}
+                onStartTutorial={toggleTutorial}
+                showAurora={showAurora}
+                toggleAurora={() => setShowAurora(p => !p)}
+                parallaxEnabled={parallaxEnabled}
+                toggleParallax={() => setParallaxEnabled(p => !p)}
+                showParticles={showParticles}
+                toggleParticles={() => setShowParticles(p => !p)}
+                swipeAnimationEnabled={swipeAnimationEnabled}
+                toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)}
+                swipeStiffness={swipeStiffness}
+                setSwipeStiffness={setSwipeStiffness}
+                swipeDamping={swipeDamping}
+                setSwipeDamping={setSwipeDamping}
+                soundEnabled={soundEnabled}
+                toggleSound={() => setSoundEnabled(p => !p)}
+                soundPitch={soundPitch}
+                setSoundPitch={setSoundPitch}
+                soundVolume={soundVolume}
+                setSoundVolume={setSoundVolume}
+                customBackground={customBackground}
+                setCustomBackground={setCustomBackground}
+                customBackgroundEnabled={customBackgroundEnabled}
+                toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)}
+                customBackgroundAlign={customBackgroundAlign}
+                setCustomBackgroundAlign={setCustomBackgroundAlign}
+                user={user}
+                isGuest={isGuest}
+                onLogout={handleLogout}
+                onForceSync={handleForceSync}
+                syncStatus={syncStatus}
+                syncError={syncError}
+                onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }}
+                stream={stream}
+                setStream={handleChangeStream}
+                customSyllabus={customSyllabus}
+                setCustomSyllabus={setCustomSyllabus}
+                activityThresholds={activityThresholds}
+                setActivityThresholds={setActivityThresholds}
+            />
 
-        <ProUpgradeModal 
-            isOpen={showUpgradeModal} 
-            onClose={() => setShowUpgradeModal(false)} 
-            onUpgrade={handleUpgrade} 
-        />
+            <ProUpgradeModal 
+                isOpen={showUpgradeModal} 
+                onClose={() => setShowUpgradeModal(false)} 
+                onUpgrade={handleUpgrade} 
+            />
 
-        <OverdueTasksModal
-            isOpen={showOverdueModal}
-            tasks={overdueTasks}
-            onClose={() => setShowOverdueModal(false)}
-            onComplete={(id) => handleUpdateTarget(id, true)}
-            onDelete={handleDeleteTarget}
-        />
-        <PerformanceToast 
-            isVisible={isLagging} 
-            onSwitch={activateLiteMode} 
-            onDismiss={dismissLag} 
-        />
-        <SmartRecommendationToast
-            isVisible={showRecommendationToast}
-            data={recommendation}
-            onDismiss={() => setShowRecommendationToast(false)}
-            onPractice={handlePracticeRecommendation}
-        />
-        <ConfirmationModal
-            isOpen={!!plannerPrompt}
-            onClose={() => setPlannerPrompt(null)}
-            onConfirm={handleConfirmPlannerTask}
-            title="Add to Planner?"
-            message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`}
-            confirmText="Add Task"
-            cancelText="No, thanks"
-            confirmVariant="primary"
-            icon={<ListChecks size={24} className="text-white" />}
-        />
+            <OverdueTasksModal
+                isOpen={showOverdueModal}
+                tasks={overdueTasks}
+                onClose={() => setShowOverdueModal(false)}
+                onComplete={(id) => handleUpdateTarget(id, true)}
+                onDelete={handleDeleteTarget}
+            />
+            <PerformanceToast 
+                isVisible={isLagging} 
+                onSwitch={activateLiteMode} 
+                onDismiss={dismissLag} 
+            />
+            <SmartRecommendationToast
+                isVisible={!showWelcome && showRecommendationToast}
+                data={recommendation}
+                onDismiss={() => setShowRecommendationToast(false)}
+                onPractice={handlePracticeRecommendation}
+            />
+            <ConfirmationModal
+                isOpen={!!plannerPrompt}
+                onClose={() => setPlannerPrompt(null)}
+                onConfirm={handleConfirmPlannerTask}
+                title="Add to Planner?"
+                message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`}
+                confirmText="Add Task"
+                cancelText="No, thanks"
+                confirmVariant="primary"
+                icon={<ListChecks size={24} className="text-white" />}
+            />
+          </>
+        )}
       </div>
     </>
   );

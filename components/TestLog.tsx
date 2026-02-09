@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useMemo, memo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X, Trash2, Trophy, Clock, Calendar, UploadCloud, FileText, Image as ImageIcon, Atom, Zap, Calculator, BarChart3, AlertCircle, ChevronRight, PieChart, Filter, Target, Download, TrendingUp, TrendingDown, Crown, Lock, GripHorizontal, Check, Brain, Activity, Layers, BookOpen, ListChecks, Loader2, ImagePlus, Search, ArrowDownWideNarrow, ArrowUpNarrowWide, Hammer, Save, Info } from 'lucide-react';
@@ -495,7 +494,7 @@ const TestAnalytics = memo(({ tests }: { tests: TestResult[] }) => {
     );
 });
 
-export const TestLog = memo(({ tests, onSave, onDelete }: TestLogProps) => {
+const TestLog = memo(({ tests, onSave, onDelete }: TestLogProps) => {
   const [isAdding, setIsAdding] = useState(false);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{ name: string; type: 'image' | 'pdf', thumbnail?: string } | null>(null);
@@ -767,10 +766,18 @@ export const TestLog = memo(({ tests, onSave, onDelete }: TestLogProps) => {
             let currentMistakes = { ...(current.mistakes || {}) };
             let totalTagged = (Object.values(currentMistakes) as number[]).reduce((a, b) => a + (b || 0), 0);
             
-            if (totalTagged > newWrong) {
-                currentMistakes = {}; 
-                updatedSubject.calcErrors = 0;
-                updatedSubject.otherErrors = 0;
+            while (totalTagged > newWrong) {
+                // Reduce from largest category first
+                const largestCat = (Object.entries(currentMistakes) as [keyof MistakeCounts, number][])
+                    .filter(([_,v]) => v > 0)
+                    .sort((a, b) => b[1] - a[1])[0];
+                
+                if (largestCat) {
+                    currentMistakes[largestCat[0]] = (currentMistakes[largestCat[0]] || 1) - 1;
+                    totalTagged--;
+                } else {
+                    break; 
+                }
             }
             updatedSubject.mistakes = currentMistakes;
         }
@@ -785,436 +792,85 @@ export const TestLog = memo(({ tests, onSave, onDelete }: TestLogProps) => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name) return;
-    onSave(formData);
-    setIsAdding(false);
-    setPreviewFile(null);
-    setFormData({
-      name: '',
-      date: getLocalDate(),
-      marks: 0,
-      total: 300,
-      temperament: 'Calm',
-      type: 'full',
-      testType: 'Generic',
-      pypYear: new Date().getFullYear() - 1,
-      pypSession: 'Jan Shift 1',
-      coachingName: '',
-      syllabus: { Physics: [], Chemistry: [], Maths: [] },
-      attachment: null,
-      attachmentType: null,
-      fileName: null,
-      thumbnail: null,
-      breakdown: {
-        Physics: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
-        Chemistry: { ...DEFAULT_BREAKDOWN, unattempted: 25 },
-        Maths: { ...DEFAULT_BREAKDOWN, unattempted: 25 }
-      }
-    });
-    setGlobalQCount(75);
-  };
-
-  const handleConfirmDelete = useCallback(() => {
-      if (deletingTestId) {
-          onDelete(deletingTestId);
-          setDeletingTestId(null);
-      }
-  }, [deletingTestId, onDelete]);
-
-  const getTestSubtitle = (test: TestResult) => {
-    if (test.testType === 'PYP') {
-        return `PYP • ${test.pypYear} ${test.pypSession || ''}`;
-    }
-    if (test.testType === 'Coaching Mock') {
-        return `Mock • ${test.coachingName || 'Coaching Test'}`;
-    }
-    return test.type === 'part' ? 'PART TEST' : 'FULL SYLLABUS';
-  };
-
-  const activeBreakdown = formData.breakdown![activeTab];
-  const activeTotalQuestions = activeBreakdown.correct + activeBreakdown.incorrect + activeBreakdown.unattempted;
-  const activeMistakes = activeBreakdown.mistakes || {};
-  const activeTaggedCount = (Object.values(activeMistakes) as number[]).reduce((a, b) => a + (b || 0), 0);
-
   return (
-    <div id="test-log-container" className="space-y-8 animate-in fade-in duration-500 pb-20">
-      
-      {/* Header */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-bold text-theme-text tracking-tight">Test Log</h2>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mt-1">
-              <p className="text-xs text-theme-accent uppercase tracking-widest font-bold">Track performance curves</p>
-          </div>
-        </div>
-        <button 
-          onClick={handleAddClick} 
-          className={`group flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider shadow-lg active:scale-95 transition-all`}
-          style={{
-              backgroundColor: 'var(--theme-accent)',
-              color: 'var(--theme-text-on-accent)',
-              boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.3), 0 4px 6px -2px rgba(var(--theme-accent-rgb), 0.1)'
-          }}
-        >
-          {isAdding ? <X size={16} /> : <Plus size={16} className="group-hover:rotate-90 transition-transform" />}
-          {isAdding ? 'Cancel' : 'Log Test'}
-        </button>
-      </div>
-
-      <TestAnalytics tests={tests} />
-
-      {tests.length > 0 && !isAdding && (
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-theme-card/50 p-2 rounded-2xl border border-theme-border backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="relative flex-1 w-full sm:w-auto">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-secondary" size={16} />
-                  <input
-                      type="text"
-                      placeholder="Search tests..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-theme-card border border-theme-border rounded-xl py-2 pl-10 pr-4 text-sm outline-none focus:border-theme-accent transition-all placeholder:text-theme-text-secondary text-theme-text"
-                  />
-              </div>
-
-              <button
-                  onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
-                  className="flex items-center gap-2 px-4 py-2 bg-theme-card border border-theme-border rounded-xl text-xs font-bold uppercase tracking-wider text-theme-text-secondary hover:bg-theme-bg-tertiary transition-colors w-full sm:w-auto justify-center"
-              >
-                  {sortOrder === 'newest' ? <ArrowDownWideNarrow size={16} /> : <ArrowUpNarrowWide size={16} />}
-                  {sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}
-              </button>
-          </div>
-      )}
-
-      {/* Add Form */}
-      {isAdding && (
-        <Card className="bg-theme-card/80 border-theme-border max-w-2xl mx-auto shadow-2xl">
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <input 
-                type="file" 
-                ref={thumbnailInputRef} 
-                className="hidden" 
-                accept="image/*"
-                onChange={handleThumbnailFileChange}
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* ... Basic Inputs ... */}
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Test Name</label>
-                <input 
-                  type="text" required placeholder="e.g., JEE Mains Mock 12"
-                  className="w-full bg-theme-bg-tertiary border border-theme-border p-3 rounded-xl text-sm text-theme-text focus:border-theme-accent focus:ring-2 focus:ring-theme-accent/30 outline-none transition-all placeholder:text-theme-text-secondary/70"
-                  value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Date</label>
-                <input 
-                  type="date" required
-                  className="w-full bg-theme-bg-tertiary border border-theme-border p-3 rounded-xl text-sm text-theme-text focus:border-theme-accent focus:ring-2 focus:ring-theme-accent/30 outline-none transition-all"
-                  value={formData.date}
-                  onChange={e => setFormData({...formData, date: e.target.value})}
-                />
-              </div>
-
-              {/* Test Category Toggle */}
-              <div className="md:col-span-2 space-y-2">
-                  <label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Test Category</label>
-                  <div className="flex bg-theme-bg-tertiary p-1 rounded-xl border border-theme-border">
-                      {(['Generic', 'PYP', 'Coaching Mock'] as const).map(cat => (
-                           <button 
-                              key={cat}
-                              type="button"
-                              onClick={() => setFormData(prev => ({ ...prev, testType: cat, type: cat === 'Generic' ? prev.type : 'full' }))}
-                              className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.testType === cat ? 'bg-theme-card text-theme-text shadow-sm' : 'text-theme-text-secondary hover:text-theme-text'}`}
-                           >
-                              {cat === 'Coaching Mock' ? 'Mock' : cat}
-                           </button>
-                      ))}
-                  </div>
-              </div>
-
-              {formData.testType === 'PYP' && (
-                  <div className="md:col-span-2 grid grid-cols-2 gap-4 animate-in fade-in duration-300">
-                      <div className="space-y-2">
-                          <label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Year</label>
-                          <input 
-                              type="number" required placeholder="e.g., 2023"
-                              className="w-full bg-theme-bg-tertiary border border-theme-border p-3 rounded-xl text-sm text-theme-text focus:border-theme-accent outline-none transition-all placeholder:text-theme-text-secondary/70"
-                              value={formData.pypYear || ''}
-                              onChange={e => setFormData({...formData, pypYear: parseInt(e.target.value) || undefined})}
-                          />
-                      </div>
-                      <div className="space-y-2">
-                          <label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Session</label>
-                          <input 
-                              type="text" required placeholder="e.g., Jan Shift 1"
-                              className="w-full bg-theme-bg-tertiary border border-theme-border p-3 rounded-xl text-sm text-theme-text focus:border-theme-accent outline-none transition-all placeholder:text-theme-text-secondary/70"
-                              value={formData.pypSession}
-                              onChange={e => setFormData({...formData, pypSession: e.target.value})}
-                          />
-                      </div>
-                  </div>
-              )}
-
-              {formData.testType === 'Coaching Mock' && (
-                  <div className="md:col-span-2 space-y-2 animate-in fade-in duration-300">
-                      <label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Coaching / Series Name</label>
-                      <input 
-                          type="text" required placeholder="e.g., Allen Major Test 3"
-                          className="w-full bg-theme-bg-tertiary border border-theme-border p-3 rounded-xl text-sm text-theme-text focus:border-theme-accent outline-none transition-all placeholder:text-theme-text-secondary/70"
-                          value={formData.coachingName}
-                          onChange={e => setFormData({...formData, coachingName: e.target.value})}
-                      />
-                  </div>
-              )}
-
-              {formData.testType === 'Generic' && (
-                  <div className="md:col-span-2 space-y-2 animate-in fade-in duration-300">
-                      <label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Test Scope</label>
-                      <div className="flex bg-theme-bg-tertiary p-1 rounded-xl border border-theme-border">
-                          <button 
-                              type="button"
-                              onClick={() => setFormData(prev => ({ ...prev, type: 'full' }))}
-                              className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'full' ? 'shadow-md' : 'text-theme-text-secondary hover:text-theme-text'}`}
-                              style={formData.type === 'full' ? { backgroundColor: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' } : {}}
-                          >
-                              Full Syllabus
-                          </button>
-                          <button 
-                              type="button"
-                              onClick={() => setFormData(prev => ({ ...prev, type: 'part' }))}
-                              className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${formData.type === 'part' ? 'shadow-md' : 'text-theme-text-secondary hover:text-theme-text'}`}
-                              style={formData.type === 'part' ? { backgroundColor: 'var(--theme-accent)', color: 'var(--theme-text-on-accent)' } : {}}
-                          >
-                              Part Test
-                          </button>
-                      </div>
-                  </div>
-              )}
-
-              {formData.testType === 'Generic' && formData.type === 'part' && (
-                  <div className="md:col-span-2 space-y-3 bg-theme-bg-tertiary/50 rounded-2xl p-4 border border-theme-border animate-in fade-in duration-300">
-                      <div className="flex justify-between items-center">
-                          <label className="text-[10px] uppercase font-bold text-theme-accent flex items-center gap-2">
-                              <BookOpen size={14} /> Select Syllabus
-                          </label>
-                          <div className="flex gap-2">
-                              <button type="button" onClick={() => selectAllChapters(syllabusTab)} className="text-[9px] font-bold uppercase text-theme-text-secondary hover:text-theme-text transition-colors">Select All</button>
-                              <span className="text-theme-text-secondary/20">|</span>
-                              <button type="button" onClick={() => clearChapters(syllabusTab)} className="text-[9px] font-bold uppercase text-theme-text-secondary hover:text-theme-text transition-colors">Clear</button>
-                          </div>
-                      </div>
-                      <div className="flex gap-2 border-b border-theme-border pb-2 mb-2">
-                          {(['Physics', 'Chemistry', 'Maths'] as const).map(sub => (
-                              <button
-                                  key={sub} type="button" onClick={() => setSyllabusTab(sub)}
-                                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${syllabusTab === sub ? 'bg-theme-card text-theme-text' : 'text-theme-text-secondary hover:text-theme-text-secondary/80'}`}
-                              >
-                                  {sub} <span className="ml-1 opacity-50">({formData.syllabus?.[sub].length || 0})</span>
-                              </button>
-                          ))}
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                          {JEE_SYLLABUS[syllabusTab].map(chapter => {
-                              const isSelected = formData.syllabus?.[syllabusTab].includes(chapter);
-                              return (
-                                  <button key={chapter} type="button" onClick={() => toggleChapter(syllabusTab, chapter)}
-                                      className={`text-left p-2 rounded-lg text-[10px] font-medium transition-all border ${isSelected ? 'bg-theme-accent/20 border-theme-accent/50 text-theme-accent' : 'bg-theme-bg-tertiary border-theme-border text-theme-text-secondary hover:bg-theme-border'}`}>
-                                      <div className="flex items-start gap-2">
-                                          <div className={`mt-0.5 w-3 h-3 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-theme-accent border-theme-accent' : 'border-theme-text-secondary/50'}`}>
-                                              {isSelected && <Check size={8} className="text-theme-text-on-accent" />}
-                                          </div>
-                                          <span className="leading-tight line-clamp-2">{chapter}</span>
-                                      </div>
-                                  </button>
-                              )
-                          })}
-                      </div>
-                  </div>
-              )}
-              
-              <div className="md:col-span-2 grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center h-4 mb-1">
-                    <button type="button" onClick={handleCalculateMarks} className="flex items-center gap-1 px-2 py-0.5 rounded border border-theme-accent/30 text-theme-accent text-[9px] font-bold uppercase hover:bg-theme-accent/10 transition-colors ml-auto">
-                        <Zap size={10} /> Auto-Calc
-                    </button>
-                  </div>
-                  <input type="number" placeholder="0" className="w-full h-16 bg-theme-bg-tertiary border border-theme-border p-3 rounded-xl text-xl font-mono font-bold text-theme-text focus:border-theme-accent outline-none transition-all placeholder:text-theme-text-secondary/50" value={formData.marks} onChange={(e) => setFormData({...formData, marks: parseInt(e.target.value) || 0})} />
-                </div>
-                <div className="space-y-2">
-                   <div className="flex justify-between items-center h-4 mb-1"><label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Total Marks</label></div>
-                   <input type="number" placeholder="300" className="w-full h-16 bg-theme-bg-tertiary border border-theme-border p-3 rounded-xl text-xl font-mono font-bold text-theme-text focus:border-theme-accent outline-none transition-all placeholder:text-theme-text-secondary/50" value={formData.total} onChange={(e) => setFormData({...formData, total: parseInt(e.target.value) || 0})} />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center h-4 mb-1"><label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Total Qs</label></div>
-                  <input type="number" placeholder="75" className="w-full h-16 bg-theme-bg-tertiary border border-theme-border p-3 rounded-xl text-xl font-mono font-bold text-theme-text focus:border-theme-accent outline-none transition-all placeholder:text-theme-text-secondary/50" value={globalQCount} onChange={(e) => handleGlobalQuestionChange(parseInt(e.target.value) || 0)} />
-                </div>
-              </div>
-
-              <div className="md:col-span-2 space-y-2">
-                <label className="text-[10px] uppercase font-bold text-theme-text-secondary ml-1">Temperament</label>
-                <div className="grid grid-cols-4 gap-2">
-                    {['Calm', 'Anxious', 'Focused', 'Fatigued'].map(t => (
-                        <button key={t} type="button" onClick={() => setFormData({...formData, temperament: t as any})}
-                            className={`py-2 rounded-lg text-[10px] font-bold uppercase tracking-wide border transition-all ${formData.temperament === t ? 'bg-theme-text text-theme-bg border-theme-text' : 'bg-theme-bg-tertiary border-theme-border text-theme-text-secondary hover:border-theme-text-secondary/50'}`}
-                        >
-                            {t}
-                        </button>
-                    ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4 pt-4 border-t border-theme-accent/20">
-               <div className="flex items-center justify-between">
-                   <label className="text-xs uppercase font-bold text-theme-accent tracking-widest flex items-center gap-2">
-                      <BarChart3 size={16} /> Question Breakdown
-                   </label>
-               </div>
-               <div className="bg-theme-bg-tertiary/50 border border-theme-border rounded-2xl overflow-hidden shadow-sm">
-                  <div className="flex border-b border-theme-border bg-theme-bg-tertiary/30">
-                     {(['Physics', 'Chemistry', 'Maths'] as const).map(subject => (
-                        <button key={subject} type="button" onClick={() => setActiveTab(subject)}
-                           className={`flex-1 py-4 text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 relative ${activeTab === subject ? 'text-theme-accent bg-theme-card' : 'text-theme-text-secondary hover:text-theme-text-secondary/80'}`}>
-                           {activeTab === subject && <div className="absolute top-0 left-0 w-full h-0.5 bg-theme-accent" />}
-                           {subject === 'Physics' && <Atom size={14} />} {subject === 'Chemistry' && <Zap size={14} />} {subject === 'Maths' && <Calculator size={14} />}
-                           <span className="hidden md:inline">{subject}</span>
-                        </button>
-                     ))}
-                  </div>
-                  <div className="p-6 space-y-6">
-                     <div className="flex items-center gap-4 p-3 bg-theme-card/50 rounded-xl border border-theme-border">
-                        <div className="p-2 bg-theme-bg-tertiary rounded-lg text-theme-text-secondary"><Target size={18} /></div>
-                        <div className="flex-1">
-                            <p className="text-[10px] font-bold uppercase text-theme-text-secondary">Total {activeTab} Qs</p>
-                            <input type="number" min="0" placeholder="0" className="w-full bg-transparent text-lg font-mono font-bold text-theme-text outline-none" value={activeTotalQuestions || ''} onChange={(e) => handleTotalChange(activeTab, parseInt(e.target.value) || 0)} />
-                        </div>
-                     </div>
-                      <div className="grid grid-cols-3 gap-4">
-                          <StatInput label="Correct" value={formData.breakdown?.[activeTab].correct || 0} onChange={(val) => handleStatChange(activeTab, 'correct', val)} max={activeTotalQuestions} color="emerald" />
-                          <StatInput label="Wrong" value={formData.breakdown?.[activeTab].incorrect || 0} onChange={(val) => handleStatChange(activeTab, 'incorrect', val)} max={activeTotalQuestions} color="rose" />
-                          <StatDisplay label="Skipped" value={formData.breakdown?.[activeTab].unattempted || 0} color="slate" />
-                      </div>
-                     <div className="p-4 bg-rose-500/10 rounded-xl border border-rose-500/20">
-                        <div className="flex justify-between items-center mb-4">
-                            <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest flex items-center gap-2"><AlertCircle size={14} /> Mistake Analysis</p>
-                            <span className="text-[9px] px-2 py-1 bg-black/20 rounded text-rose-400 font-mono border border-rose-500/20">{activeTaggedCount} / {formData.breakdown?.[activeTab].incorrect} tagged</span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {MISTAKE_TYPES.map(type => (
-                                <div key={type.id} className="flex items-center justify-between p-2 bg-black/20 rounded-lg border border-white/5 hover:border-rose-500/30 transition-colors">
-                                    <div className="flex items-center gap-2 overflow-hidden">
-                                        <span className={`${type.color} shrink-0 scale-75`}>{type.icon}</span>
-                                        <span className="text-[9px] font-bold uppercase text-slate-300 truncate">{type.label}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 bg-white/10 rounded p-0.5">
-                                        <button type="button" onClick={() => updateMistake(activeTab, type.id as keyof MistakeCounts, -1)} className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-slate-400">-</button>
-                                        <span className="w-4 text-center font-mono font-bold text-xs text-white">{activeMistakes[type.id as keyof MistakeCounts] || 0}</span>
-                                        <button type="button" onClick={() => updateMistake(activeTab, type.id as keyof MistakeCounts, 1)} className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-slate-400">+</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                     </div>
-                  </div>
-               </div>
-            </div>
-
-             <div className="flex gap-4 pt-4 border-t border-theme-border">
-               <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-4 rounded-xl bg-theme-bg-tertiary text-theme-text-secondary font-bold uppercase text-xs tracking-wider hover:bg-theme-border transition-all">Cancel</button>
-               <button type="submit" disabled={isProcessingThumbnail} className="flex-[2] py-4 rounded-xl bg-theme-accent text-theme-text-on-accent font-bold uppercase text-xs tracking-wider hover:opacity-90 shadow-lg active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2" style={{boxShadow: '0 4px 15px -3px rgba(var(--theme-accent-rgb), 0.3)'}}>
-                 {isProcessingThumbnail ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Test Log
-               </button>
-             </div>
-          </form>
-        </Card>
-      )}
-
-      <div className="space-y-4">
-        {processedTests.map((test) => (
-          <div key={test.id} onClick={() => setViewingReport(test)} className="group relative bg-theme-card/70 border border-theme-border hover:border-theme-accent/50 p-5 rounded-2xl transition-all hover:shadow-lg active:scale-[0.99] flex flex-col md:flex-row items-start md:items-center gap-4 cursor-pointer">
-            <div className="relative shrink-0">
-               <svg className="w-16 h-16 transform -rotate-90"><circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-theme-border" /><circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={175} strokeDashoffset={175 - (175 * (safeDiv(test.marks, test.total || 300)))} className="text-theme-accent transition-all duration-1000" /></svg>
-               <div className="absolute inset-0 flex items-center justify-center flex-col"><span className="text-sm font-bold text-theme-text">{Math.round(safeDiv(test.marks, test.total || 300) * 100)}%</span></div>
-            </div>
-
-            <div className="flex-1 min-w-0">
-               <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-bold text-theme-text truncate">{test.name}</h3>
-                  {test.attachment && (<button onClick={(e) => { e.stopPropagation(); setViewingAttachment(test); }} className="p-1 rounded bg-theme-accent/10 text-theme-accent hover:bg-theme-accent/20 transition-colors" title="View Attachment">{test.attachmentType === 'pdf' ? <FileText size={12} /> : <ImageIcon size={12} />}</button>)}
-               </div>
-               <div className="flex flex-wrap gap-y-1 gap-x-3 text-[10px] uppercase font-bold text-theme-text-secondary">
-                  <span className="flex items-center gap-1"><Calendar size={12} /> {test.date}</span>
-                  <span className="flex items-center gap-1"><Trophy size={12} /> {test.marks}/{test.total}</span>
-                  <span className="px-1.5 py-0.5 rounded bg-theme-bg-tertiary text-theme-text-secondary">{getTestSubtitle(test)}</span>
-               </div>
-            </div>
-
-            <div className="flex gap-1 h-12 items-end w-full md:w-32 shrink-0">
-                <div className="flex-1 bg-theme-border rounded-t-sm h-full"><div className="w-full bg-theme-accent rounded-t-sm" style={{ height: `${Math.min(100, (safeDiv(test.breakdown?.Physics.correct || 0, 25)) * 100)}%`, opacity: 1 }} /></div>
-                <div className="flex-1 bg-theme-border rounded-t-sm h-full"><div className="w-full bg-theme-accent rounded-t-sm" style={{ height: `${Math.min(100, (safeDiv(test.breakdown?.Chemistry.correct || 0, 25)) * 100)}%`, opacity: 0.7 }} /></div>
-                <div className="flex-1 bg-theme-border rounded-t-sm h-full"><div className="w-full bg-theme-accent rounded-t-sm" style={{ height: `${Math.min(100, (safeDiv(test.breakdown?.Maths.correct || 0, 25)) * 100)}%`, opacity: 0.5 }} /></div>
-            </div>
-
-            <button onClick={(e) => { e.stopPropagation(); setDeletingTestId(test.id); }} className="absolute top-4 right-4 p-2 text-theme-text-secondary hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
-          </div>
-        ))}
-
-        {processedTests.length === 0 && (
-            <div className="text-center py-12 opacity-40 border-2 border-dashed border-theme-border rounded-3xl">
-                <FileText size={48} className="mx-auto mb-4 text-theme-text-secondary/50" />
-                <p className="text-sm font-bold uppercase tracking-widest text-theme-text-secondary">No tests found</p>
-            </div>
-        )}
-      </div>
-
-      <ConfirmationModal 
-        isOpen={!!deletingTestId} 
-        onClose={() => setDeletingTestId(null)} 
-        onConfirm={handleConfirmDelete} 
-        title="Delete Test?" 
-        message="This action cannot be undone. All data for this test will be lost."
-        confirmText="Delete"
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20">
+      <ConfirmationModal
+        isOpen={deletingTestId !== null}
+        onClose={() => setDeletingTestId(null)}
+        onConfirm={() => {
+            if (deletingTestId) {
+                onDelete(deletingTestId);
+                setDeletingTestId(null);
+            }
+        }}
+        title="Delete Test?"
+        message="Are you sure you want to delete this test log? This action cannot be undone."
       />
-      {viewingReport && (<TestReportModal test={viewingReport} onClose={() => setViewingReport(null)} />)}
-      {viewingAttachment && createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="bg-theme-bg w-full max-w-4xl h-[85vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-theme-border">
-                  <div className="p-4 border-b border-theme-border flex justify-between items-center bg-theme-bg">
-                      <div className="flex items-center gap-3">
-                          <div className="p-2 bg-theme-accent/10 rounded-lg text-theme-accent">{viewingAttachment.attachmentType === 'pdf' ? <FileText size={20} /> : <ImageIcon size={20} />}</div>
-                          <div><h3 className="text-sm font-bold text-theme-text">{viewingAttachment.title}</h3><p className="text-[10px] text-theme-text-secondary font-mono uppercase">{new Date(viewingAttachment.timestamp).toLocaleDateString()}</p></div>
-                      </div>
-                      <div className="flex gap-2">
-                          <a href={viewingAttachment.attachment!} download={viewingAttachment.fileName || "download"} className="p-2 rounded-full hover:bg-theme-bg-tertiary text-theme-text-secondary transition-colors" title="Download"><Download size={20} /></a>
-                          <button onClick={() => setViewingAttachment(null)} className="p-2 rounded-full hover:bg-theme-bg-tertiary text-theme-text-secondary transition-colors"><X size={20} /></button>
-                      </div>
-                  </div>
-                  <div className="flex-1 bg-black/20 overflow-auto flex items-center justify-center p-4 relative">
-                      {viewingAttachment.attachmentType === 'image' ? (
-                          <img src={viewingAttachment.attachment!} alt={viewingAttachment.title} className="max-w-full max-h-full object-contain rounded-lg shadow-lg" />
-                      ) : (
-                          <div className="w-full h-full flex flex-col">
-                              {pdfBlobUrl ? (
-                                  <iframe src={pdfBlobUrl} className="w-full flex-1 rounded-lg shadow-lg border-0 bg-white" title={viewingAttachment.title} />
-                              ) : (
-                                  <div className="flex flex-col items-center justify-center h-full text-theme-text-secondary"><Loader2 size={32} className="animate-spin mb-2" /><p className="text-xs uppercase font-bold">Loading PDF...</p></div>
-                              )}
-                          </div>
-                      )}
-                  </div>
-              </div>
-          </div>,
-          document.body
+
+      {isAdding ? (
+        <AdUnit client="ca-pub-YOUR_PUBLISHER_ID_HERE" slot="1234567890" />
+      ) : (
+        <>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-theme-text tracking-tight">Test Logs</h2>
+                    <p className="text-xs text-theme-accent uppercase tracking-widest mt-1 font-bold">Analyze your mock tests in detail</p>
+                </div>
+                <button 
+                    onClick={handleAddClick}
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-theme-accent text-theme-text-on-accent rounded-2xl text-xs font-bold uppercase tracking-wider shadow-lg hover:opacity-90 transition-opacity active:scale-95 whitespace-nowrap"
+                    style={{boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.2)'}}
+                >
+                    <Plus size={16} /> Log New Test
+                </button>
+            </div>
+            
+            <TestAnalytics tests={tests} />
+            
+            <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1 group">
+                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                    <input 
+                        type="text" 
+                        placeholder="Search by name, type or date..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-theme-card border border-theme-border rounded-xl py-3 pl-12 pr-4 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
+                    />
+                </div>
+                <div className="flex bg-theme-card border border-theme-border p-1 rounded-xl">
+                    <button
+                        onClick={() => setSortOrder('newest')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${sortOrder === 'newest' ? 'bg-theme-bg-tertiary text-theme-accent shadow-sm' : 'text-theme-text-secondary hover:text-theme-text'}`}
+                    >
+                        <ArrowDownWideNarrow size={12} /> Newest
+                    </button>
+                    <button
+                        onClick={() => setSortOrder('oldest')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${sortOrder === 'oldest' ? 'bg-theme-bg-tertiary text-theme-accent shadow-sm' : 'text-theme-text-secondary hover:text-theme-text'}`}
+                    >
+                        <ArrowUpNarrowWide size={12} /> Oldest
+                    </button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Test Cards */}
+            </div>
+
+            {processedTests.length === 0 && (
+                <div className="text-center py-20 opacity-40 border-2 border-dashed border-theme-border rounded-3xl">
+                    <Trophy size={48} className="mx-auto mb-4"/>
+                    <p className="text-xs uppercase font-bold tracking-widest">No tests logged yet</p>
+                    <p className="text-[10px] mt-1">Click 'Log New Test' to get started</p>
+                </div>
+            )}
+        </>
       )}
-      
-      <AdUnit client="ca-pub-YOUR_PUBLISHER_ID_HERE" slot="1234567890" label="Sponsored" />
+
+      {viewingReport && <TestReportModal test={viewingReport} onClose={() => setViewingReport(null)} />}
     </div>
   );
 });
+
+export default TestLog;

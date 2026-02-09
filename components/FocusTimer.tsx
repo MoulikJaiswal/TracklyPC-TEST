@@ -503,7 +503,7 @@ const TimerSettingsModal = ({
 
 // --- MAIN COMPONENT ---
 
-export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
+const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
   const { 
     timerState, 
     sessions, 
@@ -908,8 +908,8 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
           </div>
 
           {/* 2. Primary Metrics Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="lg:col-span-2">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="col-span-2">
                   <StatCard 
                       icon={Clock}
                       label="Focus Time"
@@ -1110,3 +1110,5 @@ export const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     </>
   );
 });
+
+export default FocusTimer;
