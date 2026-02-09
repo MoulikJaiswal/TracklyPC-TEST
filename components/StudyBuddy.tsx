@@ -206,7 +206,7 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  if (!user) {
+  if (!user || !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[500px] text-center p-6 animate-in fade-in duration-500">
         <div className="p-4 bg-indigo-500/10 rounded-full mb-6 border border-indigo-500/20">
@@ -216,15 +216,6 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
         <p className="text-theme-text-secondary mb-8 max-w-sm">
             Sign in with Google to add friends, see their live study status, and stay motivated together.
         </p>
-      </div>
-    );
-  }
-
-  if (!userProfile) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[500px] text-center p-6">
-        <Loader2 size={48} className="animate-spin text-theme-accent" />
-        <p className="mt-4 text-theme-text-secondary">Loading your profile...</p>
       </div>
     );
   }

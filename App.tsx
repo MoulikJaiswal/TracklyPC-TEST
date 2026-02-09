@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -267,7 +264,7 @@ export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState<'loading' | 'loading_profile' | 'loaded'>('loading');
   const [isFirebaseReady, setIsFirebaseReady] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
@@ -466,53 +463,53 @@ export const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
+          setAuthStatus('loading_profile');
           setIsGuest(false);
           setUserName(currentUser.displayName || 'User');
-          // Fetch or create user profile for Study Buddy feature
           const userDocRef = doc(db, 'users', currentUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-              setUserProfile(userDoc.data() as UserProfile);
-          } else {
-              // Create profile for new user
-              const createUniqueFriendCode = async (name: string, attempt = 0): Promise<string> => {
-                  const code = `${name.replace(/\s+/g, '')}#${Math.floor(1000 + Math.random() * 9000)}`;
-                  if (attempt > 10) throw new Error("Failed to create unique friend code.");
-                  const codeRef = doc(db, 'friendCodes', code);
-                  
-                  try {
-                      await runTransaction(db, async (transaction) => {
-                          const codeDoc = await transaction.get(codeRef);
-                          if (codeDoc.exists()) {
-                              throw new Error("Code already exists.");
-                          }
-                          transaction.set(codeRef, { uid: currentUser.uid });
-                      });
-                      return code;
-                  } catch (e) {
-                      return createUniqueFriendCode(name, attempt + 1);
-                  }
-              }
 
-              try {
-                  const friendCode = await createUniqueFriendCode(currentUser.displayName || 'user');
-                  const newProfile: UserProfile = {
-                      uid: currentUser.uid,
-                      displayName: currentUser.displayName || 'Anonymous User',
-                      photoURL: currentUser.photoURL,
-                      friendCode: friendCode,
-                  };
-                  await setDoc(userDocRef, newProfile);
-                  setUserProfile(newProfile);
-              } catch (e) {
-                  console.error("Error creating user profile:", e);
-              }
+          try {
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+                setUserProfile(userDoc.data() as UserProfile);
+            } else {
+                const createUniqueFriendCode = async (name: string, attempt = 0): Promise<string> => {
+                    const code = `${name.replace(/\s+/g, '')}#${Math.floor(1000 + Math.random() * 9000)}`;
+                    if (attempt > 10) throw new Error("Failed to create unique friend code.");
+                    const codeRef = doc(db, 'friendCodes', code);
+                    try {
+                        await runTransaction(db, async (transaction) => {
+                            const codeDoc = await transaction.get(codeRef);
+                            if (codeDoc.exists()) throw new Error("Code already exists.");
+                            transaction.set(codeRef, { uid: currentUser.uid });
+                        });
+                        return code;
+                    } catch (e) {
+                        return createUniqueFriendCode(name, attempt + 1);
+                    }
+                }
+                const friendCode = await createUniqueFriendCode(currentUser.displayName || 'user');
+                const newProfile: UserProfile = {
+                    uid: currentUser.uid,
+                    displayName: currentUser.displayName || 'Anonymous User',
+                    photoURL: currentUser.photoURL,
+                    friendCode: friendCode,
+                };
+                await setDoc(userDocRef, newProfile);
+                setUserProfile(newProfile);
+            }
+          } catch (error) {
+              console.error("Critical error fetching/creating user profile:", error);
+              alert("There was a problem loading your user profile. Please try signing in again.");
+              await signOut(auth);
+          } finally {
+              setAuthStatus('loaded');
           }
       } else {
           setUserName(null);
           setUserProfile(null);
+          setAuthStatus('loaded');
       }
-      setIsAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -592,6 +589,7 @@ export const App: React.FC = () => {
     }
   }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
 
+  const isAuthLoading = authStatus !== 'loaded';
   const showWelcome = !isAuthLoading && !user && !isGuest;
 
   // --- Smart Recommendation Logic ---
@@ -740,7 +738,13 @@ export const App: React.FC = () => {
         <AnimatedBackground themeId={theme} showAurora={effectiveShowAurora} parallaxEnabled={effectiveParallax} customBackground={customBackgroundEnabled ? customBackground : null} customBackgroundAlign={customBackgroundAlign} />
 
         {isAuthLoading ? (
-            <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-theme-bg gap-4"><TracklyLogo /><Loader2 size={24} className="animate-spin text-theme-accent" /></div>
+            <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-theme-bg gap-4">
+                <TracklyLogo />
+                <Loader2 size={24} className="animate-spin text-theme-accent" />
+                {authStatus === 'loading_profile' && (
+                    <p className="mt-4 text-theme-text-secondary animate-in fade-in delay-500 duration-500">Loading your profile...</p>
+                )}
+            </div>
         ) : showWelcome ? (
             <WelcomePage onLogin={handleLogin} onGuestLogin={handleGuestLogin} stream={stream} setStream={handleChangeStream} />
         ) : (
