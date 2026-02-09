@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
-import { Users, LogIn, User as UserIcon, Plus, ArrowLeft, Loader2, Coffee, Brain, Trophy, Crown, Info } from 'lucide-react';
+import { Users, Wifi, LogIn, User as UserIcon, Plus, ChevronRight, X, ArrowLeft, Loader2, Search, Coffee, Brain, Timer, Check, ListChecks } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { StudyParticipant, StudyRoom, Target as TargetType } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
 import { Card } from './Card';
 import { GoogleIcon } from './GoogleIcon';
-import { AnimatePresence } from 'framer-motion';
+import { STREAM_SUBJECTS } from '../constants';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface VirtualLibraryProps {
   user: User | null;
@@ -14,8 +15,6 @@ interface VirtualLibraryProps {
   isPro: boolean;
   targets: TargetType[];
   onCompleteTask: (id: string, completed: boolean) => void;
-  currentRoom: StudyRoom | null;
-  setCurrentRoom: (room: StudyRoom | null) => void;
 }
 
 const ParticipantCard = memo(({ participant, isCurrentUser }: { participant: StudyParticipant, isCurrentUser: boolean }) => {
@@ -79,74 +78,17 @@ const ParticipantCard = memo(({ participant, isCurrentUser }: { participant: Stu
     );
 });
 
-const Leaderboard = ({ participants, currentUser }: { participants: StudyParticipant[], currentUser: User | null }) => {
-    const sortedParticipants = useMemo(() => {
-        return [...participants].sort((a, b) => (b.dailyFocusTime || 0) - (a.dailyFocusTime || 0));
-    }, [participants]);
-
-    const formatFocusTime = (seconds?: number) => {
-        if (!seconds || seconds < 60) return "0m";
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        if (hours > 0) return `${hours}h ${minutes}m`;
-        return `${minutes}m`;
-    };
-
-    return (
-        <Card className="h-full">
-            <div className="group relative flex items-center gap-2 mb-4">
-                <h3 className="text-sm font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-2">
-                    <Trophy size={16} className="text-amber-500" /> Daily Leaderboard
-                </h3>
-                <Info size={12} className="text-theme-text-secondary cursor-help" />
-                <div className="absolute bottom-full mb-2 left-0 w-max max-w-xs p-3 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                    Leaderboard resets daily. To ensure fair play:
-                    <ul className="list-disc pl-3 mt-1 space-y-0.5 font-normal">
-                        <li>Timer auto-pauses after 5 mins of inactivity.</li>
-                        <li>Timer pauses if you switch tabs.</li>
-                        <li>Max session length is 120 minutes.</li>
-                    </ul>
-                    <div className="absolute top-full left-4 w-2 h-2 bg-slate-800 rotate-45 -mt-1" />
-                </div>
-            </div>
-
-            <div className="space-y-2">
-                {sortedParticipants.map((p, index) => (
-                    <div key={p.uid} className={`flex items-center gap-3 p-2 rounded-xl transition-colors ${p.uid === currentUser?.uid ? 'bg-theme-accent/10' : ''}`}>
-                        <div className="flex items-center justify-center w-6 font-bold text-xs text-theme-text-secondary">
-                            {index === 0 ? <Crown size={16} className="text-amber-400" /> : `#${index + 1}`}
-                        </div>
-                        <img src={p.photoURL || `https://ui-avatars.com/api/?name=${p.displayName}&background=random`} alt={p.displayName} className="w-8 h-8 rounded-full" />
-                        <div className="flex-1 min-w-0">
-                            <p className="font-bold text-theme-text truncate text-sm">{p.displayName}</p>
-                        </div>
-                        <div className="font-mono font-bold text-theme-accent text-sm">
-                            {formatFocusTime(p.dailyFocusTime)}
-                        </div>
-                    </div>
-                ))}
-                {sortedParticipants.length === 0 && (
-                     <div className="text-center py-10 text-theme-text-secondary text-xs">No one is focusing yet!</div>
-                )}
-            </div>
-        </Card>
-    );
-};
-
-const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets, onCompleteTask, currentRoom, setCurrentRoom }) => {
+const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets, onCompleteTask }) => {
   const [view, setView] = useState<'lobby' | 'room'>('lobby');
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   const [participants, setParticipants] = useState<StudyParticipant[]>([]);
+  const [currentRoom, setCurrentRoom] = useState<StudyRoom | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFocusModal, setShowFocusModal] = useState(false);
 
   // Heartbeat timer
   const heartbeatRef = useRef<any>(null);
-  
-  useEffect(() => {
-    setView(currentRoom ? 'room' : 'lobby');
-  }, [currentRoom]);
 
   // --- Data Fetching & Subscriptions ---
   useEffect(() => {
@@ -169,6 +111,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
       if(roomData) {
           await groupSessionService.joinSession(roomId, { uid: user.uid, displayName: user.displayName || 'User', photoURL: user.photoURL }, 'Other');
           setCurrentRoom(roomData);
+          setView('room');
       }
       setIsLoading(false);
   };
@@ -177,9 +120,10 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
       if (user && currentRoom) {
           await groupSessionService.leaveRoom(currentRoom.id, user.uid);
       }
+      setView('lobby');
       setCurrentRoom(null);
       setParticipants([]);
-  }, [user, currentRoom, setCurrentRoom]);
+  }, [user, currentRoom]);
 
   // --- In-Room useEffect ---
   useEffect(() => {
@@ -200,6 +144,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
     
     // Subscribe to room participants
     const unsubParticipants = groupSessionService.subscribeToRoom(currentRoom.id, (parts) => {
+        // Filter out stale participants (inactive for > 1 minute)
         const now = Date.now();
         const active = parts.filter(p => (now - p.lastActivity) < 60000);
         setParticipants(active);
@@ -214,7 +159,7 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
       clearInterval(heartbeatRef.current);
       unsubParticipants();
       unsubRoomStatus();
-      if(currentRoom && user) {
+      if(view === 'room') { // only leave if we are still in room view
         groupSessionService.leaveRoom(currentRoom.id, user.uid);
       }
     };
@@ -294,30 +239,21 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
                         <button onClick={handleLeaveRoom} className="flex items-center gap-2 text-sm text-theme-text-secondary font-bold hover:text-theme-text transition-colors">
                             <ArrowLeft size={16}/> Back to Lobby
                         </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                        <div className="lg:col-span-2">
-                           <Card>
-                                <h3 className="text-lg font-bold text-theme-text">{currentRoom.name}</h3>
-                                <p className="text-sm text-theme-text-secondary mb-4">{currentRoom.topic}</p>
-                                {participants.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {participants.map(p => (
-                                            <ParticipantCard key={p.uid} participant={p} isCurrentUser={p.uid === user.uid} />
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-16 text-theme-text-secondary">
-                                        <p className="text-sm">You're the first one here!</p>
-                                    </div>
-                                )}
-                            </Card>
-                        </div>
-                        <div className="lg:col-span-1">
-                            <Leaderboard participants={participants} currentUser={user} />
+                        <div>
+                            <button onClick={() => {}} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider">
+                                Start Focus
+                            </button>
                         </div>
                     </div>
+                    <Card>
+                        <h3 className="text-lg font-bold text-theme-text">{currentRoom.name}</h3>
+                        <p className="text-sm text-theme-text-secondary mb-4">{currentRoom.topic}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {participants.map(p => (
+                                <ParticipantCard key={p.uid} participant={p} isCurrentUser={p.uid === user.uid} />
+                            ))}
+                        </div>
+                    </Card>
                 </div>
             )
         )}

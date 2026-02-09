@@ -1,4 +1,6 @@
-import React, { Component } from "react";
+// Corrected React import to use a default import, resolving type errors with class component properties.
+// FIX: Import `Component` as a named import from 'react' to resolve issues with type inference for class components.
+import React from "react";
 import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface ErrorBoundaryProps {
@@ -12,15 +14,12 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Replaced class property initializer with a constructor to ensure `this.state`, `this.props`, and `this.setState` are correctly bound.
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-    };
-  }
+// FIX: Extend from the imported Component directly.
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
