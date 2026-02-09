@@ -75,11 +75,17 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
     }
     setIsLoading(true);
 
-    const friendsUnsub = onSnapshot(collection(db, `users/${user.uid}/friends`), (snapshot) => {
-      const friendList = snapshot.docs.map(doc => doc.data() as Friend);
-      setFriends(friendList);
-      setIsLoading(false);
-    });
+    const friendsUnsub = onSnapshot(collection(db, `users/${user.uid}/friends`), 
+      (snapshot) => {
+        const friendList = snapshot.docs.map(doc => doc.data() as Friend);
+        setFriends(friendList);
+        setIsLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching friends:", error);
+        setIsLoading(false); // Ensure loading stops on error
+      }
+    );
 
     const requestsUnsub = onSnapshot(collection(db, `users/${user.uid}/friendRequests`), (snapshot) => {
       const requestList = snapshot.docs.map(doc => doc.data() as FriendRequest);

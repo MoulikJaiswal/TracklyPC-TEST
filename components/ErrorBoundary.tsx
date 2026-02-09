@@ -13,7 +13,7 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Refactored to use class property syntax for state and arrow functions for methods to correctly bind `this`.
+  // Fix: Use class property for state and arrow functions for methods to correctly bind `this`.
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
@@ -33,7 +33,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   }
 
-  // FIX: Converted to arrow function to correctly bind `this` context.
+  // Fix: Convert to arrow function to correctly bind `this` context.
   handleReset = () => {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
@@ -41,7 +41,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   }
 
-  // FIX: Converted to arrow function for consistency.
+  // Fix: Convert to arrow function for consistency.
   handleReload = () => {
     window.location.reload();
   }
