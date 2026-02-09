@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { Users, LogIn, User as UserIcon, Plus, ArrowLeft, Loader2, Coffee, Brain, Trophy, Crown, Info, Lock, Copy, Check, X, Shield, Globe, Pencil, Trash2, Hammer, Clock, Rocket } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { StudyParticipant, StudyRoom, Target as TargetType } from '../types';
+import { StudyParticipant, StudyRoom, Target as TargetType, UserProfile } from '../types';
 import { groupSessionService } from '../services/groupSessionService';
 import { Card } from './Card';
 import { GoogleIcon } from './GoogleIcon';
@@ -11,7 +10,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 
 interface VirtualLibraryProps {
   user: User | null;
-  userName: string | null;
+  userProfile: UserProfile | null;
   onLogin: () => void;
   isPro: boolean;
   targets: TargetType[];
@@ -141,7 +140,7 @@ const Leaderboard = ({ participants, currentUser }: { participants: StudyPartici
     );
 };
 
-const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets, onCompleteTask, currentRoom, setCurrentRoom }) => {
+const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, userProfile, onLogin, targets, onCompleteTask, currentRoom, setCurrentRoom }) => {
   if (MAINTENANCE_MODE) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 animate-in fade-in zoom-in duration-500">
@@ -220,11 +219,11 @@ const VirtualLibrary: React.FC<VirtualLibraryProps> = ({ user, onLogin, targets,
 
   // --- Room Management ---
   const handleJoinRoom = async (roomId: string) => {
-      if (!user) return;
+      if (!user || !userProfile) return;
       setIsLoading(true);
       const roomData = await groupSessionService.getRoom(roomId);
       if(roomData) {
-          await groupSessionService.joinSession(roomId, { uid: user.uid, displayName: user.displayName || 'User', photoURL: user.photoURL }, 'Other');
+          await groupSessionService.joinSession(roomId, userProfile, 'Other');
           setCurrentRoom(roomData);
       }
       setIsLoading(false);

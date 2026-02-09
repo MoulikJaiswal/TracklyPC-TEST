@@ -15,7 +15,7 @@ import {
   where,
   writeBatch
 } from 'firebase/firestore';
-import { StudyParticipant, StudyRoom } from '../types';
+import { StudyParticipant, StudyRoom, UserProfile } from '../types';
 
 const generateRoomCode = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -126,29 +126,30 @@ export const groupSessionService = {
   },
 
   // 3. Join Session (Strict Single Room Enforcement)
-  joinSession: async (roomId: string, user: { uid: string, displayName: string, photoURL?: string | null }, subject: string) => {
+  joinSession: async (roomId: string, userProfile: UserProfile, subject: string) => {
       const batch = writeBatch(db);
+      const userId = userProfile.uid;
       
       // Check if user is in another room and prepare to leave it
-      const presenceRef = doc(db, `users/${user.uid}/presence/status`);
+      const presenceRef = doc(db, `users/${userId}/presence/status`);
       const presenceSnap = await getDoc(presenceRef);
       if (presenceSnap.exists()) {
           const prevRoomId = presenceSnap.data().currentRoomId;
           if (prevRoomId && prevRoomId !== roomId) {
-              const oldParticipantRef = doc(db, `rooms/${prevRoomId}/participants`, user.uid);
+              const oldParticipantRef = doc(db, `rooms/${prevRoomId}/participants`, userId);
               batch.delete(oldParticipantRef);
               const oldRoomRef = doc(db, 'rooms', prevRoomId);
               batch.update(oldRoomRef, { activeCount: increment(-1) });
           }
       }
 
-      const participantRef = doc(db, `rooms/${roomId}/participants`, user.uid);
+      const participantRef = doc(db, `rooms/${roomId}/participants`, userId);
       const roomRef = doc(db, 'rooms', roomId);
       
       const participantData: StudyParticipant = {
-          uid: user.uid,
-          displayName: user.displayName || 'Anonymous',
-          photoURL: user.photoURL,
+          uid: userId,
+          displayName: userProfile.studyBuddyUsername || userProfile.displayName || 'Anonymous',
+          photoURL: userProfile.photoURL,
           status: 'idle',
           subject: subject as any,
           lastActivity: Date.now(),

@@ -35,7 +35,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   // FIX: Removed 'private' keyword which might not be supported in all TypeScript configurations.
-  // Arrow function syntax correctly binds 'this'.
+  // Arrow function syntax correctly binds 'this' to the component instance, fixing access to 'this.props' and 'this.setState'.
   handleReset = () => {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
@@ -43,7 +43,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   };
 
-  // FIX: Removed 'private' keyword.
+  // FIX: Removed 'private' keyword and converted to arrow function to correctly bind 'this'.
   handleReload = () => {
     window.location.reload();
   };
