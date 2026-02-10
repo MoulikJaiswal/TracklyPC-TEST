@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -52,7 +53,8 @@ import { Card } from './components/Card';
 import { ProUpgradeModal } from './components/ProUpgradeModal';
 import { getProStatus } from './components/proController';
 import { StreamTransition } from './components/StreamTransition';
-import { TracklyLogo } from './components/TracklyLogo';
+// FIX: Aliased TracklyLogo to avoid potential naming conflicts that could cause it to be misinterpreted as a string.
+import { TracklyLogo as TracklyLogoComponent } from './components/TracklyLogo';
 import { WelcomePage } from './components/WelcomePage';
 import { ConfirmationModal } from './components/ConfirmationModal';
 
@@ -148,7 +150,7 @@ const Sidebar = React.memo(({ view, setView, onOpenSettings, isCollapsed, toggle
   return (
     <aside className={`hidden md:flex flex-col h-screen fixed left-0 top-0 z-40 border-r border-theme-border backdrop-blur-xl transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isCollapsed ? 'w-20 items-center' : 'w-64'} overflow-visible transform-gpu will-change-transform`} style={{ backgroundColor: 'rgba(var(--theme-card-rgb), 0.5)' }}>
       <div className={`h-20 flex items-center relative shrink-0 ${isCollapsed ? 'justify-center px-0 w-full' : 'justify-between px-6'}`}>
-        <TracklyLogo collapsed={isCollapsed} id="trackly-logo" />
+        <TracklyLogoComponent collapsed={isCollapsed} id="trackly-logo" />
         <button onClick={toggleCollapsed} className={`absolute top-1/2 -translate-y-1/2 -right-3 z-50 w-6 h-6 flex items-center justify-center bg-theme-card border border-theme-border rounded-full text-theme-text-secondary hover:text-theme-accent hover:border-theme-accent/30 transition-all shadow-sm hover:shadow-md hover:scale-110 active:scale-95`}>
            {isCollapsed ? <ChevronRight size={12} strokeWidth={3} /> : <ChevronLeft size={12} strokeWidth={3} />}
         </button>
@@ -429,7 +431,32 @@ export const App: React.FC = () => {
      window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [view]);
 
-  // ... [Analytics, Overdue Logic unchanged] ...
+  // ... [Analytics Logic unchanged] ...
+  const isAuthLoading = authStatus !== 'loaded';
+  const showWelcome = !isAuthLoading && !user && !isGuest;
+
+  useEffect(() => {
+    // Don't run on initial auth loading or on the welcome screen
+    if (isAuthLoading || showWelcome) return;
+  
+    // Wait a brief moment for data to settle after login/guest mode is established
+    const timeoutId = setTimeout(() => {
+      const todayStr = getLocalDate();
+      // Filter for tasks with a date before today that are not completed
+      const overdue = targets.filter(t => t.date < todayStr && !t.completed);
+  
+      if (overdue.length > 0) {
+        setOverdueTasks(overdue);
+        // Only show the modal once per browser session to avoid being annoying
+        if (!sessionStorage.getItem('overdueModalShown')) {
+          setShowOverdueModal(true);
+          sessionStorage.setItem('overdueModalShown', 'true');
+        }
+      }
+    }, 1500); // 1.5 second delay after data loads
+  
+    return () => clearTimeout(timeoutId);
+  }, [targets, isAuthLoading, showWelcome]);
 
   const handleForceSync = useCallback(async () => {
     if (!user) {
@@ -602,9 +629,6 @@ export const App: React.FC = () => {
         setSessions([]); setTargets([]); setTests([]); setNotes([]); setFolders([]);
     }
   }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
-
-  const isAuthLoading = authStatus !== 'loaded';
-  const showWelcome = !isAuthLoading && !user && !isGuest;
 
   // --- Smart Recommendation Logic ---
   const recommendation = useSmartRecommendations(sessionsForStream, currentSyllabus);
@@ -812,7 +836,7 @@ export const App: React.FC = () => {
 
         {isAuthLoading ? (
             <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-theme-bg gap-4">
-                <TracklyLogo />
+                <TracklyLogoComponent />
                 <Loader2 size={24} className="animate-spin text-theme-accent" />
                 {authStatus === 'loading_profile' && (
                     <p className="mt-4 text-theme-text-secondary animate-in fade-in delay-500 duration-500">Loading your profile...</p>
@@ -828,6 +852,7 @@ export const App: React.FC = () => {
                         <AnimatePresence mode="wait" custom={direction}>
                             {view === 'daily' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="daily" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} /></MotionDiv></Suspense> )}
                             {view === 'planner' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="planner" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} /></MotionDiv></Suspense> )}
+                            {/* FIX: Passed timerMode state to the mode prop instead of the undefined 'mode' variable. */}
                             {view === 'focus' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionsForStream.length} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} /></MotionDiv></Suspense> )}
                             {view === 'tests' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="tests" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} /></MotionDiv></Suspense> )}
                             {view === 'friends' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="friends" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><StudyBuddy user={user} userProfile={userProfile} /></MotionDiv></Suspense> )}
