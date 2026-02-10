@@ -664,7 +664,16 @@ export const App: React.FC = () => {
     else if (isGuest) localStorage.setItem('trackly_guest_tests', JSON.stringify([test, ...tests]));
   }, [user, isGuest, tests, stream]);
 
-  const handleDeleteSession = useCallback(async (id: string) => { /* ... */ }, [user, isGuest, sessions]);
+  const handleDeleteSession = useCallback(async (id: string) => {
+    const newSessions = sessions.filter(s => s.id !== id);
+    setSessions(newSessions);
+    if (user) {
+      await deleteDoc(doc(db, 'users', user.uid, 'sessions', id));
+    } else if (isGuest) {
+      localStorage.setItem('trackly_guest_sessions', JSON.stringify(newSessions));
+    }
+  }, [user, isGuest, sessions]);
+
   const handleDeleteTest = useCallback(async (id: string) => {
     const newTests = tests.filter(t => t.id !== id);
     setTests(newTests);
@@ -672,8 +681,25 @@ export const App: React.FC = () => {
     else if (isGuest) localStorage.setItem('trackly_guest_tests', JSON.stringify(newTests));
   }, [user, isGuest, tests]);
   
-  const handleDeleteTarget = useCallback(async (id: string) => { /* ... */ }, [user, isGuest, targets]);
-  const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => { /* ... */ }, [user, isGuest, targets]);
+  const handleDeleteTarget = useCallback(async (id: string) => {
+    const newTargets = targets.filter(t => t.id !== id);
+    setTargets(newTargets);
+    if (user) {
+      await deleteDoc(doc(db, 'users', user.uid, 'targets', id));
+    } else if (isGuest) {
+      localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
+    }
+  }, [user, isGuest, targets]);
+  
+  const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => {
+    const newTargets = targets.map(t => (t.id === id ? { ...t, completed } : t));
+    setTargets(newTargets);
+    if (user) {
+      await setDoc(doc(db, 'users', user.uid, 'targets', id), { completed }, { merge: true });
+    } else if (isGuest) {
+      localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
+    }
+  }, [user, isGuest, targets]);
 
   // Timer logic
   const handleTimerReset = useCallback(() => { setTimerState('idle'); setTimeLeft(timerDurations[timerMode] * 60); updatePresence({ state: 'idle' }); }, [timerMode, timerDurations, updatePresence]);
