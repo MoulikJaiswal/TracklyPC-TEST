@@ -232,6 +232,7 @@ const Planner: React.FC<PlannerProps> = memo(({
                               const tasksForDay = targets.filter(t => t.date === dateStr);
                               const hasTest = tasksForDay.some(t => t.type === 'test');
                               const hasTasks = tasksForDay.length > 0;
+                              const allDone = hasTasks && tasksForDay.every(t => t.completed);
 
                               return (
                                   <button
@@ -256,7 +257,7 @@ const Planner: React.FC<PlannerProps> = memo(({
                                       <span className="text-sm font-mono font-bold">{day}</span>
                                       <div className="flex gap-1 mt-1.5">
                                           {hasTest && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-300' : 'bg-amber-500'}`} />}
-                                          {!hasTest && hasTasks && <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--theme-accent)' }} />}
+                                          {!hasTest && hasTasks && <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: allDone ? '#34d399' : isSelected ? 'rgba(255,255,255,0.7)' : 'var(--theme-accent)' }} />}
                                       </div>
                                   </button>
                               );

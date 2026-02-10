@@ -13,8 +13,8 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Switched to modern class property syntax and arrow functions for handlers.
-  // This is the idiomatic way to write class components and avoids issues with 'this' binding.
+  // Using modern class property syntax for state and arrow functions for handlers.
+  // This is idiomatic and avoids issues with 'this' binding.
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
@@ -29,14 +29,19 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
+    // FIX: Use 'this.props' to access props in a class component.
     if (this.props.viewKey !== prevProps.viewKey) {
+      // FIX: Use 'this.setState' to update state in a class component.
       this.setState({ hasError: false, error: null });
     }
   }
 
   handleReset = () => {
+    // FIX: Use 'this.setState' to update state in a class component.
     this.setState({ hasError: false, error: null });
+    // FIX: Use 'this.props' to access props in a class component.
     if (this.props.onReset) {
+      // FIX: Use 'this.props' to access props in a class component.
       this.props.onReset();
     }
   }
@@ -86,6 +91,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       );
     }
 
+    // FIX: Use 'this.props' to access props in a class component.
     return this.props.children;
   }
 }
