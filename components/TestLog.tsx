@@ -29,7 +29,7 @@ const StatInput = memo(({ label, value, onChange, color, className }: { label: s
             <label className="block text-center text-[10px] font-bold uppercase tracking-widest mb-2">{label}</label>
             <div className="flex items-center justify-center gap-1">
                 <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="w-8 h-8 rounded-lg bg-black/5 dark:bg-black/20 hover:bg-black/10 dark:hover:bg-black/40">-</button>
-                <input type="number" value={value} onChange={(e) => onChange(parseInt(e.target.value) || 0)} className="w-14 text-center bg-transparent text-2xl font-mono font-bold" />
+                <input type="number" value={value} onChange={(e) => onChange(parseInt(e.target.value) || 0)} className="w-14 text-center bg-transparent text-2xl font-mono font-bold text-theme-text" />
                 <button type="button" onClick={() => onChange(value + 1)} className="w-8 h-8 rounded-lg bg-black/5 dark:bg-black/20 hover:bg-black/10 dark:hover:bg-black/40">+</button>
             </div>
         </div>
@@ -44,7 +44,7 @@ const MarkInput = memo(({ label, value, onChange, placeholder }: { label: string
                 type="number" 
                 value={value || ''} 
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)} 
-                className="w-full text-center bg-transparent text-2xl font-mono font-bold placeholder:text-theme-text-secondary/20"
+                className="w-full text-center bg-transparent text-2xl font-mono font-bold placeholder:text-theme-text-secondary/20 text-theme-text"
                 placeholder={placeholder}
             />
         </div>
@@ -222,7 +222,6 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
         if (step === 1) {
             if (stream === 'General' && testSubjects.length === 0) return false;
             if (stream !== 'General' && testData.testScope === 'Part') {
-                // FIX: Added Array.isArray check to satisfy TypeScript compiler which inferred 'chapters' as 'unknown'.
                 const hasChapters = Object.values(testData.partTestChapters || {}).some(chapters => Array.isArray(chapters) && chapters.length > 0);
                 if (!hasChapters) return false;
             }
@@ -254,9 +253,9 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
                 <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="max-w-2xl mx-auto">
                     {step === 1 && (
                         <div className="space-y-6">
-                            <input type="text" placeholder="Test Name (e.g., AITS-3)" value={testData.name} onChange={e => setTestData({...testData, name: e.target.value})} className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl text-lg font-bold" required />
-                            <input type="date" value={testData.date} onChange={e => setTestData({...testData, date: e.target.value})} className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl" />
-                            <select value={testData.examType} onChange={e => handleExamTypeChange(e.target.value as any)} className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl">
+                            <input type="text" placeholder="Test Name (e.g., AITS-3)" value={testData.name} onChange={e => setTestData({...testData, name: e.target.value})} className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl text-lg font-bold text-theme-text" required />
+                            <input type="date" value={testData.date} onChange={e => setTestData({...testData, date: e.target.value})} className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl text-theme-text" />
+                            <select value={testData.examType} onChange={e => handleExamTypeChange(e.target.value as any)} className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl text-theme-text">
                                 {examTypeOptions.map(key => <option key={key}>{key}</option>)}
                             </select>
                              {stream === 'General' && (
@@ -329,7 +328,7 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
                             </div>
                             {testSubjects.map(sub => (
                                 <div key={sub} className="p-4 bg-theme-bg-tertiary rounded-2xl border border-theme-border">
-                                    <h4 className="font-bold mb-4">{sub}</h4>
+                                    <h4 className="font-bold mb-4 text-theme-text">{sub}</h4>
                                     {isCustomTest ? (
                                         <div className="grid grid-cols-2 gap-3">
                                             <MarkInput label="Marks Obtained" value={testData.breakdown?.[sub]?.marks} onChange={v => handleSubjectMarksChange(sub, 'marks', v)} placeholder="--" />
@@ -358,7 +357,7 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
                                 if (incorrect === 0) return null;
                                 return (
                                     <div key={sub} className="p-4 bg-theme-bg-tertiary rounded-2xl border border-theme-border">
-                                        <div className="flex justify-between items-center mb-4"><h4 className="font-bold">{sub}</h4><div className={`p-2 rounded-lg text-xs font-bold ${tagged === incorrect ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>{tagged} / {incorrect} Tagged</div></div>
+                                        <div className="flex justify-between items-center mb-4"><h4 className="font-bold text-theme-text">{sub}</h4><div className={`p-2 rounded-lg text-xs font-bold ${tagged === incorrect ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>{tagged} / {incorrect} Tagged</div></div>
                                         <div className="grid grid-cols-2 gap-3">
                                             {MISTAKE_TYPES.map(m => (<StatInput key={m.id} label={m.label} value={safeNum(mistakes[m.id as keyof MistakeCounts])} onChange={v => handleMistakeChange(sub, m.id, v)} color="border-slate-500/20" />))}
                                         </div>
@@ -369,9 +368,9 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
                     )}
                     {step === 4 && (
                         <div className="space-y-6">
-                             <select value={testData.temperament} onChange={e => setTestData({...testData, temperament: e.target.value as any})} className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl"><option>Focused</option><option>Calm</option><option>Anxious</option><option>Fatigued</option></select>
-                            <textarea placeholder="Weak topics identified (comma separated)..." value={(testData.weakTopics || []).join(', ')} onChange={e => setTestData({...testData, weakTopics: e.target.value.split(',').map(t => t.trim())})} className="w-full p-4 h-32 bg-theme-bg-tertiary border border-theme-border rounded-xl" />
-                            <textarea placeholder="General notes and takeaways..." value={testData.postTestNotes} onChange={e => setTestData({...testData, postTestNotes: e.target.value})} className="w-full p-4 h-48 bg-theme-bg-tertiary border border-theme-border rounded-xl" />
+                             <select value={testData.temperament} onChange={e => setTestData({...testData, temperament: e.target.value as any})} className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl text-theme-text"><option>Focused</option><option>Calm</option><option>Anxious</option><option>Fatigued</option></select>
+                            <textarea placeholder="Weak topics identified (comma separated)..." value={(testData.weakTopics || []).join(', ')} onChange={e => setTestData({...testData, weakTopics: e.target.value.split(',').map(t => t.trim())})} className="w-full p-4 h-32 bg-theme-bg-tertiary border border-theme-border rounded-xl text-theme-text" />
+                            <textarea placeholder="General notes and takeaways..." value={testData.postTestNotes} onChange={e => setTestData({...testData, postTestNotes: e.target.value})} className="w-full p-4 h-48 bg-theme-bg-tertiary border border-theme-border rounded-xl text-theme-text" />
                         </div>
                     )}
                 </motion.div>
@@ -606,7 +605,7 @@ const TestLog = memo(({ tests, onSave, onDelete, syllabus, stream }: TestLogProp
             </div>
             <TestAnalytics tests={tests} />
             <div className="flex items-center gap-2">
-                <div className="relative flex-1 group"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-secondary group-focus-within:text-theme-accent" /><input type="text" placeholder="Search tests..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-theme-card border border-theme-border rounded-xl py-2 pl-8 pr-3 text-sm focus:border-theme-accent outline-none" /></div>
+                <div className="relative flex-1 group"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-secondary group-focus-within:text-theme-accent" /><input type="text" placeholder="Search tests..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-theme-card border border-theme-border rounded-xl py-2 pl-8 pr-3 text-sm focus:border-theme-accent outline-none text-theme-text" /></div>
                 <button onClick={() => setSortOrder(s => s === 'newest' ? 'oldest' : 'newest')} className="p-2.5 bg-theme-card border border-theme-border rounded-xl text-theme-text-secondary hover:text-theme-text"><ArrowUpNarrowWide size={14} className={`transition-transform ${sortOrder === 'oldest' ? 'rotate-180' : ''}`} /></button>
             </div>
             

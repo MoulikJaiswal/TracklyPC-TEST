@@ -99,7 +99,7 @@ const StudyBuddySetup = ({ user, userProfile }: { user: User, userProfile: UserP
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="Choose a username"
-                        className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl text-center font-bold text-lg"
+                        className="w-full p-4 bg-theme-bg-tertiary border border-theme-border rounded-xl text-center font-bold text-lg text-theme-text"
                     />
                     {error && <p className="text-xs text-rose-500">{error}</p>}
                     <button type="submit" disabled={isLoading} className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-theme-accent text-theme-text-on-accent rounded-xl text-sm font-bold uppercase tracking-widest shadow-lg hover:opacity-90 transition-opacity active:scale-95 disabled:opacity-50">
@@ -452,7 +452,7 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
                 <div className="space-y-4">
                     <Card className="p-4">
                         <form onSubmit={handleSearch} className="flex gap-2">
-                            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Enter Friend Code (e.g., User#1234)" className="flex-1 p-3 bg-theme-bg-tertiary border border-theme-border rounded-xl text-sm" />
+                            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Enter Friend Code (e.g., User#1234)" className="flex-1 p-3 bg-theme-bg-tertiary border border-theme-border rounded-xl text-sm text-theme-text" />
                             <button type="submit" className="p-3 bg-theme-accent text-theme-text-on-accent rounded-xl"><Search size={20} /></button>
                         </form>
                     </Card>

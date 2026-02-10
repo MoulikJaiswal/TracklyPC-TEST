@@ -13,18 +13,13 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Converted to use a constructor to initialize state and bind methods.
-  // This explicitly sets the `this` context for event handlers, which can resolve
-  // issues in some environments where class property syntax might not be correctly handled.
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-    };
-    this.handleReset = this.handleReset.bind(this);
-    this.handleReload = this.handleReload.bind(this);
-  }
+  // FIX: Switched to class property syntax for state and arrow functions for handlers.
+  // This is a more modern approach that simplifies the component and avoids manual
+  // `this` binding in the constructor, which can sometimes resolve tooling issues.
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -40,16 +35,16 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
   }
 
-  handleReset() {
+  handleReset = () => {
     this.setState({ hasError: false, error: null });
     if (this.props.onReset) {
       this.props.onReset();
     }
-  }
+  };
 
-  handleReload() {
+  handleReload = () => {
     window.location.reload();
-  }
+  };
 
   render() {
     if (this.state.hasError) {
