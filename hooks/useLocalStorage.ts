@@ -1,5 +1,8 @@
-
 import { useState, useEffect, Dispatch, SetStateAction } from 'react';
+
+// A utility hook for persisting React state to the browser's localStorage.
+// It serializes the state to JSON and retrieves it on component mount.
+// This ensures state is saved across browser sessions.
 
 function safeJSONParse<T>(key: string, fallback: T): T {
     try {
