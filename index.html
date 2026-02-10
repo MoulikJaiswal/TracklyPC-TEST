@@ -261,6 +261,23 @@
           mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
           -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
         }
+
+        /* FIX: Global input colors for theme consistency */
+        input, select, textarea {
+            color: var(--theme-text-main);
+        }
+        input::placeholder, textarea::placeholder {
+            color: var(--theme-text-secondary);
+            opacity: 0.6;
+        }
+        .dark select option {
+            background-color: var(--theme-card);
+            color: var(--theme-text-main);
+        }
+        /* Make date picker icon visible in dark mode */
+        .dark input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1) brightness(0.9);
+        }
     </style>
 <script type="importmap">
 {

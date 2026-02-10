@@ -391,6 +391,12 @@ export const App: React.FC = () => {
 
   // ... [Theme Config, Handlers, etc. largely unchanged] ...
   const themeConfig = THEME_CONFIG[theme];
+
+  useEffect(() => {
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(themeConfig.mode);
+  }, [themeConfig.mode]);
+
   const dynamicStyles = useMemo(() => `
       :root {
         --theme-bg: ${themeConfig.colors.bg};
