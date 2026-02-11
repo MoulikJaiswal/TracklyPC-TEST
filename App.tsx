@@ -786,13 +786,17 @@ export const App: React.FC = () => {
       if (timerState === 'idle' || timerState === 'paused') { 
           setTimerState('running'); 
           endTimeRef.current = Date.now() + timeLeft * 1000;
-          updatePresence({ state: 'focus', subject: selectedSubject, endTime: endTimeRef.current });
+          updatePresence({ 
+              state: timerMode === 'focus' ? 'focus' : 'break', 
+              subject: timerMode === 'focus' ? selectedSubject : undefined, 
+              endTime: endTimeRef.current 
+          });
       } else { 
           setTimerState('paused'); 
           clearInterval(timerRef.current);
           updatePresence({ state: 'idle' });
       }
-  }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled]);
+  }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled, timerMode]);
 
   const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => { 
       setTimerMode(mode); 
