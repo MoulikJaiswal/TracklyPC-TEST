@@ -828,7 +828,9 @@ export const App: React.FC = () => {
          });
       }
 
-      playCompletionSound();
+      if (!isInterrupted) {
+        playCompletionSound();
+      }
 
       if (isInterrupted) {
           handleTimerReset();

@@ -29,24 +29,19 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
-    // Fix: In a class component, props are accessed via `this.props`.
     // FIX: Correctly access props via `this.props` in a class component.
     if (this.props.viewKey !== prevProps.viewKey) {
-      // Fix: State is updated using `this.setState`.
-      // FIX: Correctly call `this.setState` to update state in a class component.
+      // FIX: `setState` is a method on the component instance and must be called with `this.setState`.
       this.setState({ hasError: false, error: null });
     }
   }
 
   handleReset = () => {
-    // Fix: State is updated using `this.setState`.
-    // FIX: Correctly call `this.setState` to update state in a class component.
+    // FIX: `setState` is a method on the component instance and must be called with `this.setState`.
     this.setState({ hasError: false, error: null });
-    // Fix: In a class component, props are accessed via `this.props`.
-    // FIX: Correctly access props via `this.props` in a class component.
+    // FIX: In a class component, props are accessed via `this.props`.
     if (this.props.onReset) {
-      // Fix: Prop functions must be called from `this.props`.
-      // FIX: Correctly call prop functions from `this.props`.
+      // FIX: Prop functions must be called from `this.props`.
       this.props.onReset();
     }
   }
@@ -96,8 +91,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       );
     }
 
-    // Fix: Children are passed down via `this.props.children`.
-    // FIX: Correctly access children from `this.props`.
+    // FIX: Children are passed down via `this.props.children`.
     return this.props.children;
   }
 }
