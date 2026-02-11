@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -291,7 +290,7 @@ export const App: React.FC = () => {
   const [swipeStiffness, setSwipeStiffness] = useLocalStorage('trackly_swipe_stiffness', 6000); 
   const [swipeDamping, setSwipeDamping] = useLocalStorage('trackly_swipe_damping', 300);    
   const [soundEnabled, setSoundEnabled] = useLocalStorage('trackly_sound', true);
-  const [soundPitch, setSoundPitch] = useLocalStorage('trackly_sound_pitch', 600);
+  const [soundPitch, setSoundPitch] = useLocalStorage('trackly_sound_pitch', 1047);
   const [soundVolume, setSoundVolume] = useLocalStorage('trackly_sound_volume', 0.5);
   const [customBackground, setCustomBackground] = useLocalStorage<string | null>('trackly_custom_bg', null);
   const [customBackgroundEnabled, setCustomBackgroundEnabled] = useLocalStorage('trackly_custom_bg_enabled', false);
@@ -318,9 +317,9 @@ export const App: React.FC = () => {
   
   const [timerMode, setTimerMode] = useState<'focus' | 'short' | 'long'>('focus');
   const [timerDurations, setTimerDurations] = useLocalStorage('trackly_timer_durations', { focus: 25, short: 5, long: 15 });
+  const [sessionCount, setSessionCount] = useLocalStorage<number>('trackly_sessionCount', 0);
   const [timeLeft, setTimeLeft] = useState(() => {
     const storedDurations = safeJSONParse('trackly_timer_durations', { focus: 25, short: 5, long: 15 });
-    // The timerMode also defaults to 'focus', so this initialization is consistent.
     return storedDurations.focus * 60;
   });
   const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
@@ -340,6 +339,60 @@ export const App: React.FC = () => {
     if (isGuest) return localStorage.getItem('trackly_guest_name') || 'Guest';
     return userProfile?.studyBuddyUsername || userProfile?.displayName || user?.displayName || 'User';
   }, [user, userProfile, isGuest]);
+
+  // Audio Synthesis
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    if (soundEnabled && !audioContextRef.current) {
+      try {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      } catch (e) {
+        console.error("Web Audio API is not supported in this browser.");
+      }
+    }
+  }, [soundEnabled]);
+
+  const playCompletionSound = useCallback(() => {
+    if (!soundEnabled || !audioContextRef.current) return;
+    const ctx = audioContextRef.current;
+    
+    if (ctx.state === 'suspended') {
+        ctx.resume();
+    }
+
+    const playBell = (time: number) => {
+      const fundamental = soundPitch;
+      const volume = 0.4 * soundVolume;
+      const partials = [0.56, 1, 1.19, 1.7, 2, 2.74, 3.5, 4.3]; 
+      const amplitudes = [0.2, 1, 0.8, 0.6, 0.7, 0.4, 0.3, 0.2];
+
+      partials.forEach((ratio, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(fundamental * ratio, time);
+        
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime((volume * amplitudes[index]) / (index + 1), time + 0.01); 
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 2);
+
+        osc.start(time);
+        osc.stop(time + 2.5);
+      });
+    };
+
+    const now = ctx.currentTime;
+    const interval = 1.8;
+    const totalDuration = 22;
+
+    for (let i = 0; i * interval < totalDuration; i++) {
+      playBell(now + i * interval);
+    }
+  }, [soundEnabled, soundPitch, soundVolume]);
 
   // Initial subject selection when subjects load
   useEffect(() => {
@@ -726,31 +779,10 @@ export const App: React.FC = () => {
   }, [user, isGuest, targets]);
 
   // Timer logic
-  const handleTimerReset = useCallback(() => { setTimerState('idle'); setTimeLeft(timerDurations[timerMode] * 60); updatePresence({ state: 'idle' }); }, [timerMode, timerDurations, updatePresence]);
-  const handleCompleteSession = useCallback((elapsedTime?: number) => {
-      const plannedDuration = timerDurations[timerMode] * 60;
-      const effectiveDuration = elapsedTime !== undefined ? elapsedTime : plannedDuration;
-      if (effectiveDuration > 60) {
-         handleSaveSession({ subject: selectedSubject, topic: 'Focus Session', attempted: 0, correct: 0, mistakes: {}, duration: effectiveDuration, plannedDuration });
-      }
-      handleTimerReset();
-  }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset]);
-  
-  useEffect(() => {
-      if (timerState === 'running') {
-          timerRef.current = setInterval(() => {
-              const now = Date.now();
-              const diff = Math.ceil((endTimeRef.current - now) / 1000);
-              if (diff <= 0) {
-                  setTimeLeft(0); setTimerState('idle'); clearInterval(timerRef.current);
-                  handleCompleteSession(timerDurations[timerMode] * 60);
-              } else { setTimeLeft(diff); }
-          }, 1000);
-      }
-      return () => clearInterval(timerRef.current);
-  }, [timerState, timerDurations, timerMode, handleCompleteSession]);
-
   const handleTimerToggle = useCallback(() => {
+      if (soundEnabled && audioContextRef.current && audioContextRef.current.state === 'suspended') {
+          audioContextRef.current.resume();
+      }
       if (timerState === 'idle' || timerState === 'paused') { 
           setTimerState('running'); 
           endTimeRef.current = Date.now() + timeLeft * 1000;
@@ -760,7 +792,7 @@ export const App: React.FC = () => {
           clearInterval(timerRef.current);
           updatePresence({ state: 'idle' });
       }
-  }, [timerState, timeLeft, updatePresence, selectedSubject]);
+  }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled]);
 
   const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => { 
       setTimerMode(mode); 
@@ -768,7 +800,61 @@ export const App: React.FC = () => {
       setTimeLeft(timerDurations[mode] * 60);
       updatePresence({ state: mode === 'focus' ? 'idle' : 'break', endTime: Date.now() + timerDurations[mode] * 60 * 1000 });
   }, [timerDurations, updatePresence]);
+  
+  const handleTimerReset = useCallback(() => { 
+      setTimerState('idle'); 
+      setTimeLeft(timerDurations[timerMode] * 60); 
+      updatePresence({ state: 'idle' }); 
+  }, [timerMode, timerDurations, updatePresence]);
 
+  const handleCompleteSession = useCallback((elapsedTime?: number) => {
+      const isInterrupted = elapsedTime !== undefined;
+      const plannedDuration = timerDurations[timerMode] * 60;
+      const effectiveDuration = isInterrupted ? elapsedTime : plannedDuration;
+
+      if (timerMode === 'focus' && effectiveDuration > 60) {
+         handleSaveSession({ 
+            subject: selectedSubject, 
+            topic: 'Focus Session', 
+            attempted: 0, 
+            correct: 0, 
+            mistakes: {}, 
+            duration: effectiveDuration, 
+            plannedDuration 
+         });
+      }
+
+      playCompletionSound();
+
+      if (isInterrupted) {
+          handleTimerReset();
+      } else {
+          if (timerMode === 'focus') {
+              const newCount = sessionCount + 1;
+              setSessionCount(newCount);
+              handleModeSwitch(newCount > 0 && newCount % 4 === 0 ? 'long' : 'short');
+          } else {
+              handleModeSwitch('focus');
+          }
+      }
+      updatePresence({ state: 'idle' });
+  }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset, handleModeSwitch, sessionCount, setSessionCount, playCompletionSound, updatePresence]);
+
+  useEffect(() => {
+      if (timerState === 'running') {
+          timerRef.current = setInterval(() => {
+              const now = Date.now();
+              const diff = Math.ceil((endTimeRef.current - now) / 1000);
+              if (diff <= 0) {
+                  setTimeLeft(0);
+                  clearInterval(timerRef.current);
+                  handleCompleteSession();
+              } else { setTimeLeft(diff); }
+          }, 1000);
+      }
+      return () => clearInterval(timerRef.current);
+  }, [timerState, handleCompleteSession]);
+  
   const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus'|'short'|'long') => {
       setTimerDurations(prev => ({ ...prev, [modeKey]: newDuration }));
       if (timerMode === modeKey && timerState === 'idle') { setTimeLeft(newDuration * 60); }
@@ -852,8 +938,7 @@ export const App: React.FC = () => {
                         <AnimatePresence mode="wait" custom={direction}>
                             {view === 'daily' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="daily" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} /></MotionDiv></Suspense> )}
                             {view === 'planner' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="planner" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} /></MotionDiv></Suspense> )}
-                            {/* FIX: Passed timerMode state to the mode prop instead of the undefined 'mode' variable. */}
-                            {view === 'focus' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionsForStream.length} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} /></MotionDiv></Suspense> )}
+                            {view === 'focus' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} /></MotionDiv></Suspense> )}
                             {view === 'tests' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="tests" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} /></MotionDiv></Suspense> )}
                             {view === 'friends' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="friends" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><StudyBuddy user={user} userProfile={userProfile} /></MotionDiv></Suspense> )}
                             {view === 'analytics' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="analytics" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} /></MotionDiv></Suspense> )}
