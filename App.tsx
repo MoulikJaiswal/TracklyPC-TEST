@@ -704,7 +704,7 @@ export const App: React.FC = () => {
     } else {
         setSessions([]); setTargets([]); setTests([]); setNotes([]); setFolders([]);
     }
-  }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
+  }, [user, isGuest, isFirebaseReady]);
 
   // --- Smart Recommendation Logic ---
   const recommendation = useSmartRecommendations(sessionsForStream, currentSyllabus);
@@ -817,7 +817,7 @@ export const App: React.FC = () => {
       } else { 
           setTimerState('paused'); 
           clearInterval(timerRef.current);
-          updatePresence({ state: 'idle', subject: undefined });
+          updatePresence({ state: 'idle' });
       }
   }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled, timerMode]);
 
@@ -825,17 +825,13 @@ export const App: React.FC = () => {
       setTimerMode(mode); 
       setTimerState('idle'); 
       setTimeLeft(timerDurations[mode] * 60);
-      updatePresence({ 
-        state: mode === 'focus' ? 'idle' : 'break', 
-        subject: mode === 'focus' ? selectedSubject : undefined,
-        endTime: Date.now() + timerDurations[mode] * 60 * 1000 
-      });
-  }, [timerDurations, updatePresence, selectedSubject]);
+      updatePresence({ state: mode === 'focus' ? 'idle' : 'break', endTime: Date.now() + timerDurations[mode] * 60 * 1000 });
+  }, [timerDurations, updatePresence]);
   
   const handleTimerReset = useCallback(() => { 
       setTimerState('idle'); 
       setTimeLeft(timerDurations[timerMode] * 60); 
-      updatePresence({ state: 'idle', subject: undefined }); 
+      updatePresence({ state: 'idle' }); 
   }, [timerMode, timerDurations, updatePresence]);
 
   const handleCompleteSession = useCallback((elapsedTime?: number) => {
@@ -870,7 +866,7 @@ export const App: React.FC = () => {
               handleModeSwitch('focus');
           }
       }
-      updatePresence({ state: 'idle', subject: undefined });
+      updatePresence({ state: 'idle' });
   }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset, handleModeSwitch, sessionCount, setSessionCount, playCompletionSound, updatePresence]);
 
   useEffect(() => {
