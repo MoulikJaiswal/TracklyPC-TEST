@@ -704,7 +704,7 @@ export const App: React.FC = () => {
     } else {
         setSessions([]); setTargets([]); setTests([]); setNotes([]); setFolders([]);
     }
-  }, [user, isGuest, isFirebaseReady]);
+  }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
 
   // --- Smart Recommendation Logic ---
   const recommendation = useSmartRecommendations(sessionsForStream, currentSyllabus);
@@ -817,21 +817,27 @@ export const App: React.FC = () => {
       } else { 
           setTimerState('paused'); 
           clearInterval(timerRef.current);
-          updatePresence({ state: 'idle' });
+          updatePresence({ state: 'idle', subject: undefined });
       }
   }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled, timerMode]);
 
   const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => { 
       setTimerMode(mode); 
       setTimerState('idle'); 
+      clearInterval(timerRef.current);
       setTimeLeft(timerDurations[mode] * 60);
-      updatePresence({ state: mode === 'focus' ? 'idle' : 'break', endTime: Date.now() + timerDurations[mode] * 60 * 1000 });
+      updatePresence({ 
+        state: mode === 'focus' ? 'idle' : 'break', 
+        subject: undefined, // Always clear subject when switching modes
+        endTime: Date.now() + timerDurations[mode] * 60 * 1000 
+      });
   }, [timerDurations, updatePresence]);
   
   const handleTimerReset = useCallback(() => { 
       setTimerState('idle'); 
+      clearInterval(timerRef.current);
       setTimeLeft(timerDurations[timerMode] * 60); 
-      updatePresence({ state: 'idle' }); 
+      updatePresence({ state: 'idle', subject: undefined }); 
   }, [timerMode, timerDurations, updatePresence]);
 
   const handleCompleteSession = useCallback((elapsedTime?: number) => {
@@ -866,7 +872,8 @@ export const App: React.FC = () => {
               handleModeSwitch('focus');
           }
       }
-      updatePresence({ state: 'idle' });
+      // This final call is redundant if the switch/reset handlers are correct, but serves as a good fallback.
+      updatePresence({ state: 'idle', subject: undefined });
   }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset, handleModeSwitch, sessionCount, setSessionCount, playCompletionSound, updatePresence]);
 
   useEffect(() => {
