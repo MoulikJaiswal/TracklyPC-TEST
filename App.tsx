@@ -660,18 +660,41 @@ export const App: React.FC = () => {
   const testsForStream = useMemo(() => tests.filter(t => t.stream ? t.stream === stream : stream === 'General'), [tests, stream]);
 
   useEffect(() => {
-    if (!isFirebaseReady) return; 
+    if (!isFirebaseReady) return;
+
+    let unsubSyllabus: (() => void) | undefined;
+    let unsubSessions: (() => void) | undefined;
+    let unsubTargets: (() => void) | undefined;
+    let unsubTests: (() => void) | undefined;
+    let unsubFolders: (() => void) | undefined;
+    let unsubNotes: (() => void) | undefined;
 
     if (user) {
-        getDoc(doc(db, 'users', user.uid, 'settings', 'general')).then(snap => { if(snap.exists() && snap.data().customSyllabus) setCustomSyllabus(snap.data().customSyllabus); });
+        // Real-time syllabus sync
+        const settingsRef = doc(db, 'users', user.uid, 'settings', 'general');
+        unsubSyllabus = onSnapshot(settingsRef, (snap) => {
+            // Only update from Firestore if it's not a local pending write, to prevent loops.
+            if (!snap.metadata.hasPendingWrites) {
+                if (snap.exists() && snap.data().customSyllabus) {
+                    setCustomSyllabus(snap.data().customSyllabus);
+                }
+            }
+        });
 
-        const unsubSessions = onSnapshot(query(collection(db, 'users', user.uid, 'sessions'), orderBy('timestamp', 'desc')), (snapshot) => setSessions(snapshot.docs.map(d => d.data() as Session)));
-        const unsubTargets = onSnapshot(query(collection(db, 'users', user.uid, 'targets'), orderBy('timestamp', 'desc')), (snapshot) => setTargets(snapshot.docs.map(d => d.data() as Target)));
-        const unsubTests = onSnapshot(query(collection(db, 'users', user.uid, 'tests'), orderBy('timestamp', 'desc')), (snapshot) => setTests(snapshot.docs.map(d => d.data() as TestResult)));
-        const unsubFolders = onSnapshot(query(collection(db, 'users', user.uid, 'folders'), orderBy('timestamp', 'desc')), (snapshot) => setFolders(snapshot.docs.map(d => d.data() as Folder)));
-        const unsubNotes = onSnapshot(query(collection(db, 'users', user.uid, 'notes'), orderBy('timestamp', 'desc')), (snapshot) => setNotes(snapshot.docs.map(d => d.data() as Note)));
+        unsubSessions = onSnapshot(query(collection(db, 'users', user.uid, 'sessions'), orderBy('timestamp', 'desc')), (snapshot) => setSessions(snapshot.docs.map(d => d.data() as Session)));
+        unsubTargets = onSnapshot(query(collection(db, 'users', user.uid, 'targets'), orderBy('timestamp', 'desc')), (snapshot) => setTargets(snapshot.docs.map(d => d.data() as Target)));
+        unsubTests = onSnapshot(query(collection(db, 'users', user.uid, 'tests'), orderBy('timestamp', 'desc')), (snapshot) => setTests(snapshot.docs.map(d => d.data() as TestResult)));
+        unsubFolders = onSnapshot(query(collection(db, 'users', user.uid, 'folders'), orderBy('timestamp', 'desc')), (snapshot) => setFolders(snapshot.docs.map(d => d.data() as Folder)));
+        unsubNotes = onSnapshot(query(collection(db, 'users', user.uid, 'notes'), orderBy('timestamp', 'desc')), (snapshot) => setNotes(snapshot.docs.map(d => d.data() as Note)));
 
-        return () => { unsubSessions(); unsubTargets(); unsubTests(); unsubFolders(); unsubNotes(); }
+        return () => { 
+            unsubSyllabus?.(); 
+            unsubSessions?.(); 
+            unsubTargets?.(); 
+            unsubTests?.(); 
+            unsubFolders?.(); 
+            unsubNotes?.(); 
+        }
     } else if (isGuest) {
         setSessions(safeJSONParse('trackly_guest_sessions', []));
         setTargets(safeJSONParse('trackly_guest_targets', []));
@@ -681,7 +704,7 @@ export const App: React.FC = () => {
     } else {
         setSessions([]); setTargets([]); setTests([]); setNotes([]); setFolders([]);
     }
-  }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
+  }, [user, isGuest, isFirebaseReady]);
 
   // --- Smart Recommendation Logic ---
   const recommendation = useSmartRecommendations(sessionsForStream, currentSyllabus);
