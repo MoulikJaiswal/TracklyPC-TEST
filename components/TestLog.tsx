@@ -26,7 +26,7 @@ interface TestLogProps {
 const StatInput = memo(({ label, value, onChange, color, className }: { label: string, value: number, onChange: (val: number) => void, color: string, className?: string }) => {
     return (
         <div className={`p-3 rounded-2xl border ${color} bg-opacity-10 ${className}`}>
-            <label className="block text-center text-[10px] font-bold uppercase tracking-widest mb-2">{label}</label>
+            <label className="block text-center text-[10px] font-bold uppercase tracking-widest mb-2 text-theme-text-secondary">{label}</label>
             <div className="flex items-center justify-center gap-1">
                 <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="w-8 h-8 rounded-lg bg-black/5 dark:bg-black/20 hover:bg-black/10 dark:hover:bg-black/40">-</button>
                 <input type="number" value={value} onChange={(e) => onChange(parseInt(e.target.value) || 0)} className="w-14 text-center bg-transparent text-2xl font-mono font-bold text-theme-text" />
@@ -39,7 +39,7 @@ const StatInput = memo(({ label, value, onChange, color, className }: { label: s
 const MarkInput = memo(({ label, value, onChange, placeholder }: { label: string, value: number | undefined, onChange: (val: number) => void, placeholder?: string }) => {
     return (
         <div className="p-3 rounded-2xl border border-slate-500/20 bg-opacity-10">
-            <label className="block text-center text-[10px] font-bold uppercase tracking-widest mb-2">{label}</label>
+            <label className="block text-center text-[10px] font-bold uppercase tracking-widest mb-2 text-theme-text-secondary">{label}</label>
             <input 
                 type="number" 
                 value={value || ''} 

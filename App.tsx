@@ -950,7 +950,7 @@ export const App: React.FC = () => {
   return (
     <>
       <style>{dynamicStyles}</style>
-      <div className={`min-h-screen transition-colors duration-300 ${themeConfig.mode} font-sans selection:bg-theme-accent/30`}>
+      <div className={`min-h-screen transition-colors duration-300 ${themeConfig.mode} font-sans selection:bg-theme-accent/30 text-theme-text`}>
         <StreamTransition isTransitioning={isTransitioning} stream={transitionStream} />
         <AnimatedBackground themeId={theme} showAurora={effectiveShowAurora} parallaxEnabled={effectiveParallax} customBackground={customBackgroundEnabled ? customBackground : null} customBackgroundAlign={customBackgroundAlign} />
 

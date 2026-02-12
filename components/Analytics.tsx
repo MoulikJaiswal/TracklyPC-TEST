@@ -1,5 +1,4 @@
 
-
 import React, { useMemo, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -204,7 +203,7 @@ const SubjectProficiency = memo(({ sessions, stream, syllabus }: { sessions: Ses
                     style={{ width: '100%', transform: `scaleX(${scaleVal})` }} 
                  />
                </div>
-               <div className="mt-1.5 text-[9px] text-theme-text-secondary/70 font-bold uppercase tracking-widest text-right">
+               <div className="mt-1.5 text-[9px] text-theme-text-secondary font-bold uppercase tracking-widest text-right">
                  {attempted} Questions
                </div>
              </div>
@@ -329,7 +328,7 @@ const SyllabusHeatmap = memo(({ sessions, isPro, onOpenUpgrade, stream, syllabus
       )}
 
       {toastMessage && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[160] px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-[160] px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
               {toastMessage}
           </div>
       )}
