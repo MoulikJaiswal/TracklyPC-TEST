@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye, Activity, User as UserIcon } from 'lucide-react';
+import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye, Activity, User as UserIcon, Sparkles } from 'lucide-react';
 import { Card } from './Card';
 import { ThemeId, StreamType, SyllabusData, ActivityThresholds, UserProfile } from '../types';
 import { THEME_CONFIG } from '../constants';
@@ -66,6 +66,9 @@ interface SettingsModalProps {
 
   activityThresholds: ActivityThresholds;
   setActivityThresholds: React.Dispatch<React.SetStateAction<ActivityThresholds>>;
+  
+  showSmartRecommendations: boolean;
+  toggleSmartRecommendations: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -123,6 +126,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   activityThresholds,
   setActivityThresholds,
+  showSmartRecommendations,
+  toggleSmartRecommendations,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -447,6 +452,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
               </div>
           )}
+          
+          {/* --- SECTION: FEATURES --- */}
+          <div className="space-y-4">
+              <div className="flex items-center gap-2 text-violet-500 dark:text-violet-400 border-b border-violet-100 dark:border-violet-500/20 pb-2">
+                  <Sparkles size={16} />
+                  <span className="text-xs font-bold uppercase tracking-widest">Features</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
+                  <div>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">Smart Recommendations</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Get suggestions based on your performance.</p>
+                  </div>
+                  <button 
+                      onClick={toggleSmartRecommendations}
+                      className={`w-10 h-5 rounded-full relative transition-colors ${showSmartRecommendations ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                      style={showSmartRecommendations ? { backgroundColor: 'var(--theme-accent)' } : {}}
+                  >
+                      <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${showSmartRecommendations ? 'left-6' : 'left-1'}`} />
+                  </button>
+              </div>
+          </div>
+
 
           {/* --- SECTION 0: STUDY STREAM --- */}
           <div className="space-y-4">

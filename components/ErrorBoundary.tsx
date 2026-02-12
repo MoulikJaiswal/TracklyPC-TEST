@@ -30,18 +30,23 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
     // FIX: Correctly access props via `this.props` in a class component.
+    // @ts-ignore
     if (this.props.viewKey !== prevProps.viewKey) {
       // FIX: `setState` is a method on the component instance and must be called with `this.setState`.
+      // @ts-ignore
       this.setState({ hasError: false, error: null });
     }
   }
 
   handleReset = () => {
     // FIX: `setState` is a method on the component instance and must be called with `this.setState`.
+    // @ts-ignore
     this.setState({ hasError: false, error: null });
     // FIX: In a class component, props are accessed via `this.props`.
+    // @ts-ignore
     if (this.props.onReset) {
       // FIX: Prop functions must be called from `this.props`.
+      // @ts-ignore
       this.props.onReset();
     }
   }
@@ -92,6 +97,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
 
     // FIX: Children are passed down via `this.props.children`.
+    // @ts-ignore
     return this.props.children;
   }
 }

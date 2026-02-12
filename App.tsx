@@ -296,6 +296,7 @@ export const App: React.FC = () => {
   const [customBackgroundEnabled, setCustomBackgroundEnabled] = useLocalStorage('trackly_custom_bg_enabled', false);
   const [customBackgroundAlign, setCustomBackgroundAlign] = useLocalStorage<'center' | 'top' | 'bottom'>('trackly_custom_bg_align', 'center');
   const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage('trackly_sidebar_collapsed', false);
+  const [showSmartRecommendations, setShowSmartRecommendations] = useLocalStorage('trackly_smart_recommendations', true);
 
   // Analytics settings
   const [activityThresholds, setActivityThresholds] = useLocalStorage<ActivityThresholds>('trackly_activity_thresholds', {
@@ -712,7 +713,7 @@ export const App: React.FC = () => {
   const [plannerPrompt, setPlannerPrompt] = useState<Recommendation | null>(null);
 
   useEffect(() => {
-    if (isAuthLoading || showWelcome || view !== 'daily') return;
+    if (isAuthLoading || showWelcome || view !== 'daily' || !showSmartRecommendations) return;
     if (recommendation) {
         const key = `recommendationToastShown_${recommendation.subject}_${recommendation.topic}`;
         if (!sessionStorage.getItem(key)) {
@@ -720,7 +721,7 @@ export const App: React.FC = () => {
             sessionStorage.setItem(key, 'true');
         }
     }
-  }, [recommendation, showWelcome, view, isAuthLoading]);
+  }, [recommendation, showWelcome, view, isAuthLoading, showSmartRecommendations]);
   
   const handleSaveTarget = useCallback(async (target: Target) => {
     const newTargets = [target, ...targets.filter(t => t.id !== target.id)];
@@ -743,6 +744,11 @@ export const App: React.FC = () => {
     handleSaveTarget({ id: generateUUID(), date: getLocalDate(), text: `Revise ${plannerPrompt.topic}`, completed: false, timestamp: Date.now(), type: 'task' });
     setPlannerPrompt(null);
   }, [plannerPrompt, handleSaveTarget]);
+  
+  const handleDisableRecommendations = useCallback(() => {
+      setShowSmartRecommendations(false);
+      setShowRecommendationToast(false);
+  }, [setShowSmartRecommendations]);
 
   // --- CRUD Handlers ---
   const handleSaveNote = useCallback(async (note: Note) => { /* ... */ }, [user, isGuest, notes]);
@@ -987,11 +993,11 @@ export const App: React.FC = () => {
 
         {!isAuthLoading && (
           <>
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} />
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} showSmartRecommendations={showSmartRecommendations} toggleSmartRecommendations={() => setShowSmartRecommendations(p => !p)} />
             <ProUpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} onUpgrade={handleUpgrade} />
             <OverdueTasksModal isOpen={showOverdueModal} tasks={overdueTasks} onClose={() => setShowOverdueModal(false)} onComplete={(id) => handleUpdateTarget(id, true)} onDelete={handleDeleteTarget} />
             <PerformanceToast isVisible={isLagging} onSwitch={activateLiteMode} onDismiss={dismissLag} />
-            <SmartRecommendationToast isVisible={!showWelcome && showRecommendationToast} data={recommendation} onDismiss={() => setShowRecommendationToast(false)} onPractice={handlePracticeRecommendation} />
+            <SmartRecommendationToast isVisible={!showWelcome && showRecommendationToast} data={recommendation} onDismiss={() => setShowRecommendationToast(false)} onPractice={handlePracticeRecommendation} onDisable={handleDisableRecommendations} />
             <ConfirmationModal isOpen={!!plannerPrompt} onClose={() => setPlannerPrompt(null)} onConfirm={handleConfirmPlannerTask} title="Add to Planner?" message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`} confirmText="Add Task" cancelText="No, thanks" confirmVariant="primary" icon={<ListChecks size={24} className="text-white" />} />
           </>
         )}

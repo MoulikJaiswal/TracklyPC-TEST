@@ -11,9 +11,10 @@ interface SmartRecommendationToastProps {
   data: Recommendation | null;
   onDismiss: () => void;
   onPractice: () => void;
+  onDisable: () => void;
 }
 
-export const SmartRecommendationToast: React.FC<SmartRecommendationToastProps> = ({ isVisible, data, onDismiss, onPractice }) => {
+export const SmartRecommendationToast: React.FC<SmartRecommendationToastProps> = ({ isVisible, data, onDismiss, onPractice, onDisable }) => {
   if (!data) return null;
 
   const isLowAccuracy = data.accuracy !== -1;
@@ -73,7 +74,14 @@ export const SmartRecommendationToast: React.FC<SmartRecommendationToastProps> =
                >
                  <Target size={14} /> Practice Now <ArrowRight size={14} />
             </button>
-
+            
+            <button
+                onClick={onDisable}
+                className="text-center text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 pt-1 rounded transition-colors relative z-10"
+                title="Disable future recommendations"
+            >
+                Turn off recommendations
+            </button>
           </div>
         </MotionDiv>
       )}
