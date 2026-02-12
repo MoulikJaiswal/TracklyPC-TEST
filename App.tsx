@@ -704,7 +704,7 @@ export const App: React.FC = () => {
     } else {
         setSessions([]); setTargets([]); setTests([]); setNotes([]); setFolders([]);
     }
-  }, [user, isGuest, isFirebaseReady, setCustomSyllabus]);
+  }, [user, isGuest, isFirebaseReady]);
 
   // --- Smart Recommendation Logic ---
   const recommendation = useSmartRecommendations(sessionsForStream, currentSyllabus);
