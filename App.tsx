@@ -811,13 +811,13 @@ export const App: React.FC = () => {
           endTimeRef.current = Date.now() + timeLeft * 1000;
           updatePresence({ 
               state: timerMode === 'focus' ? 'focus' : 'break', 
-              subject: timerMode === 'focus' ? selectedSubject : undefined, 
+              subject: timerMode === 'focus' ? selectedSubject : null, 
               endTime: endTimeRef.current 
           });
       } else { 
           setTimerState('paused'); 
           clearInterval(timerRef.current);
-          updatePresence({ state: 'idle', subject: undefined });
+          updatePresence({ state: 'idle', subject: null });
       }
   }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled, timerMode]);
 
@@ -828,7 +828,7 @@ export const App: React.FC = () => {
       setTimeLeft(timerDurations[mode] * 60);
       updatePresence({ 
         state: mode === 'focus' ? 'idle' : 'break', 
-        subject: undefined, // Always clear subject when switching modes
+        subject: null, // Always clear subject when switching modes
         endTime: Date.now() + timerDurations[mode] * 60 * 1000 
       });
   }, [timerDurations, updatePresence]);
@@ -837,7 +837,7 @@ export const App: React.FC = () => {
       setTimerState('idle'); 
       clearInterval(timerRef.current);
       setTimeLeft(timerDurations[timerMode] * 60); 
-      updatePresence({ state: 'idle', subject: undefined }); 
+      updatePresence({ state: 'idle', subject: null }); 
   }, [timerMode, timerDurations, updatePresence]);
 
   const handleCompleteSession = useCallback((elapsedTime?: number) => {
@@ -872,8 +872,6 @@ export const App: React.FC = () => {
               handleModeSwitch('focus');
           }
       }
-      // This final call is redundant if the switch/reset handlers are correct, but serves as a good fallback.
-      updatePresence({ state: 'idle', subject: undefined });
   }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset, handleModeSwitch, sessionCount, setSessionCount, playCompletionSound, updatePresence]);
 
   useEffect(() => {
