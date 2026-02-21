@@ -4,14 +4,15 @@
   "description": "High-performance study tracker and planner.",
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "/android-chrome-192x192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "/logo.png",
+      "src": "/android-chrome-512x512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": "/",
@@ -19,5 +20,9 @@
   "theme_color": "#020617",
   "background_color": "#020617",
   "orientation": "portrait",
-  "categories": ["education", "productivity", "utilities"]
+  "categories": [
+    "education",
+    "productivity",
+    "utilities"
+  ]
 }

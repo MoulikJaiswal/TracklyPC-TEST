@@ -51,15 +51,15 @@ export interface TestResult {
   total: number;
   duration?: number; // in minutes
   temperament: 'Calm' | 'Anxious' | 'Focused' | 'Fatigued';
-  
+
   examType: 'JEE Main' | 'JEE Advanced' | 'NEET' | 'Custom / General';
   markingScheme?: MarkingScheme;
 
   testScope?: 'Full' | 'Part';
   partTestChapters?: Record<string, string[]>;
-  
+
   breakdown?: Record<string, SubjectBreakdown>;
-  
+
   weakTopics?: string[];
   postTestNotes?: string;
 
@@ -109,7 +109,7 @@ export interface Note {
 
   attachment?: string | null;
   fileName?: string | null;
-  
+
   thumbnail?: string | null;
 }
 
@@ -125,19 +125,19 @@ export interface StudyParticipant {
   uid: string;
   displayName: string;
   photoURL?: string | null;
-  lastActivity: number; 
+  lastActivity: number;
   isOnline?: boolean;
-  
+
   status: 'focus' | 'break' | 'idle';
   subject: 'Physics' | 'Chemistry' | 'Maths' | 'Biology' | 'Other';
-  
+
   focusEndTime?: number;
   focusDuration?: number;
   intention?: string;
   accumulatedFocusTime?: number;
-  
+
   isAway?: boolean;
-  
+
   dailyFocusTime?: number;
   weeklyFocusTime?: number;
   lastFocusDate?: string;
@@ -215,5 +215,12 @@ export interface PresenceState {
   state: 'idle' | 'focus' | 'break';
   subject?: string;
   endTime?: number;
+  dailyFocusTime?: number; // Added to track total seconds today
+  weeklyFocusTime?: number; // Added to track total seconds this week
+  yearlyFocusTime?: number; // Added to track total seconds this year
+  subjectSplit?: Record<string, number>; // Object mapping subject name to total seconds
+  dailySubjectSplit?: Record<string, number>;
+  weeklySubjectSplit?: Record<string, number>;
+  yearlySubjectSplit?: Record<string, number>;
   lastChanged: object; // serverTimestamp
 }

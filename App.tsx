@@ -2,35 +2,35 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { 
-  Activity, 
-  Calendar as CalendarIcon, 
-  BarChart3, 
-  LayoutDashboard, 
-  Timer, 
-  Settings, 
-  ChevronRight, 
-  ChevronLeft, 
-  Atom, 
-  Loader2, 
-  LogOut, 
-  ShieldCheck, 
-  WifiOff, 
-  ShoppingBag, 
-  Download, 
-  Trophy, 
-  ArrowRight, 
-  Crown, 
-  Wifi, 
-  Clock, 
-  Book, 
-  Menu, 
-  Hammer, 
-  Rocket, 
-  Brain, 
-  ListChecks, 
-  Check, 
-  Trash2, 
+import {
+  Activity,
+  Calendar as CalendarIcon,
+  BarChart3,
+  LayoutDashboard,
+  Timer,
+  Settings,
+  ChevronRight,
+  ChevronLeft,
+  Atom,
+  Loader2,
+  LogOut,
+  ShieldCheck,
+  WifiOff,
+  ShoppingBag,
+  Download,
+  Trophy,
+  ArrowRight,
+  Crown,
+  Wifi,
+  Clock,
+  Book,
+  Menu,
+  Hammer,
+  Rocket,
+  Brain,
+  ListChecks,
+  Check,
+  Trash2,
   X,
   Activity as ActivityIcon,
   Users
@@ -42,7 +42,9 @@ import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
 import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useSmartRecommendations, Recommendation } from './hooks/useSmartRecommendations';
+import { useIdleNotification } from './hooks/useIdleNotification';
 import { SmartRecommendationToast } from './components/SmartRecommendationToast';
+import { NotificationPermissionBanner } from './components/NotificationPermissionBanner';
 import { AnimatedBackground } from './components/AnimatedBackground';
 import { PerformanceToast } from './components/PerformanceToast';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -61,7 +63,7 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { auth, db, rtdb, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, QuerySnapshot, DocumentData, writeBatch, getDoc, runTransaction } from 'firebase/firestore';
-import { ref, onValue, set, onDisconnect, serverTimestamp } from 'firebase/database';
+import { ref, onValue, set, update, onDisconnect, serverTimestamp } from 'firebase/database';
 
 
 // Lazy Load Components
@@ -124,10 +126,10 @@ const getLocalDate = (d = new Date()) => {
 
 // Helper to convert Hex to RGB for CSS variables
 const hexToRgb = (hex: string) => {
-    const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-    hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '0, 0, 0';
+  const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+  hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '0, 0, 0';
 };
 
 const TABS = [
@@ -151,7 +153,7 @@ const Sidebar = React.memo(({ view, setView, onOpenSettings, isCollapsed, toggle
       <div className={`h-20 flex items-center relative shrink-0 ${isCollapsed ? 'justify-center px-0 w-full' : 'justify-between px-6'}`}>
         <TracklyLogoComponent collapsed={isCollapsed} id="trackly-logo" />
         <button onClick={toggleCollapsed} className={`absolute top-1/2 -translate-y-1/2 -right-3 z-50 w-6 h-6 flex items-center justify-center bg-theme-card border border-theme-border rounded-full text-theme-text-secondary hover:text-theme-accent hover:border-theme-accent/30 transition-all shadow-sm hover:shadow-md hover:scale-110 active:scale-95`}>
-           {isCollapsed ? <ChevronRight size={12} strokeWidth={3} /> : <ChevronLeft size={12} strokeWidth={3} />}
+          {isCollapsed ? <ChevronRight size={12} strokeWidth={3} /> : <ChevronLeft size={12} strokeWidth={3} />}
         </button>
       </div>
       <nav className="flex-1 px-3 py-6 space-y-2 w-full">
@@ -172,7 +174,7 @@ const Sidebar = React.memo(({ view, setView, onOpenSettings, isCollapsed, toggle
       <div className="p-4 border-t border-theme-border w-full space-y-2">
         <button id="settings-btn" onClick={onOpenSettings} className={`w-full flex items-center px-3 py-3 rounded-xl text-theme-text-secondary hover:text-theme-text transition-all group ${isCollapsed ? 'justify-center gap-0' : 'gap-3'}`}>
           <div className="p-2 rounded-xl transition-all duration-300 flex-shrink-0 relative z-10 group-hover:text-theme-accent group-hover:bg-theme-accent/10 group-hover:shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.2)] will-change-transform">
-             <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500" />
+            <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500" />
           </div>
           <span className={`text-sm font-bold transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? 'w-0 opacity-0 translate-x-4' : 'w-auto opacity-100 translate-x-0'}`}>{userName}</span>
         </button>
@@ -188,8 +190,8 @@ const BottomNavBar = React.memo(({ view, setView }: { view: ViewType, setView: (
         {TABS.map(tab => {
           const isActive = view === tab.id;
           return (
-            <button 
-              key={tab.id} 
+            <button
+              key={tab.id}
               onClick={() => setView(tab.id as ViewType)}
               className={`flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-2xl transition-all duration-300 relative ${isActive ? 'text-theme-accent' : 'text-theme-text-secondary hover:text-theme-text'}`}
             >
@@ -252,7 +254,7 @@ export const App: React.FC = () => {
   const [stream, setStream] = useLocalStorage<StreamType>('trackly_stream', 'General');
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionStream, setTransitionStream] = useState<StreamType>(stream);
-  
+
   // Custom Syllabus State (General Stream)
   const [customSyllabus, setCustomSyllabus] = useLocalStorage<SyllabusData>('trackly_custom_syllabus', GENERAL_DEFAULT_SYLLABUS);
 
@@ -261,7 +263,7 @@ export const App: React.FC = () => {
   const currentSubjects = useMemo(() => stream === 'General' ? Object.keys(customSyllabus) : STREAM_SUBJECTS[stream], [stream, customSyllabus]);
 
   const [goals, setGoals] = useLocalStorage<Record<string, number>>('trackly_goals', {});
-  
+
   // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -280,15 +282,15 @@ export const App: React.FC = () => {
   // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [animationsEnabled, setAnimationsEnabled] = useLocalStorage('trackly_animations', true);
-  const [graphicsEnabled, setGraphicsEnabled] = useLocalStorage('trackly_graphics', true); 
-  const [lagDetectionEnabled, setLagDetectionEnabled] = useLocalStorage('trackly_lag_detection', true); 
+  const [graphicsEnabled, setGraphicsEnabled] = useLocalStorage('trackly_graphics', true);
+  const [lagDetectionEnabled, setLagDetectionEnabled] = useLocalStorage('trackly_lag_detection', true);
   const [theme, setTheme] = useLocalStorage<ThemeId>('trackly_theme', 'default-dark');
   const [showAurora, setShowAurora] = useLocalStorage('trackly_aurora', true);
   const [parallaxEnabled, setParallaxEnabled] = useLocalStorage('trackly_parallax', true);
   const [showParticles, setShowParticles] = useLocalStorage('trackly_particles', true);
   const [swipeAnimationEnabled, setSwipeAnimationEnabled] = useLocalStorage('trackly_swipe', true);
-  const [swipeStiffness, setSwipeStiffness] = useLocalStorage('trackly_swipe_stiffness', 6000); 
-  const [swipeDamping, setSwipeDamping] = useLocalStorage('trackly_swipe_damping', 300);    
+  const [swipeStiffness, setSwipeStiffness] = useLocalStorage('trackly_swipe_stiffness', 6000);
+  const [swipeDamping, setSwipeDamping] = useLocalStorage('trackly_swipe_damping', 300);
   const [soundEnabled, setSoundEnabled] = useLocalStorage('trackly_sound', true);
   const [soundPitch, setSoundPitch] = useLocalStorage('trackly_sound_pitch', 1047);
   const [soundVolume, setSoundVolume] = useLocalStorage('trackly_sound_volume', 0.5);
@@ -304,7 +306,10 @@ export const App: React.FC = () => {
     level3: 240, // 4 hours in minutes
     level4: 360, // 6 hours in minutes
   });
-  
+
+  // Notification frequency (minutes) — synced to Firestore
+  const [notifFrequencyMin, setNotifFrequencyMin] = useLocalStorage<number>('trackly_notif_frequency_min', 10);
+
   // Group Focus State (Lifted Up)
   const [currentRoom, setCurrentRoom] = useState<StudyRoom | null>(null);
 
@@ -315,7 +320,7 @@ export const App: React.FC = () => {
   const minSwipeDistance = 50;
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
-  
+
   const [timerMode, setTimerMode] = useState<'focus' | 'short' | 'long'>('focus');
   const [timerDurations, setTimerDurations] = useLocalStorage('trackly_timer_durations', { focus: 25, short: 5, long: 15 });
   const [sessionCount, setSessionCount] = useLocalStorage<number>('trackly_sessionCount', 0);
@@ -326,15 +331,18 @@ export const App: React.FC = () => {
   const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
   const timerRef = useRef<any>(null);
   const endTimeRef = useRef<number>(0);
+
+  // Idle notification — fires after user-set idle delay
+  useIdleNotification(timerState, notifFrequencyMin * 60 * 1000);
   const { isLagging, dismiss: dismissLag } = usePerformanceMonitor(graphicsEnabled && lagDetectionEnabled);
-  
+
   // Overdue Task Reminder State
   const [overdueTasks, setOverdueTasks] = useState<Target[]>([]);
   const [showOverdueModal, setShowOverdueModal] = useState(false);
 
   // Focus Subject State (Lifted from FocusTimer)
   const [selectedSubject, setSelectedSubject] = useState<string>('');
-  
+
   // DERIVED STATE
   const userName = useMemo(() => {
     if (isGuest) return localStorage.getItem('trackly_guest_name') || 'Guest';
@@ -357,15 +365,15 @@ export const App: React.FC = () => {
   const playCompletionSound = useCallback(() => {
     if (!soundEnabled || !audioContextRef.current) return;
     const ctx = audioContextRef.current;
-    
+
     if (ctx.state === 'suspended') {
-        ctx.resume();
+      ctx.resume();
     }
 
     const playBell = (time: number) => {
       const fundamental = soundPitch;
       const volume = 0.4 * soundVolume;
-      const partials = [0.56, 1, 1.19, 1.7, 2, 2.74, 3.5, 4.3]; 
+      const partials = [0.56, 1, 1.19, 1.7, 2, 2.74, 3.5, 4.3];
       const amplitudes = [0.2, 1, 0.8, 0.6, 0.7, 0.4, 0.3, 0.2];
 
       partials.forEach((ratio, index) => {
@@ -373,12 +381,12 @@ export const App: React.FC = () => {
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        
+
         osc.type = 'sine';
         osc.frequency.setValueAtTime(fundamental * ratio, time);
-        
+
         gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime((volume * amplitudes[index]) / (index + 1), time + 0.01); 
+        gain.gain.linearRampToValueAtTime((volume * amplitudes[index]) / (index + 1), time + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + 2);
 
         osc.start(time);
@@ -397,11 +405,11 @@ export const App: React.FC = () => {
 
   // Initial subject selection when subjects load
   useEffect(() => {
-      if (currentSubjects.length > 0 && !currentSubjects.includes(selectedSubject)) {
-          setSelectedSubject(currentSubjects[0]);
-      }
+    if (currentSubjects.length > 0 && !currentSubjects.includes(selectedSubject)) {
+      setSelectedSubject(currentSubjects[0]);
+    }
   }, [currentSubjects, selectedSubject]);
-  
+
   const handleChangeStream = (newStream: StreamType) => {
     if (stream === newStream) return;
 
@@ -409,41 +417,72 @@ export const App: React.FC = () => {
     setIsTransitioning(true);
 
     setTimeout(() => {
-        setStream(newStream);
+      setStream(newStream);
     }, 400);
 
     setTimeout(() => {
-        setIsTransitioning(false);
+      setIsTransitioning(false);
     }, 1000);
   };
 
   // When stream changes, update goals to match new subjects
   useEffect(() => {
     setGoals(prevGoals => {
-        const defaultGoals = currentSubjects.reduce((acc, sub) => ({ ...acc, [sub]: 30 }), {});
-        const newGoals = { ...defaultGoals };
-        for (const subject of currentSubjects) {
-            if (prevGoals[subject]) {
-                newGoals[subject] = prevGoals[subject];
-            }
+      const defaultGoals = currentSubjects.reduce((acc, sub) => ({ ...acc, [sub]: 30 }), {});
+      const newGoals = { ...defaultGoals };
+      for (const subject of currentSubjects) {
+        if (prevGoals[subject]) {
+          newGoals[subject] = prevGoals[subject];
         }
-        return newGoals;
+      }
+      return newGoals;
     });
   }, [stream, currentSubjects, setGoals]);
 
   // Save custom syllabus to Firestore (if logged in)
   useEffect(() => {
-      if (user && isFirebaseReady) {
-          const syncSyllabus = async () => {
-              try {
-                  await setDoc(doc(db, 'users', user.uid, 'settings', 'general'), { customSyllabus }, { merge: true });
-              } catch (e) {
-                  console.error("Failed to sync syllabus", e);
-              }
-          };
-          syncSyllabus();
-      }
+    if (user && isFirebaseReady) {
+      const syncSyllabus = async () => {
+        try {
+          await setDoc(doc(db, 'users', user.uid, 'settings', 'general'), { customSyllabus }, { merge: true });
+        } catch (e) {
+          console.error("Failed to sync syllabus", e);
+        }
+      };
+      syncSyllabus();
+    }
   }, [customSyllabus, user, isFirebaseReady]);
+
+  // ─── Sync all user preferences to Firestore ───────────────────────────────
+  // WRITE: debounced — fires 800ms after any setting changes
+  useEffect(() => {
+    if (!user || !isFirebaseReady) return;
+    const t = setTimeout(async () => {
+      try {
+        await setDoc(
+          doc(db, 'users', user.uid, 'settings', 'preferences'),
+          {
+            theme, animationsEnabled, graphicsEnabled, lagDetectionEnabled,
+            showAurora, parallaxEnabled, showParticles,
+            swipeAnimationEnabled, swipeStiffness, swipeDamping,
+            soundEnabled, soundPitch, soundVolume,
+            showSmartRecommendations, activityThresholds,
+            goals, timerDurations, notifFrequencyMin, stream,
+          },
+          { merge: true }
+        );
+      } catch (e) { console.error('Failed to sync preferences', e); }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [
+    user, isFirebaseReady,
+    theme, animationsEnabled, graphicsEnabled, lagDetectionEnabled,
+    showAurora, parallaxEnabled, showParticles,
+    swipeAnimationEnabled, swipeStiffness, swipeDamping,
+    soundEnabled, soundPitch, soundVolume,
+    showSmartRecommendations, activityThresholds,
+    goals, timerDurations, notifFrequencyMin, stream,
+  ]);
 
   // ... [Theme Config, Handlers, etc. largely unchanged] ...
   const themeConfig = THEME_CONFIG[theme];
@@ -477,12 +516,12 @@ export const App: React.FC = () => {
   const effectiveSwipe = animationsEnabled && swipeAnimationEnabled;
 
   const changeView = useCallback((newView: ViewType) => {
-     if (view === newView) return;
-     const currentIdx = TABS.findIndex(t => t.id === view);
-     const newIdx = TABS.findIndex(t => t.id === newView);
-     setDirection(newIdx > currentIdx ? 1 : -1);
-     setView(newView);
-     window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (view === newView) return;
+    const currentIdx = TABS.findIndex(t => t.id === view);
+    const newIdx = TABS.findIndex(t => t.id === newView);
+    setDirection(newIdx > currentIdx ? 1 : -1);
+    setView(newView);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [view]);
 
   // ... [Analytics Logic unchanged] ...
@@ -492,13 +531,13 @@ export const App: React.FC = () => {
   useEffect(() => {
     // Don't run on initial auth loading or on the welcome screen
     if (isAuthLoading || showWelcome) return;
-  
+
     // Wait a brief moment for data to settle after login/guest mode is established
     const timeoutId = setTimeout(() => {
       const todayStr = getLocalDate();
       // Filter for tasks with a date before today that are not completed
       const overdue = targets.filter(t => t.date < todayStr && !t.completed);
-  
+
       if (overdue.length > 0) {
         setOverdueTasks(overdue);
         // Only show the modal once per browser session to avoid being annoying
@@ -508,7 +547,7 @@ export const App: React.FC = () => {
         }
       }
     }, 1500); // 1.5 second delay after data loads
-  
+
     return () => clearTimeout(timeoutId);
   }, [targets, isAuthLoading, showWelcome]);
 
@@ -523,13 +562,13 @@ export const App: React.FC = () => {
     setSyncStatus('syncing');
     setSyncError(null);
 
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Sync operation timed out after 15 seconds.')), 15000)
     );
 
     try {
       const batch = writeBatch(db);
-      
+
       batch.set(doc(db, 'users', user.uid, 'settings', 'general'), { customSyllabus });
 
       sessions.forEach(item => batch.set(doc(db, 'users', user.uid, 'sessions', item.id), sanitizeForFirestore(item)));
@@ -542,7 +581,7 @@ export const App: React.FC = () => {
         batch.commit(),
         timeoutPromise
       ]);
-      
+
       setSyncStatus('success');
       setSyncError(null);
     } catch (e: any) {
@@ -585,7 +624,7 @@ export const App: React.FC = () => {
               try {
                 await setDoc(userDocRef, newProfile);
               } catch (e) {
-                 console.error("Error creating user profile:", e);
+                console.error("Error creating user profile:", e);
               }
             }
             setAuthStatus('loaded');
@@ -610,47 +649,119 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // Expose a ref to manually force offline status on logout
+  const forceOfflineRef = useRef<(() => Promise<void>) | null>(null);
+
   // Real-time Presence Management
   const updatePresence = useCallback((status: Partial<PresenceState>) => {
-      if (!user) return;
-      const presenceRef = ref(rtdb, `/status/${user.uid}`);
-      set(presenceRef, {
-          isOnline: true,
-          ...status,
-          lastChanged: serverTimestamp(),
-      });
-  }, [user]);
+    if (!user) return;
 
-  useEffect(() => {
-      if (!user) return;
-      
-      const userStatusRef = ref(rtdb, `/status/${user.uid}`);
-      const connectedRef = ref(rtdb, '.info/connected');
+    // Calculate aggregated stats to send to RTDB for friends to see
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentYear = now.getFullYear();
 
-      const unsubscribe = onValue(connectedRef, (snap) => {
-          if (snap.val() === true) {
-              const con = onDisconnect(userStatusRef);
-              con.set({ isOnline: false, lastChanged: serverTimestamp() });
+    // Calculate start of current week (assuming Monday start)
+    const startOfWeek = new Date(now);
+    const day = startOfWeek.getDay();
+    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+    startOfWeek.setDate(diff);
+    startOfWeek.setHours(0, 0, 0, 0);
 
-              set(userStatusRef, {
-                  isOnline: true,
-                  state: 'idle',
-                  lastChanged: serverTimestamp(),
-              });
-          }
-      });
+    let dailyFocusTimeSeconds = 0;
+    let weeklyFocusTimeSeconds = 0;
+    let yearlyFocusTimeSeconds = 0;
+    const subjectSplit: Record<string, number> = {};
+    const dailySubjectSplit: Record<string, number> = {};
+    const weeklySubjectSplit: Record<string, number> = {};
+    const yearlySubjectSplit: Record<string, number> = {};
 
-      return () => {
-          unsubscribe();
-          set(userStatusRef, { isOnline: false, lastChanged: serverTimestamp() });
-      };
-  }, [user]);
+    sessions.forEach(s => {
+      if (!s.subject || !s.duration) return; // Only count actual study sessions with a duration
 
-  useEffect(() => {
-      const storedGuest = localStorage.getItem('trackly_is_guest');
-      if (storedGuest === 'true' && !user) {
-          setIsGuest(true);
+      const sessionDate = new Date(s.timestamp);
+      const sessionDateStr = sessionDate.toISOString().split('T')[0];
+      const sessionYear = sessionDate.getFullYear();
+
+      if (sessionDateStr === todayStr) {
+        dailyFocusTimeSeconds += s.duration;
+        dailySubjectSplit[s.subject] = (dailySubjectSplit[s.subject] || 0) + s.duration;
       }
+      if (sessionDate >= startOfWeek) {
+        weeklyFocusTimeSeconds += s.duration;
+        weeklySubjectSplit[s.subject] = (weeklySubjectSplit[s.subject] || 0) + s.duration;
+      }
+      if (sessionYear === currentYear) {
+        yearlyFocusTimeSeconds += s.duration;
+        yearlySubjectSplit[s.subject] = (yearlySubjectSplit[s.subject] || 0) + s.duration;
+      }
+
+      subjectSplit[s.subject] = (subjectSplit[s.subject] || 0) + s.duration;
+    });
+
+    const presenceRef = ref(rtdb, `/status/${user.uid}`);
+    set(presenceRef, {
+      isOnline: true,
+      dailyFocusTime: dailyFocusTimeSeconds,
+      weeklyFocusTime: weeklyFocusTimeSeconds,
+      yearlyFocusTime: yearlyFocusTimeSeconds,
+      subjectSplit: subjectSplit,
+      dailySubjectSplit: dailySubjectSplit,
+      weeklySubjectSplit: weeklySubjectSplit,
+      yearlySubjectSplit: yearlySubjectSplit,
+      ...status,
+      lastChanged: serverTimestamp(),
+    });
+  }, [user, sessions]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const userStatusRef = ref(rtdb, `/status/${user.uid}`);
+    const connectedRef = ref(rtdb, '.info/connected');
+
+    const unsubscribe = onValue(connectedRef, (snap) => {
+      if (snap.val() === true) {
+        const con = onDisconnect(userStatusRef);
+        con.update({ isOnline: false, lastChanged: serverTimestamp() });
+
+        update(userStatusRef, {
+          isOnline: true,
+          lastChanged: serverTimestamp(),
+        });
+      }
+    });
+
+    forceOfflineRef.current = async () => {
+      unsubscribe(); // Stop listening
+      onDisconnect(userStatusRef).cancel(); // Cancel server disconnect hook
+      try {
+        await update(userStatusRef, { isOnline: false, lastChanged: serverTimestamp() }); // Force offline immediately
+      } catch (e) { console.error('Failed to set offline status', e); }
+    };
+
+    return () => {
+      if (forceOfflineRef.current) {
+        forceOfflineRef.current().catch(console.error);
+        forceOfflineRef.current = null;
+      }
+    };
+  }, [user]);
+
+  // Sync historical Firestore session stats to RTDB once on load
+  const hasInitialSyncCompleted = useRef(false);
+  useEffect(() => {
+    if (user && sessions.length > 0 && !hasInitialSyncCompleted.current) {
+      hasInitialSyncCompleted.current = true;
+      updatePresence({}); // Empty payload just triggers the aggregate math and pushes to RTDB
+    }
+  }, [user, sessions, updatePresence]);
+
+  useEffect(() => {
+    const storedGuest = localStorage.getItem('trackly_is_guest');
+    if (storedGuest === 'true' && !user) {
+      setIsGuest(true);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -671,39 +782,66 @@ export const App: React.FC = () => {
     let unsubNotes: (() => void) | undefined;
 
     if (user) {
-        // Real-time syllabus sync
-        const settingsRef = doc(db, 'users', user.uid, 'settings', 'general');
-        unsubSyllabus = onSnapshot(settingsRef, (snap) => {
-            // Only update from Firestore if it's not a local pending write, to prevent loops.
-            if (!snap.metadata.hasPendingWrites) {
-                if (snap.exists() && snap.data().customSyllabus) {
-                    setCustomSyllabus(snap.data().customSyllabus);
-                }
-            }
-        });
-
-        unsubSessions = onSnapshot(query(collection(db, 'users', user.uid, 'sessions'), orderBy('timestamp', 'desc')), (snapshot) => setSessions(snapshot.docs.map(d => d.data() as Session)));
-        unsubTargets = onSnapshot(query(collection(db, 'users', user.uid, 'targets'), orderBy('timestamp', 'desc')), (snapshot) => setTargets(snapshot.docs.map(d => d.data() as Target)));
-        unsubTests = onSnapshot(query(collection(db, 'users', user.uid, 'tests'), orderBy('timestamp', 'desc')), (snapshot) => setTests(snapshot.docs.map(d => d.data() as TestResult)));
-        unsubFolders = onSnapshot(query(collection(db, 'users', user.uid, 'folders'), orderBy('timestamp', 'desc')), (snapshot) => setFolders(snapshot.docs.map(d => d.data() as Folder)));
-        unsubNotes = onSnapshot(query(collection(db, 'users', user.uid, 'notes'), orderBy('timestamp', 'desc')), (snapshot) => setNotes(snapshot.docs.map(d => d.data() as Note)));
-
-        return () => { 
-            unsubSyllabus?.(); 
-            unsubSessions?.(); 
-            unsubTargets?.(); 
-            unsubTests?.(); 
-            unsubFolders?.(); 
-            unsubNotes?.(); 
+      // Real-time syllabus sync
+      const settingsRef = doc(db, 'users', user.uid, 'settings', 'general');
+      unsubSyllabus = onSnapshot(settingsRef, (snap) => {
+        // Only update from Firestore if it's not a local pending write, to prevent loops.
+        if (!snap.metadata.hasPendingWrites) {
+          if (snap.exists() && snap.data().customSyllabus) {
+            setCustomSyllabus(snap.data().customSyllabus);
+          }
         }
+      });
+
+      // Load user preferences from Firestore (one-time read on login)
+      const prefsRef = doc(db, 'users', user.uid, 'settings', 'preferences');
+      onSnapshot(prefsRef, (snap) => {
+        if (snap.exists() && !snap.metadata.hasPendingWrites) {
+          const p = snap.data();
+          if (p.theme !== undefined) setTheme(p.theme);
+          if (p.animationsEnabled !== undefined) setAnimationsEnabled(p.animationsEnabled);
+          if (p.graphicsEnabled !== undefined) setGraphicsEnabled(p.graphicsEnabled);
+          if (p.lagDetectionEnabled !== undefined) setLagDetectionEnabled(p.lagDetectionEnabled);
+          if (p.showAurora !== undefined) setShowAurora(p.showAurora);
+          if (p.parallaxEnabled !== undefined) setParallaxEnabled(p.parallaxEnabled);
+          if (p.showParticles !== undefined) setShowParticles(p.showParticles);
+          if (p.swipeAnimationEnabled !== undefined) setSwipeAnimationEnabled(p.swipeAnimationEnabled);
+          if (p.swipeStiffness !== undefined) setSwipeStiffness(p.swipeStiffness);
+          if (p.swipeDamping !== undefined) setSwipeDamping(p.swipeDamping);
+          if (p.soundEnabled !== undefined) setSoundEnabled(p.soundEnabled);
+          if (p.soundPitch !== undefined) setSoundPitch(p.soundPitch);
+          if (p.soundVolume !== undefined) setSoundVolume(p.soundVolume);
+          if (p.showSmartRecommendations !== undefined) setShowSmartRecommendations(p.showSmartRecommendations);
+          if (p.activityThresholds !== undefined) setActivityThresholds(p.activityThresholds);
+          if (p.goals !== undefined) setGoals(p.goals);
+          if (p.timerDurations !== undefined) setTimerDurations(p.timerDurations);
+          if (p.notifFrequencyMin !== undefined) setNotifFrequencyMin(p.notifFrequencyMin);
+          if (p.stream !== undefined) setStream(p.stream);
+        }
+      });
+
+      unsubSessions = onSnapshot(query(collection(db, 'users', user.uid, 'sessions'), orderBy('timestamp', 'desc')), (snapshot) => setSessions(snapshot.docs.map(d => d.data() as Session)));
+      unsubTargets = onSnapshot(query(collection(db, 'users', user.uid, 'targets'), orderBy('timestamp', 'desc')), (snapshot) => setTargets(snapshot.docs.map(d => d.data() as Target)));
+      unsubTests = onSnapshot(query(collection(db, 'users', user.uid, 'tests'), orderBy('timestamp', 'desc')), (snapshot) => setTests(snapshot.docs.map(d => d.data() as TestResult)));
+      unsubFolders = onSnapshot(query(collection(db, 'users', user.uid, 'folders'), orderBy('timestamp', 'desc')), (snapshot) => setFolders(snapshot.docs.map(d => d.data() as Folder)));
+      unsubNotes = onSnapshot(query(collection(db, 'users', user.uid, 'notes'), orderBy('timestamp', 'desc')), (snapshot) => setNotes(snapshot.docs.map(d => d.data() as Note)));
+
+      return () => {
+        unsubSyllabus?.();
+        unsubSessions?.();
+        unsubTargets?.();
+        unsubTests?.();
+        unsubFolders?.();
+        unsubNotes?.();
+      }
     } else if (isGuest) {
-        setSessions(safeJSONParse('trackly_guest_sessions', []));
-        setTargets(safeJSONParse('trackly_guest_targets', []));
-        setTests(safeJSONParse('trackly_guest_tests', []));
-        setNotes(safeJSONParse('trackly_guest_notes', []));
-        setFolders(safeJSONParse('trackly_guest_folders', []));
+      setSessions(safeJSONParse('trackly_guest_sessions', []));
+      setTargets(safeJSONParse('trackly_guest_targets', []));
+      setTests(safeJSONParse('trackly_guest_tests', []));
+      setNotes(safeJSONParse('trackly_guest_notes', []));
+      setFolders(safeJSONParse('trackly_guest_folders', []));
     } else {
-        setSessions([]); setTargets([]); setTests([]); setNotes([]); setFolders([]);
+      setSessions([]); setTargets([]); setTests([]); setNotes([]); setFolders([]);
     }
   }, [user, isGuest, isFirebaseReady]);
 
@@ -715,14 +853,14 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (isAuthLoading || showWelcome || view !== 'daily' || !showSmartRecommendations) return;
     if (recommendation) {
-        const key = `recommendationToastShown_${recommendation.subject}_${recommendation.topic}`;
-        if (!sessionStorage.getItem(key)) {
-            setShowRecommendationToast(true);
-            sessionStorage.setItem(key, 'true');
-        }
+      const key = `recommendationToastShown_${recommendation.subject}_${recommendation.topic}`;
+      if (!sessionStorage.getItem(key)) {
+        setShowRecommendationToast(true);
+        sessionStorage.setItem(key, 'true');
+      }
     }
   }, [recommendation, showWelcome, view, isAuthLoading, showSmartRecommendations]);
-  
+
   const handleSaveTarget = useCallback(async (target: Target) => {
     const newTargets = [target, ...targets.filter(t => t.id !== target.id)];
     setTargets(newTargets);
@@ -732,22 +870,22 @@ export const App: React.FC = () => {
 
   const handlePracticeRecommendation = useCallback(() => {
     if (recommendation) {
-        setSelectedSubject(recommendation.subject);
-        changeView('focus');
-        setShowRecommendationToast(false);
-        setPlannerPrompt(recommendation);
+      setSelectedSubject(recommendation.subject);
+      changeView('focus');
+      setShowRecommendationToast(false);
+      setPlannerPrompt(recommendation);
     }
   }, [recommendation, changeView]);
-  
+
   const handleConfirmPlannerTask = useCallback(() => {
     if (!plannerPrompt) return;
     handleSaveTarget({ id: generateUUID(), date: getLocalDate(), text: `Revise ${plannerPrompt.topic}`, completed: false, timestamp: Date.now(), type: 'task' });
     setPlannerPrompt(null);
   }, [plannerPrompt, handleSaveTarget]);
-  
+
   const handleDisableRecommendations = useCallback(() => {
-      setShowSmartRecommendations(false);
-      setShowRecommendationToast(false);
+    setShowSmartRecommendations(false);
+    setShowRecommendationToast(false);
   }, [setShowSmartRecommendations]);
 
   // --- CRUD Handlers ---
@@ -786,7 +924,7 @@ export const App: React.FC = () => {
     if (user) await deleteDoc(doc(db, 'users', user.uid, 'tests', id));
     else if (isGuest) localStorage.setItem('trackly_guest_tests', JSON.stringify(newTests));
   }, [user, isGuest, tests]);
-  
+
   const handleDeleteTarget = useCallback(async (id: string) => {
     const newTargets = targets.filter(t => t.id !== id);
     setTargets(newTargets);
@@ -796,7 +934,7 @@ export const App: React.FC = () => {
       localStorage.setItem('trackly_guest_targets', JSON.stringify(newTargets));
     }
   }, [user, isGuest, targets]);
-  
+
   const handleUpdateTarget = useCallback(async (id: string, completed: boolean) => {
     const newTargets = targets.map(t => (t.id === id ? { ...t, completed } : t));
     setTargets(newTargets);
@@ -809,95 +947,95 @@ export const App: React.FC = () => {
 
   // Timer logic
   const handleTimerToggle = useCallback(() => {
-      if (soundEnabled && audioContextRef.current && audioContextRef.current.state === 'suspended') {
-          audioContextRef.current.resume();
-      }
-      if (timerState === 'idle' || timerState === 'paused') { 
-          setTimerState('running'); 
-          endTimeRef.current = Date.now() + timeLeft * 1000;
-          updatePresence({ 
-              state: timerMode === 'focus' ? 'focus' : 'break', 
-              subject: timerMode === 'focus' ? selectedSubject : null, 
-              endTime: endTimeRef.current 
-          });
-      } else { 
-          setTimerState('paused'); 
-          clearInterval(timerRef.current);
-          updatePresence({ state: 'idle', subject: null });
-      }
+    if (soundEnabled && audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
+    if (timerState === 'idle' || timerState === 'paused') {
+      setTimerState('running');
+      endTimeRef.current = Date.now() + timeLeft * 1000;
+      updatePresence({
+        state: timerMode === 'focus' ? 'focus' : 'break',
+        subject: timerMode === 'focus' ? selectedSubject : null,
+        endTime: endTimeRef.current
+      });
+    } else {
+      setTimerState('paused');
+      clearInterval(timerRef.current);
+      updatePresence({ state: 'idle', subject: null });
+    }
   }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled, timerMode]);
 
-  const handleModeSwitch = useCallback((mode: 'focus'|'short'|'long') => { 
-      setTimerMode(mode); 
-      setTimerState('idle'); 
-      clearInterval(timerRef.current);
-      setTimeLeft(timerDurations[mode] * 60);
-      updatePresence({ 
-        state: mode === 'focus' ? 'idle' : 'break', 
-        subject: null, // Always clear subject when switching modes
-        endTime: Date.now() + timerDurations[mode] * 60 * 1000 
-      });
+  const handleModeSwitch = useCallback((mode: 'focus' | 'short' | 'long') => {
+    setTimerMode(mode);
+    setTimerState('idle');
+    clearInterval(timerRef.current);
+    setTimeLeft(timerDurations[mode] * 60);
+    updatePresence({
+      state: mode === 'focus' ? 'idle' : 'break',
+      subject: null, // Always clear subject when switching modes
+      endTime: Date.now() + timerDurations[mode] * 60 * 1000
+    });
   }, [timerDurations, updatePresence]);
-  
-  const handleTimerReset = useCallback(() => { 
-      setTimerState('idle'); 
-      clearInterval(timerRef.current);
-      setTimeLeft(timerDurations[timerMode] * 60); 
-      updatePresence({ state: 'idle', subject: null }); 
+
+  const handleTimerReset = useCallback(() => {
+    setTimerState('idle');
+    clearInterval(timerRef.current);
+    setTimeLeft(timerDurations[timerMode] * 60);
+    updatePresence({ state: 'idle', subject: null });
   }, [timerMode, timerDurations, updatePresence]);
 
   const handleCompleteSession = useCallback((elapsedTime?: number) => {
-      const isInterrupted = elapsedTime !== undefined;
-      const plannedDuration = timerDurations[timerMode] * 60;
-      const effectiveDuration = isInterrupted ? elapsedTime : plannedDuration;
+    const isInterrupted = elapsedTime !== undefined;
+    const plannedDuration = timerDurations[timerMode] * 60;
+    const effectiveDuration = isInterrupted ? elapsedTime : plannedDuration;
 
-      if (timerMode === 'focus' && effectiveDuration > 60) {
-         handleSaveSession({ 
-            subject: selectedSubject, 
-            topic: 'Focus Session', 
-            attempted: 0, 
-            correct: 0, 
-            mistakes: {}, 
-            duration: effectiveDuration, 
-            plannedDuration 
-         });
-      }
+    if (timerMode === 'focus' && effectiveDuration > 60) {
+      handleSaveSession({
+        subject: selectedSubject,
+        topic: 'Focus Session',
+        attempted: 0,
+        correct: 0,
+        mistakes: {},
+        duration: effectiveDuration,
+        plannedDuration
+      });
+    }
 
-      if (!isInterrupted) {
-        playCompletionSound();
-      }
+    if (!isInterrupted) {
+      playCompletionSound();
+    }
 
-      if (isInterrupted) {
-          handleTimerReset();
+    if (isInterrupted) {
+      handleTimerReset();
+    } else {
+      if (timerMode === 'focus') {
+        const newCount = sessionCount + 1;
+        setSessionCount(newCount);
+        handleModeSwitch(newCount > 0 && newCount % 4 === 0 ? 'long' : 'short');
       } else {
-          if (timerMode === 'focus') {
-              const newCount = sessionCount + 1;
-              setSessionCount(newCount);
-              handleModeSwitch(newCount > 0 && newCount % 4 === 0 ? 'long' : 'short');
-          } else {
-              handleModeSwitch('focus');
-          }
+        handleModeSwitch('focus');
       }
+    }
   }, [handleSaveSession, selectedSubject, timerMode, timerDurations, handleTimerReset, handleModeSwitch, sessionCount, setSessionCount, playCompletionSound, updatePresence]);
 
   useEffect(() => {
-      if (timerState === 'running') {
-          timerRef.current = setInterval(() => {
-              const now = Date.now();
-              const diff = Math.ceil((endTimeRef.current - now) / 1000);
-              if (diff <= 0) {
-                  setTimeLeft(0);
-                  clearInterval(timerRef.current);
-                  handleCompleteSession();
-              } else { setTimeLeft(diff); }
-          }, 1000);
-      }
-      return () => clearInterval(timerRef.current);
+    if (timerState === 'running') {
+      timerRef.current = setInterval(() => {
+        const now = Date.now();
+        const diff = Math.ceil((endTimeRef.current - now) / 1000);
+        if (diff <= 0) {
+          setTimeLeft(0);
+          clearInterval(timerRef.current);
+          handleCompleteSession();
+        } else { setTimeLeft(diff); }
+      }, 1000);
+    }
+    return () => clearInterval(timerRef.current);
   }, [timerState, handleCompleteSession]);
-  
-  const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus'|'short'|'long') => {
-      setTimerDurations(prev => ({ ...prev, [modeKey]: newDuration }));
-      if (timerMode === modeKey && timerState === 'idle') { setTimeLeft(newDuration * 60); }
+
+  const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus' | 'short' | 'long') => {
+    setTimerDurations(prev => ({ ...prev, [modeKey]: newDuration }));
+    if (timerMode === modeKey && timerState === 'idle') { setTimeLeft(newDuration * 60); }
   }, [timerMode, timerState]);
 
   // Auth logic
@@ -906,45 +1044,50 @@ export const App: React.FC = () => {
   }, [customSyllabus]);
 
   const handleLogin = useCallback(async () => {
-      try {
-          const result = await signInWithPopup(auth, googleProvider);
-          // User state is handled by onAuthStateChanged observer
-      } catch (error) {
-          console.error("Login failed:", error);
-      }
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      // User state is handled by onAuthStateChanged observer
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
   }, []);
 
   const handleGuestLogin = useCallback((name: string) => {
-      if (!name.trim()) return;
-      localStorage.setItem('trackly_guest_name', name.trim());
-      setIsGuest(true);
-      localStorage.setItem('trackly_is_guest', 'true');
+    if (!name.trim()) return;
+    localStorage.setItem('trackly_guest_name', name.trim());
+    setIsGuest(true);
+    localStorage.setItem('trackly_is_guest', 'true');
   }, []);
 
   const handleLogout = useCallback(async () => {
-      try {
-        if (user) {
-          // Set offline status in RTDB before signing out
-          const userStatusRef = ref(rtdb, `/status/${user.uid}`);
-          await set(userStatusRef, { isOnline: false, lastChanged: serverTimestamp() });
-          await signOut(auth);
+    try {
+      if (user) {
+        // Stop presence listeners and force offline status in RTDB before signing out
+        if (forceOfflineRef.current) {
+          forceOfflineRef.current().catch(console.error);
+          forceOfflineRef.current = null;
         }
-        
-        // Clear Local State
-        setIsGuest(false);
-        setUser(null);
-        setUserProfile(null);
-        
-        // Clear Guest Markers
-        localStorage.removeItem('trackly_is_guest');
-        localStorage.removeItem('trackly_guest_name');
-        
-        // Reset View
-        setView('daily');
-        
-      } catch (error) {
-        console.error("Error signing out:", error);
+        await signOut(auth);
       }
+
+      // Close Settings Modal if open
+      setIsSettingsOpen(false);
+
+      // Clear Local State
+      setIsGuest(false);
+      setUser(null);
+      setUserProfile(null);
+
+      // Clear Guest Markers
+      localStorage.removeItem('trackly_is_guest');
+      localStorage.removeItem('trackly_guest_name');
+
+      // Reset View
+      setView('daily');
+
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   }, [user]);
 
   const toggleSidebar = useCallback(() => setSidebarCollapsed(p => !p), [setSidebarCollapsed]);
@@ -961,44 +1104,46 @@ export const App: React.FC = () => {
         <AnimatedBackground themeId={theme} showAurora={effectiveShowAurora} parallaxEnabled={effectiveParallax} customBackground={customBackgroundEnabled ? customBackground : null} customBackgroundAlign={customBackgroundAlign} />
 
         {isAuthLoading ? (
-            <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-theme-bg gap-4">
-                <TracklyLogoComponent />
-                <Loader2 size={24} className="animate-spin text-theme-accent" />
-                {authStatus === 'loading_profile' && (
-                    <p className="mt-4 text-theme-text-secondary animate-in fade-in delay-500 duration-500">Loading your profile...</p>
-                )}
-            </div>
+          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-theme-bg gap-4">
+            <TracklyLogoComponent />
+            <Loader2 size={24} className="animate-spin text-theme-accent" />
+            {authStatus === 'loading_profile' && (
+              <p className="mt-4 text-theme-text-secondary animate-in fade-in delay-500 duration-500">Loading your profile...</p>
+            )}
+          </div>
         ) : showWelcome ? (
-            <WelcomePage onLogin={handleLogin} onGuestLogin={handleGuestLogin} stream={stream} setStream={handleChangeStream} />
+          <WelcomePage onLogin={handleLogin} onGuestLogin={handleGuestLogin} stream={stream} setStream={handleChangeStream} />
         ) : (
-            <div className="relative z-10 flex h-screen overflow-hidden">
-                <Sidebar view={view} setView={changeView} onOpenSettings={toggleSettings} isCollapsed={sidebarCollapsed} toggleCollapsed={toggleSidebar} user={user} isGuest={isGuest} onLogin={handleLogin} onLogout={handleLogout} isInstalled={isInstalled} onInstall={() => {}} userName={userName} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} />
-                <main className={`flex-1 overflow-y-auto overflow-x-hidden relative transition-all duration-500 ${sidebarCollapsed ? 'ml-0 md:ml-20' : 'ml-0 md:ml-64'}`}>
-                    <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen pb-28 md:pb-24">
-                        <AnimatePresence mode="wait" custom={direction}>
-                            {view === 'daily' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="daily" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} /></MotionDiv></Suspense> )}
-                            {view === 'planner' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="planner" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} /></MotionDiv></Suspense> )}
-                            {view === 'focus' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} /></MotionDiv></Suspense> )}
-                            {view === 'tests' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="tests" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} /></MotionDiv></Suspense> )}
-                            {view === 'friends' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="friends" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><StudyBuddy user={user} userProfile={userProfile} /></MotionDiv></Suspense> )}
-                            {view === 'analytics' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="analytics" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} /></MotionDiv></Suspense> )}
-                            {view === 'group-focus' && ( <Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="group-focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><VirtualLibrary user={user} userName={userName} onLogin={handleLogin} isPro={isPro} targets={targets} onCompleteTask={handleUpdateTarget} currentRoom={currentRoom} setCurrentRoom={setCurrentRoom} /></MotionDiv></Suspense> )}
-                            {view === 'privacy' && ( <MotionDiv key="privacy" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}><PrivacyPolicy onBack={() => changeView('daily')} /></MotionDiv> )}
-                        </AnimatePresence>
-                    </div>
-                </main>
-                <BottomNavBar view={view} setView={changeView} />
-            </div>
+          <div className="relative z-10 flex h-screen overflow-hidden">
+            <Sidebar view={view} setView={changeView} onOpenSettings={toggleSettings} isCollapsed={sidebarCollapsed} toggleCollapsed={toggleSidebar} user={user} isGuest={isGuest} onLogin={handleLogin} onLogout={handleLogout} isInstalled={isInstalled} onInstall={() => { }} userName={userName} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} />
+            <main className={`flex-1 overflow-y-auto overflow-x-hidden relative transition-all duration-500 ${sidebarCollapsed ? 'ml-0 md:ml-20' : 'ml-0 md:ml-64'}`}>
+              <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen pb-28 md:pb-24">
+                <AnimatePresence mode="wait" custom={direction}>
+                  {view === 'daily' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="daily" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} /></MotionDiv></Suspense>)}
+                  {view === 'planner' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="planner" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} /></MotionDiv></Suspense>)}
+                  {view === 'focus' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} /></MotionDiv></Suspense>)}
+                  {view === 'tests' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="tests" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} /></MotionDiv></Suspense>)}
+                  {view === 'friends' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="friends" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><StudyBuddy user={user} userProfile={userProfile} /></MotionDiv></Suspense>)}
+                  {view === 'analytics' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="analytics" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} /></MotionDiv></Suspense>)}
+                  {view === 'group-focus' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="group-focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><VirtualLibrary user={user} userName={userName} onLogin={handleLogin} isPro={isPro} targets={targets} onCompleteTask={handleUpdateTarget} currentRoom={currentRoom} setCurrentRoom={setCurrentRoom} /></MotionDiv></Suspense>)}
+                  {view === 'privacy' && (<MotionDiv key="privacy" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}><PrivacyPolicy onBack={() => changeView('daily')} /></MotionDiv>)}
+                </AnimatePresence>
+              </div>
+            </main>
+            <BottomNavBar view={view} setView={changeView} />
+          </div>
         )}
 
         {!isAuthLoading && (
           <>
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} showSmartRecommendations={showSmartRecommendations} toggleSmartRecommendations={() => setShowSmartRecommendations(p => !p)} />
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} showSmartRecommendations={showSmartRecommendations} toggleSmartRecommendations={() => setShowSmartRecommendations(p => !p)} notifFrequencyMin={notifFrequencyMin} setNotifFrequencyMin={setNotifFrequencyMin} />
             <ProUpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} onUpgrade={handleUpgrade} />
             <OverdueTasksModal isOpen={showOverdueModal} tasks={overdueTasks} onClose={() => setShowOverdueModal(false)} onComplete={(id) => handleUpdateTarget(id, true)} onDelete={handleDeleteTarget} />
             <PerformanceToast isVisible={isLagging} onSwitch={activateLiteMode} onDismiss={dismissLag} />
             <SmartRecommendationToast isVisible={!showWelcome && showRecommendationToast} data={recommendation} onDismiss={() => setShowRecommendationToast(false)} onPractice={handlePracticeRecommendation} onDisable={handleDisableRecommendations} />
             <ConfirmationModal isOpen={!!plannerPrompt} onClose={() => setPlannerPrompt(null)} onConfirm={handleConfirmPlannerTask} title="Add to Planner?" message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`} confirmText="Add Task" cancelText="No, thanks" confirmVariant="primary" icon={<ListChecks size={24} className="text-white" />} />
+            {/* Notification permission banner — slides up once if permission not yet decided */}
+            {!showWelcome && !isAuthLoading && <NotificationPermissionBanner />}
           </>
         )}
       </div>
