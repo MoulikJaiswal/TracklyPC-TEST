@@ -142,12 +142,12 @@ export const ReportCardModal: React.FC<ReportCardProps> = ({
                     </div>
 
                     {/* Main Metric - Centered & Huge */}
-                    <div className="flex flex-col items-center justify-center text-center my-auto py-8 relative z-10">
-                        <span className="text-xs font-bold uppercase tracking-widest text-white/60 mb-2">Total Time</span>
-                        <div className="text-7xl font-display font-black tracking-tighter tabular-nums leading-none mb-1 drop-shadow-xl">
+                    <div className="flex flex-col items-center justify-center text-center my-auto py-10 relative z-10 w-full">
+                        <span className="text-xs font-bold uppercase tracking-widest text-white/60 mb-3">Total Time</span>
+                        <div className="text-7xl font-display font-black tracking-tighter tabular-nums leading-none mb-6 drop-shadow-2xl">
                             {formatDuration(analyticsData.totalMinutes)}
                         </div>
-                        <div className="flex items-center gap-2 mt-4 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10">
+                        <div className="flex items-center gap-2 px-5 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
                             <Layers size={14} className={accentColor[timeRange]} />
                             <span className="text-sm font-bold">{analyticsData.sessionCount} Sessions Completed</span>
                         </div>
@@ -201,7 +201,7 @@ export const ReportCardModal: React.FC<ReportCardProps> = ({
                                         <div key={i} className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full border border-white/20 shadow-sm" style={{ backgroundColor: sub.color }} />
                                             <div className="flex flex-col">
-                                                <span className="text-[10px] font-bold leading-tight truncate max-w-[80px]" title={sub.label}>{sub.label}</span>
+                                                <span className="text-[10px] font-bold leading-tight truncate max-w-[80px] capitalize" title={sub.label}>{sub.label}</span>
                                                 <span className="text-[9px] font-mono text-white/60">{formatDuration(sub.value)}</span>
                                             </div>
                                         </div>
