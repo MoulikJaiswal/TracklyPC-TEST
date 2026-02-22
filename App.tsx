@@ -248,8 +248,8 @@ export const App: React.FC = () => {
   const [tests, setTests] = useState<TestResult[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [countdownDate, setCountdownDate] = useState<string>('');
-  const [countdownName, setCountdownName] = useState<string>('The Big Day');
+  const [countdownDate, setCountdownDate] = useLocalStorage<string>('trackly_countdown_date', '');
+  const [countdownName, setCountdownName] = useLocalStorage<string>('trackly_countdown_name', 'The Big Day');
 
   const [quoteIdx] = useState(() => Math.floor(Math.random() * QUOTES.length));
 
@@ -474,7 +474,7 @@ export const App: React.FC = () => {
             swipeAnimationEnabled, swipeStiffness, swipeDamping,
             soundEnabled, soundPitch, soundVolume,
             goals, timerDurations, notifFrequencyMin, stream,
-            countdownDate, countdownName, // Countdown sync
+            showSmartRecommendations,
           },
           { merge: true }
         );
@@ -488,8 +488,23 @@ export const App: React.FC = () => {
     swipeAnimationEnabled, swipeStiffness, swipeDamping,
     soundEnabled, soundPitch, soundVolume,
     goals, timerDurations, notifFrequencyMin, stream,
-    countdownDate, countdownName,
+    showSmartRecommendations,
   ]);
+
+  // ─── Sync countdown separately — only when a real date has been set ─────────
+  useEffect(() => {
+    if (!user || !isFirebaseReady || !countdownDate) return;
+    const t = setTimeout(async () => {
+      try {
+        await setDoc(
+          doc(db, 'users', user.uid, 'settings', 'preferences'),
+          { countdownDate, countdownName },
+          { merge: true }
+        );
+      } catch (e) { console.error('Failed to sync countdown', e); }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [user, isFirebaseReady, countdownDate, countdownName]);
 
   // ... [Theme Config, Handlers, etc. largely unchanged] ...
   const themeConfig = THEME_CONFIG[theme];
@@ -577,6 +592,10 @@ export const App: React.FC = () => {
       const batch = writeBatch(db);
 
       batch.set(doc(db, 'users', user.uid, 'settings', 'general'), { customSyllabus });
+      batch.set(doc(db, 'users', user.uid, 'settings', 'preferences'), {
+        countdownDate,
+        countdownName
+      }, { merge: true });
 
       sessions.forEach(item => batch.set(doc(db, 'users', user.uid, 'sessions', item.id), sanitizeForFirestore(item)));
       targets.forEach(item => batch.set(doc(db, 'users', user.uid, 'targets', item.id), sanitizeForFirestore(item)));
@@ -831,6 +850,8 @@ export const App: React.FC = () => {
           if (p.timerDurations !== undefined) setTimerDurations(p.timerDurations);
           if (p.notifFrequencyMin !== undefined) setNotifFrequencyMin(p.notifFrequencyMin);
           if (p.stream !== undefined) setStream(p.stream);
+          if (p.countdownDate) setCountdownDate(p.countdownDate);
+          if (p.countdownName) setCountdownName(p.countdownName);
         }
       });
 
@@ -1175,7 +1196,7 @@ export const App: React.FC = () => {
             <ProUpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} onUpgrade={handleUpgrade} />
             <OverdueTasksModal isOpen={showOverdueModal} tasks={overdueTasks} onClose={() => setShowOverdueModal(false)} onComplete={(id) => handleUpdateTarget(id, true)} onDelete={handleDeleteTarget} />
             <PerformanceToast isVisible={isLagging} onSwitch={activateLiteMode} onDismiss={dismissLag} />
-            <SmartRecommendationToast isVisible={!showWelcome && showRecommendationToast} data={recommendation} onDismiss={() => setShowRecommendationToast(false)} onPractice={handlePracticeRecommendation} onDisable={handleDisableRecommendations} />
+            <SmartRecommendationToast isVisible={!showWelcome && showSmartRecommendations && showRecommendationToast} data={recommendation} onDismiss={() => setShowRecommendationToast(false)} onPractice={handlePracticeRecommendation} onDisable={handleDisableRecommendations} />
             <ConfirmationModal isOpen={!!plannerPrompt} onClose={() => setPlannerPrompt(null)} onConfirm={handleConfirmPlannerTask} title="Add to Planner?" message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`} confirmText="Add Task" cancelText="No, thanks" confirmVariant="primary" icon={<ListChecks size={24} className="text-white" />} />
             {/* Notification permission banner — slides up once if permission not yet decided */}
             {!showWelcome && !isAuthLoading && <NotificationPermissionBanner />}
