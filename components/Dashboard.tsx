@@ -1,13 +1,14 @@
 
 
 import React, { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
-import { Plus, Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, ShieldCheck, Dna, Clock, Timer, BookOpen, Settings, Globe, Landmark, Feather, Info } from 'lucide-react';
+import { Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, Dna, Clock, Timer, BookOpen, Settings, Globe, Landmark, Feather, Info } from 'lucide-react';
 import { Session, Target, MistakeCounts, SyllabusData } from '../types';
 import { Card } from './Card';
+import { ConfirmationModal } from './ConfirmationModal';
 import { MISTAKE_TYPES } from '../constants';
 import { AdUnit } from './AdUnit';
 import { logAnalyticsEvent } from '../firebase';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+// Removed useLocalStorage import
 
 // Helper for local date string YYYY-MM-DD
 const getLocalDate = (d = new Date()) => {
@@ -68,6 +69,9 @@ interface DashboardProps {
   onOpenPrivacy: () => void;
   subjects: string[];
   syllabus: SyllabusData;
+  countdownDate?: string;
+  countdownName?: string;
+  onUpdateCountdown?: (date: string, name: string) => void;
 }
 
 const ActivityHeatmap = memo(({ sessions }: { sessions: Session[] }) => {
@@ -384,12 +388,19 @@ const SubjectDetailModal = memo(({
   );
 });
 
-const CountdownWidget = memo(() => {
-  const [targetDate, setTargetDate] = useLocalStorage<string>('trackly_countdown_date', '');
-  const [targetName, setTargetName] = useLocalStorage<string>('trackly_countdown_name', 'The Big Day');
+const CountdownWidget = memo(({
+  targetDate,
+  targetName,
+  onUpdate
+}: {
+  targetDate: string;
+  targetName: string;
+  onUpdate: (date: string, name: string) => void;
+}) => {
 
   const [timeLeft, setTimeLeft] = useState<{ d: number, h: number, m: number, s: number } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [tempDate, setTempDate] = useState(targetDate);
   const [tempName, setTempName] = useState(targetName);
@@ -421,8 +432,7 @@ const CountdownWidget = memo(() => {
 
   const handleSave = () => {
     if (tempDate) {
-      setTargetDate(tempDate);
-      setTargetName(tempName || 'The Big Day');
+      onUpdate(tempDate, tempName || 'The Big Day');
     }
     setIsEditing(false);
   };
@@ -442,9 +452,16 @@ const CountdownWidget = memo(() => {
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{targetDate ? new Date(targetDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }) : 'No Target Set'}</p>
           </div>
         </div>
-        <button onClick={() => { setTempDate(targetDate); setTempName(targetName); setIsEditing(!isEditing); }} className="p-2 relative z-10 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-all border border-white/5 hover:border-white/20">
-          <Settings size={16} />
-        </button>
+        <div className="flex gap-2">
+          {targetDate && (
+            <button onClick={() => setShowDeleteConfirm(true)} className="p-2 relative z-10 text-rose-400/70 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10 rounded-full transition-all border border-white/5 hover:border-rose-500/30">
+              <Trash2 size={16} />
+            </button>
+          )}
+          <button onClick={() => { setTempDate(targetDate); setTempName(targetName); setIsEditing(!isEditing); }} className="p-2 relative z-10 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-all border border-white/5 hover:border-white/20">
+            <Settings size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="relative z-10">
@@ -489,6 +506,20 @@ const CountdownWidget = memo(() => {
           <div className="py-10 text-center"><p className="text-sm font-bold text-slate-500 uppercase tracking-widest animate-pulse">Loading Target...</p></div>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        title="Delete Countdown"
+        message="Are you sure you want to remove your target countdown? You can always set a new one later."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={() => {
+          onUpdate('', 'The Big Day');
+          setShowDeleteConfirm(false);
+        }}
+        onClose={() => setShowDeleteConfirm(false)}
+        confirmVariant="danger"
+      />
     </Card>
   );
 });
@@ -504,12 +535,16 @@ const Dashboard = memo(({
   userName,
   onOpenPrivacy,
   subjects,
-  syllabus
+  syllabus,
+  countdownDate,
+  countdownName,
+  onUpdateCountdown
 }: DashboardProps) => {
   const todayStr = getLocalDate();
   const todaysSessions = useMemo(() => sessions.filter(s => getLocalDateFromTimestamp(s.timestamp) === todayStr), [sessions, todayStr]);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const scrollPosRef = useRef(0);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
   const { greeting, displayName } = useMemo(() => {
     const hour = new Date().getHours();
@@ -596,7 +631,11 @@ const Dashboard = memo(({
         </Card>
 
         {/* --- ADDED COUNTDOWN WIDGET HERE --- */}
-        <CountdownWidget />
+        <CountdownWidget
+          targetDate={countdownDate || ''}
+          targetName={countdownName || 'The Big Day'}
+          onUpdate={onUpdateCountdown || (() => { })}
+        />
 
         {subjects.length === 0 ? (
           <div className="col-span-full py-12 flex flex-col items-center justify-center text-center p-6 bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-3xl animate-in fade-in zoom-in duration-500">
@@ -694,7 +733,7 @@ const Dashboard = memo(({
                           ) : (
                             <span className="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-300">{s.attempted > 0 ? Math.round((s.correct / s.attempted) * 100) : 0}%</span>
                           )}
-                          <button onClick={() => onDelete(s.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 hover:bg-rose-500/10 p-2 rounded-lg transition-all"><Trash2 size={14} /></button>
+                          <button onClick={() => setSessionToDelete(s.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 hover:bg-rose-500/10 p-2 rounded-lg transition-all"><Trash2 size={14} /></button>
                         </div>
                       </div>
                     )
@@ -718,6 +757,20 @@ const Dashboard = memo(({
           syllabus={syllabus}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={sessionToDelete !== null}
+        title="Delete Activity"
+        message="Are you sure you want to delete this study session? This will remove it from your statistics permanently."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={() => {
+          if (sessionToDelete) onDelete(sessionToDelete);
+          setSessionToDelete(null);
+        }}
+        onClose={() => setSessionToDelete(null)}
+        confirmVariant="danger"
+      />
     </>
   );
 });

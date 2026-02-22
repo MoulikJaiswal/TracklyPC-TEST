@@ -27,6 +27,15 @@ export interface QuestionLog {
   subject: string; // Added to track subject per question
 }
 
+export type AdvancedQuestionType = 'singleCorrect' | 'multipleCorrect' | 'numerical' | 'matchFollowing' | 'paragraph';
+
+export interface AdvancedQuestionStats {
+  correct: number;
+  incorrect: number;
+  unattempted: number;
+  partialCorrect?: number;
+}
+
 export interface SubjectBreakdown {
   correct: number;
   incorrect: number;
@@ -35,12 +44,22 @@ export interface SubjectBreakdown {
   mistakes?: MistakeCounts;
   marks?: number; // For custom mark entry
   total?: number; // For custom mark entry
+  advancedBreakdown?: Record<AdvancedQuestionType, AdvancedQuestionStats>;
 }
 
 export interface MarkingScheme {
   correct: number;
   incorrect: number;
   unattempted: number;
+}
+
+export interface AdvancedMarkingScheme {
+  singleCorrect?: { correct: number; incorrect: number };
+  multipleCorrect?: { correct: number; incorrect: number; partial?: number };
+  numerical?: { correct: number; incorrect: number };
+  matchFollowing?: { correct: number; incorrect: number; partial?: number };
+  paragraph?: { correct: number; incorrect: number };
+  [key: string]: { correct: number; incorrect: number; partial?: number } | undefined;
 }
 
 export interface TestResult {
@@ -54,6 +73,7 @@ export interface TestResult {
 
   examType: 'JEE Main' | 'JEE Advanced' | 'NEET' | 'Custom / General';
   markingScheme?: MarkingScheme;
+  advancedMarkingScheme?: AdvancedMarkingScheme;
 
   testScope?: 'Full' | 'Part';
   partTestChapters?: Record<string, string[]>;
@@ -213,8 +233,8 @@ export interface Friend {
 export interface PresenceState {
   isOnline: boolean;
   state: 'idle' | 'focus' | 'break';
-  subject?: string;
-  endTime?: number;
+  subject?: string | null;
+  endTime?: number | null;
   dailyFocusTime?: number; // Added to track total seconds today
   weeklyFocusTime?: number; // Added to track total seconds this week
   yearlyFocusTime?: number; // Added to track total seconds this year

@@ -629,7 +629,7 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
               className={`backdrop-blur-md p-4 rounded-3xl border flex flex-col items-center justify-center text-center group transition-all duration-300 cursor-pointer ${timeframe === 'yearly' ? 'bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/10 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-500/10 hover:border-amber-500/30'}`}>
               <Flame size={22} className={`mb-2 drop-shadow-[0_0_10px_rgba(245,158,11,0.4)] transition-transform ${timeframe === 'yearly' ? 'text-amber-400 scale-110' : 'text-amber-500 group-hover:scale-110'}`} />
               <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-0.5 opacity-80">This Year</p>
-              <p className="text-lg font-black text-theme-text tracking-tight">{formatHoursOnly(presence?.yearlyFocusTime)}</p>
+              <p className="text-lg font-black text-theme-text tracking-tight">{formatHoursOnly(presence?.yearlyFocusTime ?? (presence?.subjectSplit ? Object.values(presence.subjectSplit).reduce((a, b) => a + b, 0) : 0))}</p>
             </div>
           </div>
 

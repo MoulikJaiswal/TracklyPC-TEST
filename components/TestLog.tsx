@@ -2,10 +2,10 @@
 import React, { useState, useMemo, memo, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-    Plus, X, Trash2, Trophy, Clock, Calendar, TrendingUp, Info, ArrowLeft, Layers, Brain, Divide, Wind, Timer as TimerIcon,
-    Search, ArrowUpNarrowWide, Check, ChevronRight, BookOpen, Target as TargetIcon, Calculator, Hash
+    Plus, X, Trash2, Trophy, TrendingUp, ArrowLeft, Layers, Brain,
+    Search, ArrowUpNarrowWide, Check, ChevronRight, BookOpen, Target as TargetIcon
 } from 'lucide-react';
-import { TestResult, SubjectBreakdown, SyllabusData, StreamType, MarkingScheme, MistakeCounts } from '../types';
+import { TestResult, SubjectBreakdown, SyllabusData, StreamType, MistakeCounts, AdvancedQuestionType, AdvancedMarkingScheme } from '../types';
 import { Card } from './Card';
 import { MISTAKE_TYPES, EXAM_PRESETS } from '../constants';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -26,11 +26,11 @@ interface TestLogProps {
 const StatInput = memo(({ label, value, onChange, color, className }: { label: string, value: number, onChange: (val: number) => void, color: string, className?: string }) => {
     return (
         <div className={`p-3 rounded-2xl border ${color} bg-opacity-10 ${className}`}>
-            <label className="block text-center text-[10px] font-bold uppercase tracking-widest mb-2 text-theme-text-secondary">{label}</label>
+            <label className="block text-center text-[10px] font-bold uppercase tracking-widest mb-2 text-white/50">{label}</label>
             <div className="flex items-center justify-center gap-1">
-                <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="w-8 h-8 rounded-lg bg-black/5 dark:bg-black/20 hover:bg-black/10 dark:hover:bg-black/40">-</button>
-                <input type="number" value={value} onChange={(e) => onChange(parseInt(e.target.value) || 0)} className="w-14 text-center bg-transparent text-2xl font-mono font-bold text-theme-text" />
-                <button type="button" onClick={() => onChange(value + 1)} className="w-8 h-8 rounded-lg bg-black/5 dark:bg-black/20 hover:bg-black/10 dark:hover:bg-black/40">+</button>
+                <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-colors">-</button>
+                <input type="number" value={value || ''} onChange={(e) => onChange(parseInt(e.target.value) || 0)} className="w-14 text-center bg-transparent text-2xl font-mono font-bold text-white focus:outline-none" />
+                <button type="button" onClick={() => onChange(value + 1)} className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-colors">+</button>
             </div>
         </div>
     );
@@ -39,12 +39,12 @@ const StatInput = memo(({ label, value, onChange, color, className }: { label: s
 const MarkInput = memo(({ label, value, onChange, placeholder }: { label: string, value: number | undefined, onChange: (val: number) => void, placeholder?: string }) => {
     return (
         <div className="p-3 rounded-2xl border border-slate-500/20 bg-opacity-10">
-            <label className="block text-center text-[10px] font-bold uppercase tracking-widest mb-2 text-theme-text-secondary">{label}</label>
+            <label className="block text-center text-[10px] font-bold uppercase tracking-widest mb-2 text-white/50">{label}</label>
             <input
                 type="number"
                 value={value || ''}
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-                className="w-full text-center bg-transparent text-2xl font-mono font-bold placeholder:text-theme-text-secondary/20 text-theme-text"
+                className="w-full text-center bg-transparent text-2xl font-mono font-bold placeholder:text-white/20 text-white focus:outline-none"
                 placeholder={placeholder}
             />
         </div>
@@ -69,15 +69,31 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
             date: getLocalDate(),
             examType: initialExamType,
             markingScheme: EXAM_PRESETS[initialExamType as keyof typeof EXAM_PRESETS].markingScheme,
+            advancedMarkingScheme: (EXAM_PRESETS[initialExamType as keyof typeof EXAM_PRESETS] as any)?.advancedMarkingScheme,
             temperament: 'Focused' as const,
             breakdown: Object.keys(syllabus).reduce((acc, sub) => ({
-                ...acc, [sub]: { correct: 0, incorrect: 0, unattempted: 0, marks: undefined, total: undefined, timeSpent: 0, mistakes: MISTAKE_TYPES.reduce((m, t) => ({ ...m, [t.id]: 0 }), {}) }
+                ...acc, [sub]: {
+                    correct: 0,
+                    incorrect: 0,
+                    unattempted: 0,
+                    marks: undefined,
+                    total: undefined,
+                    timeSpent: 0,
+                    mistakes: MISTAKE_TYPES.reduce((m, t) => ({ ...m, [t.id]: 0 }), {}),
+                    advancedBreakdown: {
+                        singleCorrect: { correct: 0, incorrect: 0, unattempted: 0 },
+                        multipleCorrect: { correct: 0, incorrect: 0, unattempted: 0, partialCorrect: 0 },
+                        numerical: { correct: 0, incorrect: 0, unattempted: 0 },
+                        matchFollowing: { correct: 0, incorrect: 0, unattempted: 0, partialCorrect: 0 },
+                        paragraph: { correct: 0, incorrect: 0, unattempted: 0 }
+                    }
+                }
             }), {} as Record<string, SubjectBreakdown>),
             weakTopics: [],
             postTestNotes: '',
             testScope: 'Full' as const,
             partTestChapters: {},
-        };
+        } as Partial<TestResult>;
     }, [syllabus, examTypeOptions]);
 
     const [testData, setTestData] = useState<Partial<TestResult>>(getInitialState());
@@ -95,6 +111,7 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
         let totalMarks = 0;
         let maxMarks = 0;
         const subjectsForCalc = stream === 'General' ? testSubjects : subjects;
+        const isAdvanced = testData.examType === 'JEE Advanced';
 
         if (isCustomTest) {
             for (const subject of subjectsForCalc) {
@@ -102,6 +119,23 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
                 if (b) {
                     totalMarks += safeNum(b.marks);
                     maxMarks += safeNum(b.total);
+                }
+            }
+        } else if (isAdvanced && testData.advancedMarkingScheme) {
+            const scheme = testData.advancedMarkingScheme;
+            for (const subject of subjectsForCalc) {
+                const b = testData.breakdown[subject]?.advancedBreakdown;
+                if (b) {
+                    for (const key of Object.keys(b)) {
+                        const qType = key as AdvancedQuestionType;
+                        const stats = b[qType];
+                        const sScheme = scheme[qType];
+                        if (stats && sScheme) {
+                            const partialMarkTarget = (sScheme as any).partial || 0;
+                            totalMarks += safeNum(stats.correct) * sScheme.correct + safeNum(stats.incorrect) * sScheme.incorrect + safeNum(stats.partialCorrect) * safeNum(partialMarkTarget);
+                            maxMarks += (safeNum(stats.correct) + safeNum(stats.incorrect) + safeNum(stats.unattempted)) * sScheme.correct;
+                        }
+                    }
                 }
             }
         } else {
@@ -116,11 +150,16 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
             }
         }
         return { totalMarks, maxMarks };
-    }, [testData.breakdown, testData.markingScheme, testData.examType, subjects, testSubjects, stream, isCustomTest]);
+    }, [testData.breakdown, testData.markingScheme, testData.advancedMarkingScheme, testData.examType, subjects, testSubjects, stream, isCustomTest]);
 
     const handleExamTypeChange = (type: TestResult['examType']) => {
         const preset = EXAM_PRESETS[type as keyof typeof EXAM_PRESETS];
-        setTestData(prev => ({ ...prev, examType: type, markingScheme: preset.markingScheme }));
+        setTestData(prev => ({
+            ...prev,
+            examType: type,
+            markingScheme: preset.markingScheme,
+            advancedMarkingScheme: (preset as any).advancedMarkingScheme // fallback for TS
+        }));
     };
 
     const toggleSubject = (subject: string) => {
@@ -197,24 +236,45 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
         onSave(finalData);
     };
 
-    const allSteps = [{ title: 'Test Details' }, { title: 'Performance' }, { title: 'Mistake Analysis' }, { title: 'Final Review' }];
+    const isAdvanced = testData.examType === 'JEE Advanced';
+    const allSteps = [
+        { title: 'Test Details' },
+        ...(isAdvanced ? [{ title: 'Test Pattern' }] : []),
+        { title: 'Performance' },
+        { title: 'Mistake Analysis' },
+        { title: 'Final Review' }
+    ];
 
     const getDisplayStep = () => {
-        if (!isCustomTest) return { current: step, total: 4, title: allSteps[step - 1].title };
-        if (step === 1) return { current: 1, total: 3, title: allSteps[0].title };
-        if (step === 2) return { current: 2, total: 3, title: allSteps[1].title };
-        if (step === 4) return { current: 3, total: 3, title: allSteps[3].title };
-        return { current: 1, total: 3, title: 'Error' }; // Fallback
+        if (isCustomTest) {
+            if (step === 1) return { current: 1, total: 3, title: 'Test Details' };
+            if (step === 3) return { current: 2, total: 3, title: 'Performance' };
+            if (step === 5) return { current: 3, total: 3, title: 'Final Review' };
+            return { current: 1, total: 3, title: 'Error' };
+        }
+
+        let visualTotal = isAdvanced ? 5 : 4;
+        let displayCurrent = step;
+        if (!isAdvanced) {
+            if (step === 1) displayCurrent = 1;
+            else if (step === 3) displayCurrent = 2; // Performance
+            else if (step === 4) displayCurrent = 3; // Mistakes
+            else if (step === 5) displayCurrent = 4; // Final Review
+        }
+
+        return { current: displayCurrent, total: visualTotal, title: allSteps[displayCurrent - 1]?.title || 'Error' };
     }
     const { current: displayCurrent, total: displayTotal, title: displayTitle } = getDisplayStep();
 
     const handleNext = () => {
-        if (step === 2 && isCustomTest) setStep(4);
+        if (step === 1 && !isAdvanced) setStep(3); // Skip pattern config
+        else if (step === 3 && isCustomTest) setStep(5); // Skip mistakes for custom
         else setStep(s => s + 1);
     };
 
     const handleBack = () => {
-        if (step === 4 && isCustomTest) setStep(2);
+        if (step === 5 && isCustomTest) setStep(3);
+        else if (step === 3 && !isAdvanced) setStep(1); // Jump back over pattern config
         else setStep(s => s - 1);
     };
 
@@ -228,8 +288,23 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
             return !!testData.name?.trim();
         }
         if (step === 2) {
+            // Step 2 is now ONLY the Pattern Configurator for Advanced tests
+            if (isAdvanced) {
+                return testData.advancedMarkingScheme && Object.keys(testData.advancedMarkingScheme).length > 0;
+            }
+            return true;
+        }
+        if (step === 3) {
+            // Step 3 is Score Entry for ALL tests
             if (isCustomTest) {
                 return testSubjects.some(sub => safeNum(testData.breakdown?.[sub]?.total) > 0);
+            }
+            if (isAdvanced) {
+                return testSubjects.some(sub => {
+                    const aBreakdown = testData.breakdown?.[sub]?.advancedBreakdown;
+                    if (!aBreakdown) return false;
+                    return Object.values(aBreakdown).some(stats => (safeNum(stats.correct) + safeNum(stats.incorrect) + safeNum(stats.unattempted)) > 0);
+                });
             }
             return testSubjects.some(sub => {
                 const b = testData.breakdown?.[sub];
@@ -240,119 +315,131 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
     }, [step, testData, testSubjects, stream, isCustomTest]);
 
     return createPortal(
-        <div className="fixed inset-0 z-[120] bg-slate-950 flex flex-col animate-in fade-in duration-300">
-            {/* — HEADER — */}
-            <div className="shrink-0 relative overflow-hidden">
-                {/* Gradient blobs */}
-                <div className="absolute inset-0 bg-gradient-to-br from-theme-accent/20 via-transparent to-transparent pointer-events-none" />
-                <div className="absolute top-0 right-0 w-40 h-40 bg-theme-accent/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/2" />
+        <div className="fixed inset-0 z-[120] bg-[#080b14] flex flex-col">
+            {/* Atmospheric orbs */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-theme-accent/20 blur-[100px]" />
+                <div className="absolute top-1/3 -right-32 w-80 h-80 rounded-full bg-violet-600/15 blur-[120px]" />
+                <div className="absolute bottom-0 left-1/3 w-72 h-72 rounded-full bg-sky-600/10 blur-[80px]" />
+            </div>
 
-                <div className="relative z-10 p-4 flex justify-between items-center">
+            {/* ── HEADER ── */}
+            <div className="shrink-0 relative z-10 px-4 pt-5 pb-2 flex flex-col gap-3">
+
+                <div className="flex justify-between items-center">
                     <button
                         onClick={step > 1 ? handleBack : onCancel}
-                        className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/60 hover:text-white transition-colors"
+                        className="group flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/40 hover:text-white/80 transition-colors"
                     >
-                        <ArrowLeft size={14} /> {step > 1 ? 'Back' : 'Cancel'}
+                        <ArrowLeft size={15} />
+                        {step > 1 ? 'Back' : 'Cancel'}
                     </button>
 
-                    {/* Live score chip — only visible on step 2 */}
-                    {step === 2 && (
-                        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center">
-                            <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-theme-accent/80">Live Score</span>
-                            <span className="text-2xl font-mono font-bold text-white leading-none">
-                                {calculatedScores.totalMarks}
-                                <span className="text-sm text-white/40 font-normal"> / {calculatedScores.maxMarks}</span>
-                            </span>
-                        </div>
-                    )}
-                    {step !== 2 && (
-                        <div className="absolute left-1/2 -translate-x-1/2 text-center">
-                            <p className="text-sm font-bold text-white">{displayTitle}</p>
-                            <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Step {displayCurrent} of {displayTotal}</p>
-                        </div>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                        {Array.from({ length: displayTotal }, (_, i) => (
+                            <div key={i} className={`rounded-full transition-all duration-500 ${i < displayCurrent - 1 ? 'w-6 h-2 bg-theme-accent/50' :
+                                i === displayCurrent - 1 ? 'w-6 h-2 bg-theme-accent shadow-[0_0_8px_var(--theme-accent)]' :
+                                    'w-2 h-2 bg-white/15'
+                                }`} />
+                        ))}
+                    </div>
 
-                    {step < 4
-                        ? <button onClick={handleNext} disabled={!currentStepValid} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-theme-accent text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-theme-accent/20">
+
+                    {displayCurrent < displayTotal
+                        ? <button onClick={handleNext} disabled={!currentStepValid} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-theme-accent text-black disabled:bg-white/10 disabled:text-white/30 disabled:shadow-none disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-theme-accent/30 hover:shadow-theme-accent/50">
                             Next <ChevronRight size={13} />
                         </button>
-                        : <button onClick={handleSave} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-emerald-500 text-white transition-all active:scale-95 shadow-lg shadow-emerald-500/30">
+                        : <button onClick={handleSave} disabled={!currentStepValid} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-400 text-black disabled:bg-white/10 disabled:text-white/30 disabled:shadow-none disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50">
                             <Check size={13} /> Save
                         </button>
                     }
                 </div>
 
-                {/* Step progress pills */}
-                <div className="relative z-10 flex gap-1.5 px-5 pb-4">
-                    {Array.from({ length: displayTotal }, (_, i) => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-500 ${i < displayCurrent ? 'bg-theme-accent' : 'bg-white/10'}`} />
-                    ))}
-                </div>
+                {step === 3 ? (
+                    <div className="flex flex-col items-center gap-1">
+                        <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/70">Live Score</p>
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-5xl font-mono font-black text-white tabular-nums">{calculatedScores.totalMarks}</span>
+                            <span className="text-xl text-white/30 font-mono">/ {calculatedScores.maxMarks}</span>
+                        </div>
+                        {calculatedScores.maxMarks > 0 && (
+                            <div className="w-48 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                <div className="h-full bg-gradient-to-r from-theme-accent to-violet-400 rounded-full transition-all duration-500"
+                                    style={{ width: `${Math.max(0, Math.min(100, (calculatedScores.totalMarks / calculatedScores.maxMarks) * 100))}%` }} />
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="text-center">
+                        <p className="text-lg font-black text-white tracking-tight">{displayTitle}</p>
+                        <p className="text-[10px] text-white/30 font-bold uppercase tracking-[0.25em]">Step {displayCurrent} of {displayTotal}</p>
+                    </div>
+                )}
             </div>
 
-            {/* — BODY — */}
-            <div className="flex-1 overflow-y-auto">
+            {/* ── BODY ── */}
+            <div className="flex-1 overflow-y-auto relative z-10">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={step}
-                        initial={{ opacity: 0, x: 30 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -30 }}
-                        transition={{ duration: 0.18, ease: 'easeOut' }}
-                        className="max-w-2xl mx-auto px-4 py-6 md:px-8 md:py-8 space-y-5"
+                        initial={{ opacity: 0, y: 24 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -16 }}
+                        transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                        className="max-w-2xl mx-auto px-4 pb-10 pt-2 md:px-8 space-y-4"
                     >
                         {/* ── STEP 1: Test Details ── */}
                         {step === 1 && (
                             <>
-                                {/* Test Name */}
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 ml-1">Test Name</label>
+                                {/* Test Name — big hero input */}
+                                <div className="relative">
                                     <input
                                         type="text"
-                                        placeholder="e.g. AITS-3, Mock Test 5..."
+                                        placeholder="Test name, e.g. AITS-3..."
                                         value={testData.name}
                                         onChange={e => setTestData({ ...testData, name: e.target.value })}
-                                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-lg font-bold text-white placeholder:text-white/20 outline-none focus:border-theme-accent/60 focus:bg-white/8 transition-all"
+                                        className="w-full px-5 py-5 bg-white/5 border border-white/10 rounded-3xl text-2xl font-black text-white placeholder:text-white/15 outline-none focus:border-theme-accent/50 focus:bg-white/8 transition-all"
                                     />
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-2xl pointer-events-none">🏆</div>
                                 </div>
 
-                                {/* Date + Exam Type row */}
+                                {/* Date + Exam Type */}
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 ml-1">Date</label>
+                                    <div className="bg-white/5 border border-white/8 rounded-2xl p-4 space-y-2">
+                                        <label className="text-[9px] font-black uppercase tracking-[0.25em] text-white/35">📅 Date</label>
                                         <input
                                             type="date"
                                             value={testData.date}
                                             onChange={e => setTestData({ ...testData, date: e.target.value })}
-                                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm text-white outline-none focus:border-theme-accent/60 transition-all [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-40"
+                                            className="w-full bg-transparent text-sm font-bold text-white outline-none [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-30"
                                         />
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 ml-1">Exam Type</label>
+                                    <div className="bg-white/5 border border-white/8 rounded-2xl p-4 space-y-2">
+                                        <label className="text-[9px] font-black uppercase tracking-[0.25em] text-white/35">📝 Exam</label>
                                         <select
                                             value={testData.examType}
                                             onChange={e => handleExamTypeChange(e.target.value as any)}
-                                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm text-white outline-none focus:border-theme-accent/60 transition-all"
+                                            className="w-full bg-transparent text-sm font-bold text-white outline-none"
                                             style={{ colorScheme: 'dark' }}
                                         >
-                                            {examTypeOptions.map(key => <option key={key}>{key}</option>)}
+                                            {examTypeOptions.map(key => <option key={key} className="bg-slate-900">{key}</option>)}
                                         </select>
                                     </div>
                                 </div>
 
                                 {/* Subject pills (General stream) */}
                                 {stream === 'General' && (
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 ml-1">Subjects in this Test</label>
+                                    <div className="bg-white/3 border border-white/8 rounded-2xl p-4 space-y-3">
+                                        <label className="text-[9px] font-black uppercase tracking-[0.25em] text-white/35">Subjects in this Test</label>
                                         <div className="flex flex-wrap gap-2">
                                             {subjects.map(sub => (
                                                 <button
-                                                    key={sub}
-                                                    type="button"
+                                                    key={sub} type="button"
                                                     onClick={() => toggleSubject(sub)}
-                                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${testSubjects.includes(sub)
-                                                        ? 'bg-theme-accent/20 border-theme-accent text-theme-accent shadow-sm shadow-theme-accent/20'
-                                                        : 'bg-white/5 border-white/10 text-white/50 hover:text-white hover:border-white/20'}`}
+                                                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all border ${testSubjects.includes(sub)
+                                                        ? 'bg-theme-accent/20 border-theme-accent text-theme-accent shadow-[0_0_12px_rgba(139,92,246,0.2)]'
+                                                        : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
+                                                        }`}
                                                 >
                                                     {sub}
                                                 </button>
@@ -363,22 +450,20 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
 
                                 {/* Test Scope toggle */}
                                 {stream !== 'General' && (
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 ml-1">Test Scope</label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {(['Full', 'Part'] as const).map(scope => (
-                                                <button
-                                                    key={scope}
-                                                    type="button"
-                                                    onClick={() => setTestData(prev => ({ ...prev, testScope: scope }))}
-                                                    className={`py-3 rounded-2xl text-sm font-bold transition-all border ${testData.testScope === scope
-                                                        ? 'bg-theme-accent/20 border-theme-accent text-theme-accent'
-                                                        : 'bg-white/5 border-white/10 text-white/50 hover:text-white hover:border-white/20'}`}
-                                                >
-                                                    {scope === 'Full' ? '📄 Full Test' : '📂 Part Test'}
-                                                </button>
-                                            ))}
-                                        </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {(['Full', 'Part'] as const).map(scope => (
+                                            <button
+                                                key={scope} type="button"
+                                                onClick={() => setTestData(prev => ({ ...prev, testScope: scope }))}
+                                                className={`py-5 rounded-2xl text-sm font-black transition-all border flex flex-col items-center gap-1 ${testData.testScope === scope
+                                                    ? 'bg-theme-accent/15 border-theme-accent text-theme-accent'
+                                                    : 'bg-white/4 border-white/8 text-white/40 hover:text-white/70'
+                                                    }`}
+                                            >
+                                                <span className="text-2xl">{scope === 'Full' ? '📄' : '📂'}</span>
+                                                <span>{scope === 'Full' ? 'Full Test' : 'Part Test'}</span>
+                                            </button>
+                                        ))}
                                     </div>
                                 )}
 
@@ -416,77 +501,178 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
                             </>
                         )}
 
-                        {/* ── STEP 2: Scores ── */}
-                        {step === 2 && (
+                        {/* ── STEP 2 (Advanced Only): Pattern Configurator ── */}
+                        {step === 2 && isAdvanced && (
+                            <div className="space-y-4">
+                                <div className="text-center p-4 bg-white/5 border border-white/10 rounded-2xl mb-4">
+                                    <h4 className="font-bold text-white mb-1">Advanced Exam Pattern</h4>
+                                    <p className="text-xs text-white/60">Enable the question types present in this paper and set their marking scheme.</p>
+                                </div>
+                                {(['singleCorrect', 'multipleCorrect', 'numerical', 'matchFollowing', 'paragraph'] as AdvancedQuestionType[]).map(type => {
+                                    const labels = {
+                                        singleCorrect: 'Single Correct MCQ',
+                                        multipleCorrect: 'Multiple Correct (MSQ)',
+                                        numerical: 'Numerical / Integer',
+                                        matchFollowing: 'Match the Following',
+                                        paragraph: 'Paragraph / Comprehension'
+                                    };
+                                    const scheme = testData.advancedMarkingScheme?.[type];
+                                    const isEnabled = !!scheme;
+
+                                    return (
+                                        <div key={type} className={`bg-white/5 border rounded-3xl p-5 space-y-4 transition-all ${isEnabled ? 'border-theme-accent/50' : 'border-white/10 opacity-50'}`}>
+                                            <div className="flex justify-between items-center">
+                                                <h4 className="font-bold text-sm text-white">{labels[type]}</h4>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newScheme = { ...testData.advancedMarkingScheme } as any;
+                                                        if (isEnabled) delete newScheme[type];
+                                                        else {
+                                                            const defaults: any = EXAM_PRESETS['JEE Advanced']?.advancedMarkingScheme || {};
+                                                            newScheme[type] = defaults[type] || { correct: 3, incorrect: 0 };
+                                                        }
+                                                        setTestData(prev => ({ ...prev, advancedMarkingScheme: newScheme }));
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isEnabled ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'}`}
+                                                >
+                                                    {isEnabled ? 'Disable' : 'Enable'}
+                                                </button>
+                                            </div>
+
+                                            {isEnabled && (
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <StatInput label="+ Correct" value={scheme.correct || 0} onChange={v => setTestData(p => ({ ...p, advancedMarkingScheme: { ...p.advancedMarkingScheme, [type]: { ...scheme, correct: v } } as any }))} color="border-emerald-500/40" />
+                                                    <StatInput label="- Wrong" value={Math.abs(scheme.incorrect || 0)} onChange={v => setTestData(p => ({ ...p, advancedMarkingScheme: { ...p.advancedMarkingScheme, [type]: { ...scheme, incorrect: -v } } as any }))} color="border-rose-500/40" />
+                                                    {type !== 'singleCorrect' && type !== 'numerical' && type !== 'paragraph' && (
+                                                        <StatInput label="+ Partial" value={(scheme as any).partial || 0} onChange={v => setTestData(p => ({ ...p, advancedMarkingScheme: { ...p.advancedMarkingScheme, [type]: { ...scheme, partial: v } } as any }))} color="border-amber-500/40" />
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* ── STEP 3: Scores ── */}
+                        {step === 3 && (
                             <>
+                                {isAdvanced && !isCustomTest && (
+                                    <div className="flex flex-wrap justify-center gap-6 p-3 mb-2 bg-white/5 border border-white/10 rounded-2xl">
+                                        <div className="flex items-center gap-2"><span className="text-emerald-400/80 bg-emerald-400/10 rounded-md px-1.5 py-0.5 text-xs">✅</span> <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">Correct</span></div>
+                                        <div className="flex items-center gap-2"><span className="text-rose-400/80 bg-rose-400/10 rounded-md px-1.5 py-0.5 text-xs">❌</span> <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">Wrong</span></div>
+                                        <div className="flex items-center gap-2"><span className="text-amber-400/80 bg-amber-400/10 rounded-md px-1.5 py-0.5 text-xs">⚡</span> <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">Partial</span></div>
+                                        <div className="flex items-center gap-2"><span className="text-slate-400/80 bg-slate-400/10 rounded-md px-1.5 py-0.5 text-xs">⬜</span> <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">Skip</span></div>
+                                    </div>
+                                )}
                                 {testSubjects.map(sub => {
                                     const b = testData.breakdown?.[sub];
-                                    const subTotal = isCustomTest
-                                        ? safeNum(b?.total)
-                                        : (safeNum(b?.correct) + safeNum(b?.incorrect) + safeNum(b?.unattempted));
-                                    const subMarks = isCustomTest
-                                        ? safeNum(b?.marks)
-                                        : (testData.markingScheme
-                                            ? safeNum(b?.correct) * testData.markingScheme.correct + safeNum(b?.incorrect) * testData.markingScheme.incorrect
-                                            : 0);
+                                    const subTotal = isCustomTest ? safeNum(b?.total) : (safeNum(b?.correct) + safeNum(b?.incorrect) + safeNum(b?.unattempted));
+                                    const subMarks = isCustomTest ? safeNum(b?.marks) : (testData.markingScheme ? safeNum(b?.correct) * testData.markingScheme.correct + safeNum(b?.incorrect) * testData.markingScheme.incorrect : 0);
                                     const pct = subTotal > 0 || (isCustomTest && safeNum(b?.total) > 0)
                                         ? isCustomTest
                                             ? Math.round(safeDiv(subMarks, safeNum(b?.total)) * 100)
                                             : Math.round(safeDiv(safeNum(b?.correct), safeNum(b?.correct) + safeNum(b?.incorrect)) * 100)
                                         : null;
+                                    const scoreColor = pct === null ? 'text-white/50' : pct >= 70 ? 'text-emerald-400' : pct >= 45 ? 'text-amber-400' : 'text-rose-400';
+                                    const borderGlow = pct === null ? 'border-white/8' : pct >= 70 ? 'border-emerald-500/25' : pct >= 45 ? 'border-amber-500/25' : 'border-rose-500/25';
 
                                     return (
-                                        <div key={sub} className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
-                                            <div className="flex justify-between items-center">
-                                                <h4 className="font-bold text-base text-white">{sub}</h4>
+                                        <div key={sub} className={`border rounded-3xl overflow-hidden transition-all ${borderGlow} bg-white/4`}>
+                                            <div className="flex justify-between items-center px-5 pt-4 pb-3">
+                                                <h4 className="font-black text-base text-white">{sub}</h4>
                                                 {pct !== null && (
-                                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${pct >= 70 ? 'bg-emerald-500/20 text-emerald-400' : pct >= 45 ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                                                        {pct}%
-                                                    </span>
+                                                    <span className={`text-2xl font-black tabular-nums ${scoreColor}`}>{pct}%</span>
                                                 )}
                                             </div>
-
-                                            {isCustomTest ? (
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <MarkInput label="Marks Obtained" value={b?.marks} onChange={v => handleSubjectMarksChange(sub, 'marks', v)} placeholder="--" />
-                                                    <MarkInput label="Total Marks" value={b?.total} onChange={v => handleSubjectMarksChange(sub, 'total', v)} placeholder="--" />
-                                                </div>
-                                            ) : (
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <StatInput label="✅ Correct" value={b?.correct || 0} onChange={v => handleSubjectChange(sub, 'correct', v)} color="border-emerald-500/40" />
-                                                    <StatInput label="❌ Wrong" value={b?.incorrect || 0} onChange={v => handleSubjectChange(sub, 'incorrect', v)} color="border-rose-500/40" />
-                                                    <StatInput label="⬜ Skip" value={b?.unattempted || 0} onChange={v => handleSubjectChange(sub, 'unattempted', v)} color="border-slate-500/30" />
-                                                </div>
-                                            )}
+                                            <div className="px-4 pb-4">
+                                                {isCustomTest ? (
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <MarkInput label="Marks Obtained" value={b?.marks} onChange={v => handleSubjectMarksChange(sub, 'marks', v)} placeholder="--" />
+                                                        <MarkInput label="Total Marks" value={b?.total} onChange={v => handleSubjectMarksChange(sub, 'total', v)} placeholder="--" />
+                                                    </div>
+                                                ) : isAdvanced ? (
+                                                    <div className="space-y-4">
+                                                        {testData.advancedMarkingScheme && Object.keys(testData.advancedMarkingScheme).map((key) => {
+                                                            const qType = key as AdvancedQuestionType;
+                                                            const stats = b?.advancedBreakdown?.[qType] || { correct: 0, incorrect: 0, unattempted: 0 };
+                                                            const isMsQ = qType === 'multipleCorrect' || qType === 'matchFollowing';
+                                                            const shortLabels = {
+                                                                singleCorrect: 'Single Correct',
+                                                                multipleCorrect: 'Multiple Correct',
+                                                                numerical: 'Numerical',
+                                                                matchFollowing: 'Match Following',
+                                                                paragraph: 'Paragraph'
+                                                            };
+                                                            return (
+                                                                <div key={key} className="p-3 bg-black/20 rounded-2xl border border-white/5 space-y-3">
+                                                                    <p className="text-[10px] uppercase font-bold text-white/50">{shortLabels[qType]}</p>
+                                                                    <div className={`grid ${isMsQ ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
+                                                                        <StatInput label="✅" value={stats.correct || 0} onChange={v => setTestData(p => ({ ...p, breakdown: { ...p.breakdown, [sub]: { ...p.breakdown![sub]!, advancedBreakdown: { ...p.breakdown![sub]!.advancedBreakdown, [qType]: { ...stats, correct: v } } } as any } }))} color="border-emerald-500/30 bg-emerald-500/5 text-xs" />
+                                                                        <StatInput label="❌" value={stats.incorrect || 0} onChange={v => setTestData(p => ({ ...p, breakdown: { ...p.breakdown, [sub]: { ...p.breakdown![sub]!, advancedBreakdown: { ...p.breakdown![sub]!.advancedBreakdown, [qType]: { ...stats, incorrect: v } } } as any } }))} color="border-rose-500/30 bg-rose-500/5 text-xs" />
+                                                                        {isMsQ && (
+                                                                            <StatInput label="⚡" value={stats.partialCorrect || 0} onChange={v => setTestData(p => ({ ...p, breakdown: { ...p.breakdown, [sub]: { ...p.breakdown![sub]!, advancedBreakdown: { ...p.breakdown![sub]!.advancedBreakdown, [qType]: { ...stats, partialCorrect: v } } } as any } }))} color="border-amber-500/30 bg-amber-500/5 text-xs" />
+                                                                        )}
+                                                                        <StatInput label="⬜" value={stats.unattempted || 0} onChange={v => setTestData(p => ({ ...p, breakdown: { ...p.breakdown, [sub]: { ...p.breakdown![sub]!, advancedBreakdown: { ...p.breakdown![sub]!.advancedBreakdown, [qType]: { ...stats, unattempted: v } } } as any } }))} color="border-slate-500/30 bg-slate-500/5 text-xs" />
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-3 gap-3 mt-2">
+                                                        <StatInput label="✅ Correct" value={b?.correct || 0} onChange={v => handleSubjectChange(sub, 'correct', v)} color="border-emerald-500/20 bg-emerald-500/5" />
+                                                        <StatInput label="❌ Wrong" value={b?.incorrect || 0} onChange={v => handleSubjectChange(sub, 'incorrect', v)} color="border-rose-500/20 bg-rose-500/5" />
+                                                        <StatInput label="⬜ Skip" value={b?.unattempted || 0} onChange={v => handleSubjectChange(sub, 'unattempted', v)} color="border-white/10 bg-white/5" />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}
                             </>
                         )}
 
-                        {/* ── STEP 3: Mistakes ── */}
-                        {step === 3 && !isCustomTest && (
+                        {/* ── STEP 4: Mistakes ── */}
+                        {step === 4 && !isCustomTest && (
                             <>
-                                <div className="text-center p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
-                                    <p className="text-xs font-bold text-amber-400">🔍 Optional step — tag your mistakes to unlock deeper insights later!</p>
+                                <div className="rounded-2xl p-4 bg-amber-500/8 border border-amber-500/20 flex items-center gap-3">
+                                    <span className="text-2xl">🔍</span>
+                                    <div>
+                                        <p className="text-xs font-black text-amber-400">Optional but valuable</p>
+                                        <p className="text-[11px] text-amber-400/60">Tag your mistakes to spot patterns over time.</p>
+                                    </div>
                                 </div>
                                 {testSubjects.map(sub => {
-                                    const incorrect = testData.breakdown?.[sub]?.incorrect || 0;
+                                    let incorrect = 0;
+                                    if (isAdvanced && testData.advancedMarkingScheme) {
+                                        const aBreakdown = testData.breakdown?.[sub]?.advancedBreakdown;
+                                        if (aBreakdown) {
+                                            for (const key of Object.keys(aBreakdown)) {
+                                                incorrect += safeNum(aBreakdown[key as AdvancedQuestionType]?.incorrect);
+                                            }
+                                        }
+                                    } else {
+                                        incorrect = testData.breakdown?.[sub]?.incorrect || 0;
+                                    }
+
                                     const mistakes = testData.breakdown?.[sub]?.mistakes || {};
                                     const tagged = Object.values(mistakes as MistakeCounts).reduce((a, b) => a + safeNum(b), 0);
                                     if (incorrect === 0) return null;
                                     const allTagged = tagged === incorrect;
                                     return (
-                                        <div key={sub} className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
+                                        <div key={sub} className="bg-white/4 border border-white/8 rounded-3xl p-4 space-y-3">
                                             <div className="flex justify-between items-center">
-                                                <h4 className="font-bold text-white">{sub}</h4>
-                                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${allTagged ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/20 border-rose-500/30 text-rose-400'}`}>
-                                                    {tagged}/{incorrect} tagged {allTagged && '✓'}
+                                                <h4 className="font-black text-white">{sub}</h4>
+                                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${allTagged ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' : 'bg-white/8 border-white/10 text-white/40'
+                                                    }`}>
+                                                    {tagged}/{incorrect} {allTagged ? '✓ Done' : 'tagged'}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {MISTAKE_TYPES.map(m => (
-                                                    <StatInput key={m.id} label={m.label} value={safeNum(mistakes[m.id as keyof MistakeCounts])} onChange={v => handleMistakeChange(sub, m.id, v)} color="border-slate-500/20" />
+                                                    <StatInput key={m.id} label={m.label} value={safeNum(mistakes[m.id as keyof MistakeCounts])} onChange={v => handleMistakeChange(sub, m.id, v)} color="border-white/10" />
                                                 ))}
                                             </div>
                                         </div>
@@ -495,43 +681,46 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
                             </>
                         )}
 
-                        {/* ── STEP 4: Review & Notes ── */}
-                        {step === 4 && (
+                        {/* ── STEP 5: Review & Notes ── */}
+                        {step === 5 && (
                             <>
-                                {/* Score summary banner */}
-                                <div className="relative overflow-hidden rounded-3xl p-6 bg-gradient-to-br from-theme-accent/30 via-theme-accent/10 to-transparent border border-theme-accent/20 text-center">
-                                    <div className="absolute inset-0 bg-theme-accent/5 pointer-events-none" />
-                                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-accent/80 mb-1">Final Score</p>
-                                    <p className="text-5xl font-mono font-bold text-white">
+                                {/* Score hero */}
+                                <div className="relative overflow-hidden rounded-3xl p-8 bg-gradient-to-br from-theme-accent/25 via-violet-500/10 to-transparent border border-theme-accent/20 text-center">
+                                    <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-theme-accent/15 blur-3xl pointer-events-none" />
+                                    <p className="text-[9px] font-black uppercase tracking-[0.35em] text-white/70 mb-2">Final Score</p>
+                                    <p className="text-6xl font-mono font-black text-white leading-none">
                                         {calculatedScores.totalMarks}
-                                        <span className="text-2xl text-white/40"> / {calculatedScores.maxMarks}</span>
+                                        <span className="text-2xl text-white/30 font-normal"> / {calculatedScores.maxMarks}</span>
                                     </p>
                                     {calculatedScores.maxMarks > 0 && (
-                                        <p className="text-lg font-bold text-theme-accent mt-1">
+                                        <p className="text-3xl font-black text-theme-accent mt-2">
                                             {Math.round((calculatedScores.totalMarks / calculatedScores.maxMarks) * 100)}%
                                         </p>
                                     )}
                                 </div>
 
-                                {/* Temperament */}
+                                {/* Temperament — large cards */}
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 ml-1">How were you feeling?</label>
+                                    <label className="text-[9px] font-black uppercase tracking-[0.25em] text-white/35 ml-1">How did the test feel?</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {[
-                                            { val: 'Focused', emoji: '🎯', color: 'emerald' },
-                                            { val: 'Calm', emoji: '😌', color: 'sky' },
-                                            { val: 'Anxious', emoji: '😰', color: 'amber' },
-                                            { val: 'Fatigued', emoji: '😴', color: 'rose' },
+                                            { val: 'Focused', emoji: '🎯', desc: 'In the zone', clr: 'emerald' },
+                                            { val: 'Calm', emoji: '😌', desc: 'Cool-headed', clr: 'sky' },
+                                            { val: 'Anxious', emoji: '😰', desc: 'Feeling nervous', clr: 'amber' },
+                                            { val: 'Fatigued', emoji: '😴', desc: 'Running low', clr: 'rose' },
                                         ].map(t => (
-                                            <button
-                                                key={t.val}
-                                                type="button"
+                                            <button key={t.val} type="button"
                                                 onClick={() => setTestData({ ...testData, temperament: t.val as any })}
-                                                className={`flex items-center gap-2 p-3 rounded-2xl border text-sm font-bold transition-all ${testData.temperament === t.val
-                                                    ? `bg-${t.color}-500/20 border-${t.color}-500/40 text-${t.color}-400`
-                                                    : 'bg-white/5 border-white/10 text-white/50 hover:text-white/80'}`}
+                                                className={`flex items-center gap-3 p-4 rounded-2xl border text-left transition-all ${testData.temperament === t.val
+                                                    ? `bg-${t.clr}-500/15 border-${t.clr}-500/40`
+                                                    : 'bg-white/4 border-white/8 hover:border-white/15'
+                                                    }`}
                                             >
-                                                <span className="text-xl">{t.emoji}</span> {t.val}
+                                                <span className="text-2xl">{t.emoji}</span>
+                                                <div>
+                                                    <p className={`text-sm font-black ${testData.temperament === t.val ? `text-${t.clr}-400` : 'text-white/70'}`}>{t.val}</p>
+                                                    <p className="text-[10px] text-white/30">{t.desc}</p>
+                                                </div>
                                             </button>
                                         ))}
                                     </div>
@@ -539,23 +728,23 @@ const TestLogForm = ({ onSave, onCancel, syllabus, stream }: { onSave: (test: Om
 
                                 {/* Weak topics */}
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 ml-1">Weak Topics (comma separated)</label>
+                                    <label className="text-[9px] font-black uppercase tracking-[0.25em] text-white/35 ml-1">Weak Topics (comma separated)</label>
                                     <textarea
                                         placeholder="e.g. Limits, Electrochemistry, Modern Physics..."
                                         value={(testData.weakTopics || []).join(', ')}
                                         onChange={e => setTestData({ ...testData, weakTopics: e.target.value.split(',').map(t => t.trim()) })}
-                                        className="w-full px-4 py-3 h-24 bg-white/5 border border-white/10 rounded-2xl text-sm text-white placeholder:text-white/20 outline-none focus:border-theme-accent/60 transition-all resize-none"
+                                        className="w-full px-4 py-3 h-20 bg-white/5 border border-white/8 rounded-2xl text-sm text-white placeholder:text-white/15 outline-none focus:border-theme-accent/40 transition-all resize-none"
                                     />
                                 </div>
 
                                 {/* Notes */}
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 ml-1">Post-Test Notes</label>
+                                    <label className="text-[9px] font-black uppercase tracking-[0.25em] text-white/35 ml-1">Post-Test Notes</label>
                                     <textarea
-                                        placeholder="What went well? What to focus on next? Key takeaways..."
+                                        placeholder="What went well? What to focus on? Key takeaways..."
                                         value={testData.postTestNotes}
                                         onChange={e => setTestData({ ...testData, postTestNotes: e.target.value })}
-                                        className="w-full px-4 py-3 h-36 bg-white/5 border border-white/10 rounded-2xl text-sm text-white placeholder:text-white/20 outline-none focus:border-theme-accent/60 transition-all resize-none"
+                                        className="w-full px-4 py-3 h-32 bg-white/5 border border-white/8 rounded-2xl text-sm text-white placeholder:text-white/15 outline-none focus:border-theme-accent/40 transition-all resize-none"
                                     />
                                 </div>
                             </>
@@ -579,10 +768,25 @@ const TestReportModal = ({ test, onClose }: { test: TestResult, onClose: () => v
         let correct = 0, incorrect = 0, unattempted = 0;
         let mistakes: Record<string, number> = {};
         if (breakdown) {
+            const isAdvanced = test.examType === 'JEE Advanced' && test.advancedMarkingScheme;
             for (const sub of subjects) {
-                correct += safeNum(breakdown[sub].correct);
-                incorrect += safeNum(breakdown[sub].incorrect);
-                unattempted += safeNum(breakdown[sub].unattempted);
+                if (isAdvanced) {
+                    const aBreak = breakdown[sub].advancedBreakdown;
+                    if (aBreak) {
+                        for (const key of Object.keys(aBreak)) {
+                            const stats = aBreak[key as AdvancedQuestionType];
+                            if (stats) {
+                                correct += safeNum(stats.correct);
+                                incorrect += safeNum(stats.incorrect);
+                                unattempted += safeNum(stats.unattempted);
+                            }
+                        }
+                    }
+                } else {
+                    correct += safeNum(breakdown[sub].correct);
+                    incorrect += safeNum(breakdown[sub].incorrect);
+                    unattempted += safeNum(breakdown[sub].unattempted);
+                }
                 for (const m of MISTAKE_TYPES) {
                     mistakes[m.id] = (mistakes[m.id] || 0) + safeNum((breakdown[sub].mistakes as MistakeCounts)?.[m.id as keyof MistakeCounts]);
                 }
@@ -634,45 +838,103 @@ const TestReportModal = ({ test, onClose }: { test: TestResult, onClose: () => v
                     {subjects.length > 0 && breakdown && (
                         <div>
                             <h3 className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary mb-3 flex items-center gap-2"><Layers size={14} /> Subject Breakdown</h3>
-                            <div className="space-y-3">
-                                {isCustomTest ? (
-                                    subjects.map(sub => {
-                                        const marks = breakdown?.[sub]?.marks;
-                                        const total = breakdown?.[sub]?.total;
-                                        if (safeNum(total) === 0 && safeNum(marks) === 0) return null;
-                                        const subPercent = safeDiv(safeNum(marks), safeNum(total)) * 100;
-                                        return (
-                                            <div key={sub} className="p-3 bg-theme-bg-tertiary rounded-xl border border-theme-border">
-                                                <div className="flex justify-between items-center text-sm font-bold mb-2">
-                                                    <span className="text-theme-text">{sub}</span>
-                                                    <span className="font-mono text-theme-text-secondary">{safeNum(marks)} / {safeNum(total)}</span>
+                            <div className="space-y-4">
+                                {subjects.map(sub => {
+                                    const b = breakdown[sub];
+                                    if (!b) return null;
+
+                                    const isAdvanced = test.examType === 'JEE Advanced' && test.advancedMarkingScheme;
+
+                                    let subMarks = 0;
+                                    let subTotalMarks = 0;
+                                    let subCorrect = 0;
+                                    let subIncorrect = 0;
+                                    let subUnattempted = 0;
+
+                                    if (isCustomTest) {
+                                        subMarks = safeNum(b.marks);
+                                        subTotalMarks = safeNum(b.total);
+                                    } else if (isAdvanced) {
+                                        const aBreak = b.advancedBreakdown;
+                                        if (aBreak) {
+                                            for (const key of Object.keys(aBreak)) {
+                                                const stats = aBreak[key as AdvancedQuestionType];
+                                                const sScheme = test.advancedMarkingScheme![key as keyof AdvancedMarkingScheme];
+                                                if (stats && sScheme) {
+                                                    const partialMarkTarget = (sScheme as any).partial || 0;
+                                                    subMarks += safeNum(stats.correct) * sScheme.correct + safeNum(stats.incorrect) * sScheme.incorrect + safeNum(stats.partialCorrect) * safeNum(partialMarkTarget);
+                                                    const qs = safeNum(stats.correct) + safeNum(stats.incorrect) + safeNum(stats.unattempted);
+                                                    subTotalMarks += qs * sScheme.correct;
+
+                                                    subCorrect += safeNum(stats.correct);
+                                                    subIncorrect += safeNum(stats.incorrect);
+                                                    subUnattempted += safeNum(stats.unattempted);
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        subCorrect = safeNum(b.correct);
+                                        subIncorrect = safeNum(b.incorrect);
+                                        subUnattempted = safeNum(b.unattempted);
+                                        if (test.markingScheme) {
+                                            subMarks = subCorrect * test.markingScheme.correct + subIncorrect * test.markingScheme.incorrect;
+                                            subTotalMarks = (subCorrect + subIncorrect + subUnattempted) * test.markingScheme.correct;
+                                        }
+                                    }
+
+                                    const totalQs = subCorrect + subIncorrect + subUnattempted;
+                                    if (totalQs === 0 && subTotalMarks === 0 && subMarks === 0) return null;
+
+                                    const accPercent = totalQs > 0 ? safeDiv(subCorrect, subCorrect + subIncorrect) * 100 : 0;
+                                    const mistakesForSub = b.mistakes || {};
+                                    const hasMistakes = MISTAKE_TYPES.some(m => safeNum(mistakesForSub[m.id as keyof MistakeCounts]) > 0);
+
+                                    return (
+                                        <div key={sub} className="bg-theme-bg-tertiary border border-theme-border rounded-2xl overflow-hidden">
+                                            {/* Header */}
+                                            <div className="p-4 flex justify-between items-center border-b border-theme-border/50 bg-white/4">
+                                                <div className="flex items-center gap-3">
+                                                    <h4 className="font-bold text-lg text-theme-text">{sub}</h4>
+                                                    {!isCustomTest && totalQs > 0 && <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-500">{accPercent.toFixed(0)}% Acc</span>}
                                                 </div>
-                                                <div className="h-2 w-full rounded-full flex overflow-hidden bg-rose-500/20">
-                                                    <div className="bg-emerald-500" style={{ width: `${subPercent}%` }} />
+                                                <div className="text-right">
+                                                    <span className="text-xl font-mono font-bold text-theme-accent">{subMarks}</span>
+                                                    <span className="text-xs font-mono text-theme-text-secondary"> / {subTotalMarks}</span>
                                                 </div>
                                             </div>
-                                        )
-                                    })
-                                ) : (
-                                    subjects.map(sub => {
-                                        const { correct, incorrect, unattempted } = breakdown[sub];
-                                        const total = correct + incorrect + unattempted;
-                                        if (total === 0) return null;
-                                        return (<div key={sub} className="p-3 bg-theme-bg-tertiary rounded-xl border border-theme-border"><div className="flex justify-between items-center text-sm font-bold mb-2"><span className="text-theme-text">{sub}</span><span className="font-mono text-theme-text-secondary">{(safeDiv(correct, correct + incorrect) * 100).toFixed(0)}% Acc.</span></div><div className="h-2 w-full rounded-full flex overflow-hidden"><div className="bg-emerald-500" style={{ width: `${safeDiv(correct, total) * 100}%` }} /><div className="bg-rose-500" style={{ width: `${safeDiv(incorrect, total) * 100}%` }} /><div className="bg-slate-500" style={{ width: `${safeDiv(unattempted, total) * 100}%` }} /></div></div>)
-                                    })
-                                )}
-                            </div>
-                        </div>
-                    )}
 
-                    {totals.incorrect > 0 && (
-                        <div>
-                            <h3 className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary mb-3 flex items-center gap-2"><Brain size={14} /> Mistake Analysis</h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                {MISTAKE_TYPES.map(m => {
-                                    const count = totals.mistakes[m.id] || 0;
-                                    if (count === 0) return null;
-                                    return <div key={m.id} className="flex items-center gap-3 p-3 bg-theme-bg-tertiary rounded-xl border border-theme-border"><div className={`p-2 rounded-lg bg-black/5 dark:bg-white/5 ${m.color}`}>{m.icon}</div><div><p className="font-bold text-lg text-theme-text">{count}</p><p className="text-[10px] text-theme-text-secondary uppercase font-bold tracking-wider">{m.label}</p></div></div>
+                                            <div className="p-4 space-y-4">
+                                                {/* Stats Grid */}
+                                                {!isCustomTest && (
+                                                    <div className="flex items-center gap-5">
+                                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20"><span className="text-emerald-500 text-[10px]">✅</span><span className="text-sm font-mono font-bold text-emerald-500">{subCorrect}</span></div>
+                                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20"><span className="text-rose-500 text-[10px]">❌</span><span className="text-sm font-mono font-bold text-rose-500">{subIncorrect}</span></div>
+                                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-500/10 border border-slate-500/20"><span className="text-slate-400 text-[10px]">⬜</span><span className="text-sm font-mono font-bold text-slate-400">{subUnattempted}</span></div>
+                                                    </div>
+                                                )}
+
+                                                {/* Mistakes */}
+                                                {hasMistakes && (
+                                                    <div className={`${!isCustomTest ? 'pt-3 border-t border-theme-border/50' : ''} space-y-2`}>
+                                                        <h5 className="text-[10px] font-bold uppercase tracking-[0.2em] text-theme-text-secondary flex items-center gap-1.5"><Brain size={12} /> Mistakes Logged</h5>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {MISTAKE_TYPES.map(m => {
+                                                                const cnt = safeNum(mistakesForSub[m.id as keyof MistakeCounts]);
+                                                                if (cnt === 0) return null;
+                                                                return (
+                                                                    <div key={m.id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-black/20 rounded-lg border border-theme-border/50">
+                                                                        <span className={`text-[10px] ${m.color}`}>{m.icon}</span>
+                                                                        <span className="text-xs font-mono font-bold text-theme-text">{cnt}</span>
+                                                                        <span className="text-[9px] uppercase font-bold tracking-widest text-theme-text-secondary ml-1">{m.label}</span>
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
                                 })}
                             </div>
                         </div>

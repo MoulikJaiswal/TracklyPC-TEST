@@ -1,17 +1,11 @@
 
 
 
-import React from 'react';
-import { 
-  Zap, 
-  FlaskConical, 
-  Divide, 
-  Brain, 
-  Timer, 
-  AlertCircle, 
-  Eye, 
-  Wind, 
-  Search,
+import {
+  Divide,
+  Brain,
+  Timer,
+  Wind,
   Moon,
   Sun,
   TreePine,
@@ -162,12 +156,12 @@ export const NEET_SYLLABUS = {
 };
 
 export const GENERAL_DEFAULT_SYLLABUS = {
-    'Maths': ['Algebra', 'Calculus', 'Geometry', 'Statistics', 'Trigonometry'],
-    'Physics': ['Mechanics', 'Thermodynamics', 'Electromagnetism', 'Optics', 'Modern Physics'],
-    'Chemistry': ['Physical Chemistry', 'Organic Chemistry', 'Inorganic Chemistry'],
-    'English': ['Grammar', 'Reading Comprehension', 'Writing Skills', 'Literature'],
-    'History': ['Ancient History', 'Medieval History', 'Modern History', 'World History'],
-    'Geography': ['Physical Geography', 'Human Geography', 'Economic Geography']
+  'Maths': ['Algebra', 'Calculus', 'Geometry', 'Statistics', 'Trigonometry'],
+  'Physics': ['Mechanics', 'Thermodynamics', 'Electromagnetism', 'Optics', 'Modern Physics'],
+  'Chemistry': ['Physical Chemistry', 'Organic Chemistry', 'Inorganic Chemistry'],
+  'English': ['Grammar', 'Reading Comprehension', 'Writing Skills', 'Literature'],
+  'History': ['Ancient History', 'Medieval History', 'Modern History', 'World History'],
+  'Geography': ['Physical Geography', 'Human Geography', 'Economic Geography']
 };
 
 export const ALL_SYLLABUS = {
@@ -187,8 +181,14 @@ export const EXAM_PRESETS = {
     markingScheme: { correct: 4, incorrect: -1, unattempted: 0 },
   },
   'JEE Advanced': {
-    // Simplified; real advanced has variable marking. This is a good default.
     markingScheme: { correct: 3, incorrect: -1, unattempted: 0 },
+    advancedMarkingScheme: {
+      singleCorrect: { correct: 3, incorrect: -1 },
+      multipleCorrect: { correct: 4, incorrect: -2, partial: 1 },
+      numerical: { correct: 3, incorrect: 0 },
+      matchFollowing: { correct: 3, incorrect: -1, partial: 1 },
+      paragraph: { correct: 3, incorrect: -1 }
+    }
   },
   'NEET': {
     markingScheme: { correct: 4, incorrect: -1, unattempted: 0 },
@@ -220,8 +220,8 @@ export const THEME_CONFIG: Record<ThemeId, {
     border: string;
     bgTertiary: string;
     gradient: {
-        from: string;
-        to: string;
+      from: string;
+      to: string;
     }
   };
   icon: any;

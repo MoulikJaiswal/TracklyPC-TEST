@@ -12,27 +12,29 @@ interface ConfirmationModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  onCancel?: () => void;
   confirmVariant?: 'danger' | 'primary';
   icon?: React.ReactNode;
 }
 
-export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  title, 
+export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
   message,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
+  onCancel,
   confirmVariant = 'danger',
   icon
 }) => {
   if (!isOpen) return null;
 
   const iconBgClass = confirmVariant === 'danger' ? 'bg-rose-500' : 'bg-indigo-500';
-  const confirmButtonClass = confirmVariant === 'danger' 
-      ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/20' 
-      : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20';
+  const confirmButtonClass = confirmVariant === 'danger'
+    ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/20'
+    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20';
 
   return createPortal(
     <AnimatePresence>
@@ -60,7 +62,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{message}</p>
               <div className="grid grid-cols-2 gap-3 w-full">
                 <button
-                  onClick={onClose}
+                  onClick={onCancel || onClose}
                   className="py-3 rounded-xl bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 font-bold uppercase text-xs tracking-wider transition-colors"
                 >
                   {cancelText}

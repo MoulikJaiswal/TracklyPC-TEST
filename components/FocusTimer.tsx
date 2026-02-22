@@ -39,10 +39,12 @@ import {
     X,
     Dna,
     AlertCircle,
-    Info
+    Info,
+    Share2
 } from 'lucide-react';
 import { Target as TargetType, Session, SyllabusData, ActivityThresholds, PresenceState } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
+import { ReportCardModal } from './ReportCardModal';
 
 // --- Types & Interfaces ---
 
@@ -56,7 +58,7 @@ interface FocusTimerProps {
     onResetTimer: () => void;
     onSwitchMode: (mode: 'focus' | 'short' | 'long') => void;
     onUpdateDurations: (newDuration: number, mode: 'focus' | 'short' | 'long') => void;
-    onCompleteSession: (elapsedTime?: number) => void;
+    onCompleteSession: (isInterrupted?: boolean) => void;
     sessionCount: number;
     syllabus: SyllabusData;
     selectedSubject: string;
@@ -64,6 +66,7 @@ interface FocusTimerProps {
     activityThresholds: ActivityThresholds;
     onOpenSettings: () => void;
     onStatusChange: (status: Partial<PresenceState>) => void;
+    username?: string;
 }
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -165,9 +168,10 @@ const DonutChart = ({ data }: { data: { label: string, value: number, color: str
         <div className="relative w-32 h-32">
             <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                 {data.map((item, i) => {
+                    const circumference = 2 * Math.PI * 40; // r=40
                     const percent = item.value / total;
-                    const dashArray = percent * 314;
-                    const offset = cumulative * 314;
+                    const dashArray = percent * circumference;
+                    const offset = cumulative * circumference;
                     cumulative += percent;
 
                     return (
@@ -177,7 +181,7 @@ const DonutChart = ({ data }: { data: { label: string, value: number, color: str
                             fill="transparent"
                             stroke={item.color}
                             strokeWidth="12"
-                            strokeDasharray={`${dashArray} 314`}
+                            strokeDasharray={`${dashArray} ${circumference}`}
                             strokeDashoffset={-offset}
                             className="transition-all duration-1000 ease-out"
                         />
@@ -669,7 +673,8 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
         onSelectSubject,
         activityThresholds,
         onOpenSettings,
-        onStatusChange
+        onStatusChange,
+        username
     } = props;
 
     const subjectKeys = useMemo(() => Object.keys(syllabus), [syllabus]);
@@ -679,6 +684,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     const [isEditingTime, setIsEditingTime] = useState(false);
     const [customTimeInput, setCustomTimeInput] = useState(durations.focus.toString());
     const [showSettings, setShowSettings] = useState(false);
+    const [showReportCard, setShowReportCard] = useState(false);
 
     const isActive = timerState === 'running';
     const isSessionInProgress = timerState !== 'idle';
@@ -708,11 +714,14 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
         ).length;
 
         const subjectDist: Record<string, number> = {};
-        subjectKeys.forEach(key => subjectDist[key] = 0);
+        subjectKeys.forEach(key => subjectDist[key.trim().toLowerCase()] = 0);
 
         filtered.forEach(s => {
-            if (subjectDist[s.subject] !== undefined) {
-                subjectDist[s.subject] += (s.duration ? s.duration / 60 : 0);
+            const normalizedSubject = s.subject ? s.subject.trim().toLowerCase() : 'unknown';
+            if (subjectDist[normalizedSubject] !== undefined) {
+                subjectDist[normalizedSubject] += (s.duration ? s.duration / 60 : 0);
+            } else {
+                subjectDist[normalizedSubject] = (s.duration ? s.duration / 60 : 0);
             }
         });
 
@@ -822,12 +831,23 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     }, [subjectKeys]);
 
     const donutData = useMemo(() => {
-        return Object.entries(analyticsData.subjectDist).map(([subj, val]) => ({
-            label: subj,
-            value: val,
-            color: subjectColorMap[subj] || '#64748b'
-        }));
-    }, [analyticsData.subjectDist, subjectColorMap]);
+        return Object.entries(analyticsData.subjectDist)
+            .filter(([_, val]) => val > 0) // Only show subjects with actual time
+            .map(([subj, val]) => {
+                // Try to find the original capitalized name from subjectKeys, fallback to capitalized normalized
+                const originalName = subjectKeys.find(k => k.trim().toLowerCase() === subj) ||
+                    subj.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+                // Try to find color match (case insensitive)
+                const colorKey = Object.keys(subjectColorMap).find(k => k.trim().toLowerCase() === subj);
+
+                return {
+                    label: originalName,
+                    value: val,
+                    color: colorKey ? subjectColorMap[colorKey] : '#64748b'
+                };
+            });
+    }, [analyticsData.subjectDist, subjectColorMap, subjectKeys]);
 
     // --- HANDLERS ---
     const handleTimeBlur = () => {
@@ -845,9 +865,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     };
 
     const handleConfirmStop = () => {
-        const totalSeconds = durations[mode] * 60;
-        const elapsed = totalSeconds - timeLeft;
-        onCompleteSession(elapsed);
+        onCompleteSession(true);
         setShowStopConfirm(false);
     };
 
@@ -864,6 +882,10 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     };
 
     const themeColor = getThemeColor();
+
+    const handleShareStats = () => {
+        setShowReportCard(true);
+    };
 
     // --- RENDER ---
     return (
@@ -955,12 +977,20 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                             </button>
                                         ))}
                                     </div>
-                                    <button
-                                        onClick={() => setShowSettings(true)}
-                                        className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
-                                    >
-                                        <Settings2 size={18} />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleShareStats}
+                                            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all text-[10px] font-bold uppercase tracking-widest border border-indigo-500/20"
+                                        >
+                                            <Share2 size={14} /> Share Stats
+                                        </button>
+                                        <button
+                                            onClick={() => setShowSettings(true)}
+                                            className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                                        >
+                                            <Settings2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="flex flex-col md:flex-row items-center gap-8">
@@ -1257,6 +1287,15 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                     onClose={() => setShowSettings(false)}
                     durations={durations}
                     onUpdate={onUpdateDurations}
+                />
+
+                <ReportCardModal
+                    isOpen={showReportCard}
+                    onClose={() => setShowReportCard(false)}
+                    timeRange={timeRange}
+                    analyticsData={analyticsData}
+                    subjectColorMap={subjectColorMap}
+                    username={username}
                 />
             </div>
         </>
