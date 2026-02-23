@@ -10,6 +10,7 @@ export interface Session {
   id: string;
   subject: string;
   topic: string;
+  name?: string; // Optional user-defined display name (falls back to `topic` if absent)
   attempted: number;
   correct: number;
   mistakes: MistakeCounts;

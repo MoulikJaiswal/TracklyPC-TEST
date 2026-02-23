@@ -118,20 +118,8 @@ interface FriendCardProps {
 }
 
 const FriendCard: React.FC<FriendCardProps> = ({ friend, presence, onClick }) => {
-  const [liveProfile, setLiveProfile] = useState<UserProfile | null>(null);
-
-  useEffect(() => {
-    if (!friend.uid) return;
-    const unsub = onSnapshot(doc(db, 'users', friend.uid), (docSnap) => {
-      if (docSnap.exists()) {
-        setLiveProfile(docSnap.data() as UserProfile);
-      }
-    });
-    return () => unsub();
-  }, [friend.uid]);
-
-  const displayName = liveProfile?.studyBuddyUsername || friend.displayName;
-  const photoURL = liveProfile?.photoURL || friend.photoURL;
+  const displayName = friend.displayName;
+  const photoURL = friend.photoURL;
 
   const getStatus = () => {
     if (!presence || !presence.isOnline) {
@@ -149,18 +137,10 @@ const FriendCard: React.FC<FriendCardProps> = ({ friend, presence, onClick }) =>
 
   const status = getStatus();
 
-  const formatTime = (seconds?: number) => {
-    if (!seconds) return '0m';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
-  };
-
   return (
     <Card
       className="p-4 cursor-pointer border border-theme-border/50 hover:border-theme-accent hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:hover:shadow-[0_8px_30px_rgba(var(--theme-accent-rgb),0.15)] transition-all duration-300 transform hover:-translate-y-1.5 hover:scale-[1.02] group relative overflow-hidden"
-      onClick={() => onClick(friend, liveProfile)}
+      onClick={() => onClick(friend, null)}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-theme-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       <div className="flex items-center gap-4 relative z-10">
@@ -173,12 +153,7 @@ const FriendCard: React.FC<FriendCardProps> = ({ friend, presence, onClick }) =>
               <span>{status.text}</span>
             </div>
           </div>
-          {presence?.dailyFocusTime !== undefined && (
-            <div className="flex items-center gap-1 text-xs font-bold text-theme-text-secondary bg-theme-bg-tertiary px-2 py-1 rounded-lg border border-theme-border">
-              <Clock size={12} className="text-theme-accent" />
-              {formatTime(presence.dailyFocusTime)}
-            </div>
-          )}
+          {/* Daily focus time removed for maintenance */}
         </div>
       </div>
     </Card>
@@ -677,6 +652,20 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
               </div>
             )}
           </div>
+
+          {/* Overlay to block stats during maintenance */}
+          <div className="absolute inset-0 bg-white/60 dark:bg-[#0f1117]/80 backdrop-blur-md z-30 flex flex-col items-center justify-center p-6 text-center rounded-3xl mt-[280px]">
+            <div className="p-3 bg-amber-500/10 rounded-full mb-4">
+              <Brain size={32} className="text-amber-500" />
+            </div>
+            <h4 className="text-lg font-bold text-theme-text mb-2">Upgrading Analytics Engine</h4>
+            <p className="text-sm text-theme-text-secondary max-w-[250px]">
+              Due to extremely high traffic, we are temporarily pausing detailed stats to keep the servers running smoothly for everyone.
+              <br /><br />
+              <b>Live status is still active!</b>
+            </p>
+          </div>
+
         </div>
       </Card>
     </div>

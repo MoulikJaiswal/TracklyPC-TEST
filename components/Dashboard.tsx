@@ -62,6 +62,7 @@ interface DashboardProps {
   targets: Target[];
   quote: { text: string; author: string };
   onDelete: (id: string) => void;
+  onRenameSession?: (id: string, name: string) => void;
   goals: Record<string, number>;
   setGoals: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   onSaveSession: (session: Omit<Session, 'id' | 'timestamp' | 'stream'>) => void;
@@ -73,6 +74,59 @@ interface DashboardProps {
   countdownName?: string;
   onUpdateCountdown?: (date: string, name: string) => void;
 }
+
+const EditableSessionName = memo(({
+  initialName,
+  fallbackName,
+  onRename,
+  textStyles = "text-sm font-bold text-slate-800 dark:text-slate-200"
+}: {
+  initialName?: string;
+  fallbackName: string;
+  onRename: (newName: string) => void;
+  textStyles?: string;
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const displayName = initialName || fallbackName;
+  const [tempName, setTempName] = useState(displayName);
+
+  useEffect(() => setTempName(displayName), [displayName]);
+
+  if (isEditing) {
+    return (
+      <input
+        type="text"
+        autoFocus
+        className="w-full bg-slate-100 dark:bg-black/40 text-slate-900 dark:text-white text-sm font-bold p-1 rounded border border-slate-300 dark:border-white/20 outline-none truncate"
+        value={tempName}
+        onChange={(e) => setTempName(e.target.value)}
+        onBlur={() => {
+          if (tempName.trim() && tempName.trim() !== displayName) onRename(tempName.trim());
+          else setTempName(displayName);
+          setIsEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            if (tempName.trim() && tempName.trim() !== displayName) onRename(tempName.trim());
+            else setTempName(displayName);
+            setIsEditing(false);
+          } else if (e.key === 'Escape') {
+            setTempName(displayName);
+            setIsEditing(false);
+          }
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 group/rename cursor-pointer w-full min-w-0" onClick={(e) => { e.stopPropagation(); setIsEditing(true); setTempName(displayName); }}>
+      <span className={`${textStyles} truncate`}>{displayName}</span>
+      <Pencil size={12} className="opacity-0 md:group-hover/rename:opacity-100 text-slate-400 hover:text-indigo-500 transition-all shrink-0" />
+    </div>
+  );
+});
 
 const ActivityHeatmap = memo(({ sessions }: { sessions: Session[] }) => {
   const days = useMemo(() => {
@@ -198,6 +252,7 @@ const SubjectDetailModal = memo(({
   onClose,
   onSaveSession,
   onDeleteSession,
+  onRenameSession,
   syllabus
 }: {
   subject: string,
@@ -205,6 +260,7 @@ const SubjectDetailModal = memo(({
   onClose: () => void,
   onSaveSession: (data: Omit<Session, 'id' | 'timestamp' | 'stream'>) => void,
   onDeleteSession: (id: string) => void,
+  onRenameSession?: (id: string, name: string) => void,
   syllabus: SyllabusData
 }) => {
   const [activeTab, setActiveTab] = useState<'log' | 'history'>('log');
@@ -367,7 +423,7 @@ const SubjectDetailModal = memo(({
                   </div>
                 </div>
                 {sessions.length === 0 ? (<div className="text-center py-8 opacity-30 border border-dashed border-slate-400 dark:border-white/10 rounded-xl"><p className="text-[10px] uppercase font-bold tracking-widest">No history</p></div>) : (
-                  sessions.map(s => (<div key={s.id} className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl flex justify-between items-center group active:scale-[0.98] transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/10"><div className="min-w-0 pr-4"><p className="text-xs font-bold text-slate-900 dark:text-white truncate">{s.topic}</p><p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">{new Date(s.timestamp).toLocaleDateString()}</p></div><div className="flex items-center gap-4 shrink-0"><div className="text-right"><span className="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-300">{s.correct}/{s.attempted}</span></div><button onClick={() => onDeleteSession(s.id)} className="text-rose-500/50 hover:text-rose-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all p-2 bg-rose-500/10 rounded-lg"><Trash2 size={14} /></button></div></div>))
+                  sessions.map(s => (<div key={s.id} className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl flex justify-between items-center group active:scale-[0.98] transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/10"><div className="min-w-0 pr-4 w-full"><EditableSessionName initialName={s.name} fallbackName={s.topic} onRename={(newName) => onRenameSession?.(s.id, newName)} textStyles="text-xs font-bold text-slate-900 dark:text-white" /><p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">{new Date(s.timestamp).toLocaleDateString()}</p></div><div className="flex items-center gap-4 shrink-0"><div className="text-right"><span className="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-300">{s.correct}/{s.attempted}</span></div><button onClick={() => onDeleteSession(s.id)} className="text-rose-500/50 hover:text-rose-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all p-2 bg-rose-500/10 rounded-lg"><Trash2 size={14} /></button></div></div>))
                 )}
               </div>
             </div>
@@ -529,6 +585,7 @@ const Dashboard = memo(({
   targets,
   quote,
   onDelete,
+  onRenameSession,
   goals,
   setGoals,
   onSaveSession,
@@ -598,11 +655,50 @@ const Dashboard = memo(({
 
   return (
     <>
-      <div className="space-y-6 md:space-y-10 animate-in fade-in duration-500">
-        <div className="flex flex-col md:flex-row justify-between items-center md:items-end gap-6">
-          <div className="flex flex-col items-center md:items-start gap-3 order-2 md:order-1 w-full md:w-auto">
-            <div className="group relative flex items-center gap-2 w-full justify-center md:justify-start">
-              <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest">Last 7 Days</span>
+      <div className="space-y-4 md:space-y-10 animate-in fade-in duration-500">
+
+        {/* ── Mobile Hero Card (replaces separate greeting + heatmap + quote on mobile) ── */}
+        <div className="md:hidden">
+          <div className="rounded-3xl p-4 border border-theme-border relative overflow-hidden" style={{ backgroundColor: 'rgba(var(--theme-card-rgb), 0.5)' }}>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest mb-1">
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                </p>
+                <h2 className="text-xl font-bold text-theme-text tracking-tight leading-tight truncate">
+                  {greeting}{displayName}! 👋
+                </h2>
+              </div>
+              {/* Compact 7-dot heatmap */}
+              <div className="flex items-end gap-1 shrink-0 h-10">
+                {(() => {
+                  const counts: Record<string, number> = {};
+                  sessions.forEach(s => { const d = getLocalDateFromTimestamp(s.timestamp); counts[d] = (counts[d] || 0) + 1; });
+                  const dots = [];
+                  for (let i = 6; i >= 0; i--) {
+                    const d = new Date(); d.setDate(d.getDate() - i);
+                    const str = getLocalDate(d);
+                    const count = counts[str] || 0;
+                    dots.push({ str, count });
+                  }
+                  return dots.map((dot, idx) => (
+                    <div
+                      key={dot.str}
+                      className={`w-3 rounded-full transition-all duration-500 ${dot.count > 0 ? 'bg-theme-accent shadow-[0_0_6px_rgba(var(--theme-accent-rgb),0.5)]' : 'bg-theme-border'}`}
+                      style={{ height: dot.count > 0 ? `${Math.min(100, Math.max(30, (dot.count / 6) * 100))}%` : '20%' }}
+                    />
+                  ));
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Desktop: Original greeting + heatmap ── */}
+        <div className="hidden md:flex flex-row justify-between items-end gap-6">
+          <div className="flex flex-col items-start gap-3">
+            <div className="group relative flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Last 7 Days</span>
               <Info size={12} className="text-slate-400 cursor-help" />
               <div className="absolute bottom-full mb-2 left-0 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                 Your session count for the last 7 days. Higher bars mean more sessions.
@@ -611,22 +707,24 @@ const Dashboard = memo(({
             </div>
             <ActivityHeatmap sessions={sessions} />
           </div>
-          <div className="text-center md:text-right order-1 md:order-2 w-full md:w-auto">
-            <h2 className="text-2xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight flex items-center justify-center md:justify-end gap-3">
+          <div className="text-right">
+            <h2 className="text-4xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight flex items-center justify-end gap-3">
               {greeting}{displayName}!
             </h2>
-            <p className="text-xs md:text-sm text-indigo-600 dark:text-indigo-300 uppercase tracking-widest font-bold opacity-70">
+            <p className="text-sm text-indigo-600 dark:text-indigo-300 uppercase tracking-widest font-bold opacity-70">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
           </div>
         </div>
-        <Card className="bg-indigo-50/50 dark:bg-indigo-600/5 border-indigo-100 dark:border-indigo-500/10 p-5 md:p-8 flex flex-col justify-center items-center text-center relative overflow-hidden transform-gpu will-change-transform">
+
+        {/* ── Quote card (hidden on mobile) ── */}
+        <Card className="hidden md:flex bg-indigo-50/50 dark:bg-indigo-600/5 border-indigo-100 dark:border-indigo-500/10 p-8 flex-col justify-center items-center text-center relative overflow-hidden transform-gpu will-change-transform">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500/30 dark:via-indigo-500/50 to-transparent opacity-50"></div>
-          <p className="text-base md:text-2xl font-serif italic text-indigo-900 dark:text-indigo-100 leading-relaxed max-w-4xl mx-auto relative z-10 drop-shadow-sm dark:drop-shadow-lg">"{quote.text}"</p>
-          <div className="mt-4 md:mt-6 flex items-center justify-center gap-3 opacity-60">
-            <div className="h-[1px] w-8 md:w-16 bg-indigo-400"></div>
-            <span className="text-[9px] md:text-xs uppercase tracking-[0.3em] font-bold text-indigo-700 dark:text-indigo-300">{quote.author}</span>
-            <div className="h-[1px] w-8 md:w-16 bg-indigo-400"></div>
+          <p className="text-2xl font-serif italic text-indigo-900 dark:text-indigo-100 leading-relaxed max-w-4xl mx-auto relative z-10 drop-shadow-sm dark:drop-shadow-lg">"{quote.text}"</p>
+          <div className="mt-6 flex items-center justify-center gap-3 opacity-60">
+            <div className="h-[1px] w-16 bg-indigo-400"></div>
+            <span className="text-xs uppercase tracking-[0.3em] font-bold text-indigo-700 dark:text-indigo-300">{quote.author}</span>
+            <div className="h-[1px] w-16 bg-indigo-400"></div>
           </div>
         </Card>
 
@@ -651,7 +749,7 @@ const Dashboard = memo(({
             </div>
           </div>
         ) : (
-          <div id="dashboard-subjects" className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+          <div id="dashboard-subjects" className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
             {subjects.map(subject => (
               <SubjectPod
                 key={subject}
@@ -668,10 +766,10 @@ const Dashboard = memo(({
         )}
 
         {/* ... [Rest of the Dashboard: Up Next, Recent Activity, AdUnit] ... */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
           <div className="space-y-6">
-            <div className="bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-white/5 rounded-3xl p-5 md:p-8 relative overflow-hidden backdrop-blur-md h-full transform-gpu" style={{ transform: 'translate3d(0,0,0)', backgroundColor: 'rgba(var(--theme-card-rgb), 0.4)' }}>
-              <div className="flex justify-between items-center mb-6">
+            <div className="bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-white/5 rounded-3xl p-4 md:p-8 relative overflow-hidden backdrop-blur-md h-full transform-gpu" style={{ transform: 'translate3d(0,0,0)', backgroundColor: 'rgba(var(--theme-card-rgb), 0.4)' }}>
+              <div className="flex justify-between items-center mb-4 md:mb-6">
                 <div className="group relative flex items-center gap-2">
                   <h3 className="text-xs md:text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><CalendarClock size={16} className="text-indigo-500 dark:text-indigo-400" /> Up Next</h3>
                   <Info size={12} className="text-slate-400 cursor-help" />
@@ -683,12 +781,12 @@ const Dashboard = memo(({
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{pendingTargets.length} Tasks</span>
               </div>
               {pendingTargets.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3 md:space-y-4">
                   {pendingTargets.map(t => (
-                    <div key={t.id} className="flex items-center gap-4 p-4 bg-white dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10 transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-                      <span className="text-sm md:text-base font-medium text-slate-700 dark:text-slate-200 flex-grow truncate">{t.text}</span>
-                      <ArrowRight size={16} className="text-slate-400 dark:text-slate-500" />
+                    <div key={t.id} className="flex items-center gap-3 md:gap-4 p-3 md:p-4 bg-white dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10 transition-colors">
+                      <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shrink-0"></div>
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200 flex-grow truncate">{t.text}</span>
+                      <ArrowRight size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
                     </div>
                   ))}
                 </div>
@@ -698,8 +796,8 @@ const Dashboard = memo(({
             </div>
           </div>
           <div>
-            <div className="bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-white/5 rounded-3xl p-5 md:p-8 backdrop-blur-md h-full transform-gpu" style={{ transform: 'translate3d(0,0,0)', backgroundColor: 'rgba(var(--theme-card-rgb), 0.4)' }}>
-              <div className="flex justify-between items-center mb-6">
+            <div className="bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-white/5 rounded-3xl p-4 md:p-8 backdrop-blur-md h-full transform-gpu" style={{ transform: 'translate3d(0,0,0)', backgroundColor: 'rgba(var(--theme-card-rgb), 0.4)' }}>
+              <div className="flex justify-between items-center mb-4 md:mb-6">
                 <div className="group relative flex items-center gap-2">
                   <h3 className="text-xs md:text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2"><Activity size={16} className="text-indigo-500 dark:text-indigo-400" /> Recent Activity</h3>
                   <Info size={12} className="text-slate-400 cursor-help" />
@@ -717,23 +815,26 @@ const Dashboard = memo(({
                     const isFocusSession = s.topic === 'Focus Session' || (s.duration && s.attempted === 0);
                     const sColor = getSubjectColor(s.subject);
                     return (
-                      <div key={s.id} className="bg-white/70 dark:bg-slate-900/60 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex justify-between items-center group hover:bg-white dark:hover:bg-white/5 transition-colors active:scale-95">
-                        <div className="flex items-center gap-4 overflow-hidden">
-                          <div className={`flex items-center justify-center w-8 h-8 rounded-full shadow-[0_0_8px_currentColor] shrink-0 ${isFocusSession ? 'text-indigo-500 bg-indigo-100 dark:bg-indigo-500/20' : `text-${sColor}-500 bg-${sColor}-100 dark:bg-${sColor}-500/20`}`}>
+                      <div key={s.id} className="bg-white/70 dark:bg-slate-900/60 border border-slate-200 dark:border-white/5 p-3 md:p-4 rounded-2xl flex justify-between items-center group hover:bg-white dark:hover:bg-white/5 transition-colors active:scale-95">
+                        <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
+                          <div className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 ${isFocusSession ? 'text-indigo-500 bg-indigo-100 dark:bg-indigo-500/20' : `text-${sColor}-500 bg-${sColor}-100 dark:bg-${sColor}-500/20`}`}>
                             {isFocusSession ? <Timer size={14} /> : <div className="w-2.5 h-2.5 rounded-full bg-current" />}
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{isFocusSession ? 'Focus Session' : s.topic}</p>
+                          <div className="min-w-0 w-full pr-2">
+                            <EditableSessionName initialName={s.name} fallbackName={isFocusSession ? 'Focus Session' : s.topic} onRename={(newName) => onRenameSession?.(s.id, newName)} textStyles="text-sm font-bold text-slate-800 dark:text-slate-200" />
                             <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">{isFocusSession ? (s.duration ? formatDurationSimple(s.duration) : '0m') : `${s.attempted} Qs`}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 shrink-0">
+                        <div className="flex items-center gap-2 md:gap-4 shrink-0">
                           {isFocusSession ? (
                             <div className="flex items-center gap-1 text-indigo-500 dark:text-indigo-400 opacity-80"><Clock size={12} /><span className="text-[10px] font-bold uppercase tracking-wider">{s.duration ? formatDurationSimple(s.duration) : '0m'}</span></div>
                           ) : (
                             <span className="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-300">{s.attempted > 0 ? Math.round((s.correct / s.attempted) * 100) : 0}%</span>
                           )}
-                          <button onClick={() => setSessionToDelete(s.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 hover:bg-rose-500/10 p-2 rounded-lg transition-all"><Trash2 size={14} /></button>
+                          {/* Always visible on mobile, hover-only on desktop */}
+                          <button onClick={() => setSessionToDelete(s.id)} className="md:opacity-0 md:group-hover:opacity-100 text-rose-500 hover:bg-rose-500/10 p-2 rounded-lg transition-all">
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
                     )
@@ -754,6 +855,7 @@ const Dashboard = memo(({
           onClose={handleCloseModal}
           onSaveSession={onSaveSession}
           onDeleteSession={(id) => onDelete(id)}
+          onRenameSession={onRenameSession}
           syllabus={syllabus}
         />
       )}

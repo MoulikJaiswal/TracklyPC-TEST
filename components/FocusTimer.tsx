@@ -890,10 +890,10 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     // --- RENDER ---
     return (
         <>
-            <div id="timer-container" className="pb-20 animate-in fade-in duration-500 space-y-6">
+            <div id="timer-container" className="pb-20 animate-in fade-in duration-500 space-y-4 md:space-y-6">
 
                 {/* 1. Header & Time Range Filter */}
-                <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-2">
+                <div className="hidden md:flex flex-col md:flex-row justify-between items-end gap-6 mb-2">
                     <div>
                         <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
                             Focus & Analytics
@@ -901,8 +901,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
 
                         {/* Clock Display */}
                         <div className="mt-2 flex flex-col md:flex-row md:items-baseline md:gap-3">
-                            <p className="text-4xl md:text-5xl font-display font-bold text-indigo-500 dark:text-indigo-400 tracking-tighter leading-none mb-1 md:mb-0">
-                                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            <p className="text-4xl md:text-5xl font-display font-bold text-indigo-500 dark:text-indigo-400 tracking-tighter leading-none mb-1 md:mb-0">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest font-bold">
                                 {currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -930,13 +929,13 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                     <div className="relative z-10">
                         {isSessionInProgress ? (
                             // ACTIVE VIEW
-                            <div className="flex flex-col items-center justify-center gap-8 py-8">
-                                <div className="text-center">
+                            <div className="flex flex-col items-center justify-center gap-6 md:gap-8 py-6 md:py-8">
+                                <div className="text-center w-full">
                                     <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 border ${isActive ? `bg-${themeColor}-500/10 text-${themeColor}-500 border-${themeColor}-500/20` : `bg-slate-500/10 text-slate-500 border-slate-500/20`}`}>
                                         <span className={`w-2 h-2 rounded-full ${isActive ? `bg-${themeColor}-500 animate-pulse` : `bg-slate-500`}`} />
                                         {isActive ? 'Focusing' : 'Paused'}
                                     </div>
-                                    <div className="text-7xl md:text-9xl font-display font-bold text-slate-900 dark:text-white leading-none tracking-tighter tabular-nums mb-2">
+                                    <div className="text-[80px] sm:text-[100px] md:text-9xl font-display font-bold text-slate-900 dark:text-white leading-none tracking-tighter tabular-nums mb-2">
                                         {formatDigitalTime(timeLeft)}
                                     </div>
                                     <p className="text-slate-500 dark:text-slate-400 font-medium text-base">
@@ -948,12 +947,15 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                     </p>
                                 </div>
 
-                                <div className="flex items-center gap-4">
-                                    <button onClick={onToggleTimer} className="h-20 w-20 rounded-2xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-all flex items-center justify-center shadow-lg active:scale-95">
-                                        {isActive ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
+                                {/* Mobile: full-width pill buttons stacked; Desktop: square buttons side by side */}
+                                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                                    <button onClick={onToggleTimer} className={`w-full sm:w-auto h-16 sm:h-20 sm:w-20 px-8 sm:px-0 rounded-2xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-all flex items-center justify-center gap-3 shadow-lg active:scale-95 text-sm uppercase tracking-widest`}>
+                                        {isActive ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
+                                        <span className="sm:hidden">{isActive ? 'Pause' : 'Resume'}</span>
                                     </button>
-                                    <button onClick={handleStopClick} className="h-20 w-20 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-rose-500/20 shadow-lg active:scale-95">
-                                        <Square size={32} fill="currentColor" />
+                                    <button onClick={handleStopClick} className="w-full sm:w-auto h-16 sm:h-20 sm:w-20 px-8 sm:px-0 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-3 border border-rose-500/20 shadow-lg active:scale-95 text-sm uppercase tracking-widest font-bold">
+                                        <Square size={28} fill="currentColor" />
+                                        <span className="sm:hidden">End Session</span>
                                     </button>
                                 </div>
                             </div>

@@ -183,29 +183,129 @@ const Sidebar = React.memo(({ view, setView, onOpenSettings, isCollapsed, toggle
   );
 });
 
-const BottomNavBar = React.memo(({ view, setView }: { view: ViewType, setView: (v: ViewType) => void }) => {
+
+const PRIMARY_TABS = [
+  { id: 'daily', label: 'Home', icon: LayoutDashboard },
+  { id: 'focus', label: 'Focus', icon: Timer },
+  { id: 'planner', label: 'Plan', icon: CalendarIcon },
+  { id: 'tests', label: 'Tests', icon: Trophy },
+  { id: 'analytics', label: 'Stats', icon: BarChart3 },
+];
+
+const MORE_TABS = [
+  { id: 'group-focus', label: 'Lounge', icon: Hammer },
+  { id: 'friends', label: 'Friends', icon: Users },
+];
+
+const PAGE_TITLES: Record<string, string> = {
+  daily: 'Home',
+  focus: 'Focus Timer',
+  planner: 'Planner',
+  tests: 'Test Log',
+  analytics: 'Analytics',
+  'group-focus': 'Study Lounge',
+  friends: 'Study Buddy',
+  privacy: 'Privacy Policy',
+};
+
+const MobileHeader = React.memo(({ view, onOpenSettings }: { view: ViewType; onOpenSettings: () => void }) => {
   return (
-    <footer className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-theme-border bg-theme-card/80 backdrop-blur-xl">
-      <nav className="flex justify-around items-center h-16 px-2 safe-area-bottom">
-        {TABS.map(tab => {
-          const isActive = view === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setView(tab.id as ViewType)}
-              className={`flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-2xl transition-all duration-300 relative ${isActive ? 'text-theme-accent' : 'text-theme-text-secondary hover:text-theme-text'}`}
-            >
-              <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-theme-accent/10' : ''}`}>
-                <tab.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-              </div>
-              <span className="text-[9px] font-bold tracking-wide">{tab.label}</span>
-            </button>
-          )
-        })}
-      </nav>
-    </footer>
+    <header className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 flex items-center justify-between px-4 border-b border-theme-border backdrop-blur-xl" style={{ backgroundColor: 'rgba(var(--theme-card-rgb), 0.85)' }}>
+      <TracklyLogoComponent collapsed={false} id="mobile-trackly-logo" />
+      <span className="absolute left-1/2 -translate-x-1/2 text-sm font-bold text-theme-text tracking-wide">{PAGE_TITLES[view] || 'Trackly'}</span>
+      <button
+        onClick={onOpenSettings}
+        className="p-2 rounded-xl text-theme-text-secondary hover:text-theme-accent hover:bg-theme-accent/10 transition-all active:scale-90"
+      >
+        <Settings size={20} />
+      </button>
+    </header>
   );
 });
+
+const BottomNavBar = React.memo(({ view, setView, onOpenSettings }: { view: ViewType; setView: (v: ViewType) => void; onOpenSettings: () => void }) => {
+  const [showMore, setShowMore] = useState(false);
+  const isMoreActive = MORE_TABS.some(t => t.id === view);
+
+  return (
+    <>
+      {/* More Drawer Backdrop */}
+      {showMore && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden"
+          onClick={() => setShowMore(false)}
+        />
+      )}
+
+      {/* More Drawer Sheet */}
+      <div className={`fixed bottom-[72px] left-0 right-0 z-50 md:hidden transition-all duration-300 ease-out ${showMore ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-8 opacity-0 pointer-events-none'}`}>
+        <div className="mx-3 rounded-2xl border border-theme-border overflow-hidden shadow-2xl" style={{ backgroundColor: 'rgba(var(--theme-card-rgb), 0.95)', backdropFilter: 'blur(20px)' }}>
+          {/* Tabs Row */}
+          <div className="flex">
+            {MORE_TABS.map(tab => {
+              const isActive = view === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => { setView(tab.id as ViewType); setShowMore(false); }}
+                  className={`flex-1 flex flex-col items-center justify-center gap-2 py-4 transition-all ${isActive ? 'text-theme-accent' : 'text-theme-text-secondary'}`}
+                >
+                  <div className={`p-2 rounded-xl transition-all ${isActive ? 'bg-theme-accent/15' : ''}`}>
+                    <tab.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                  </div>
+                  <span className="text-[10px] font-bold tracking-wide uppercase">{tab.label}</span>
+                </button>
+              );
+            })}
+            {/* Settings inside More drawer */}
+            <button
+              onClick={() => { setShowMore(false); onOpenSettings(); }}
+              className="flex-1 flex flex-col items-center justify-center gap-2 py-4 text-theme-text-secondary transition-all"
+            >
+              <div className="p-2 rounded-xl transition-all">
+                <Settings size={22} strokeWidth={2} />
+              </div>
+              <span className="text-[10px] font-bold tracking-wide uppercase">Settings</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Primary Nav Bar */}
+      <footer className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-theme-border" style={{ backgroundColor: 'rgba(var(--theme-card-rgb), 0.92)', backdropFilter: 'blur(20px)' }}>
+        <nav className="flex justify-around items-center h-[72px] px-1" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          {PRIMARY_TABS.map(tab => {
+            const isActive = view === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => { setView(tab.id as ViewType); setShowMore(false); }}
+                className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all duration-200 active:scale-95 ${isActive ? 'text-theme-accent' : 'text-theme-text-secondary'}`}
+              >
+                <div className={`p-1.5 rounded-xl transition-all duration-200 ${isActive ? 'bg-theme-accent/15 shadow-sm' : ''}`}>
+                  <tab.icon size={21} strokeWidth={isActive ? 2.5 : 2} />
+                </div>
+                <span className={`text-[9px] font-bold tracking-wide transition-all duration-200 ${isActive ? 'opacity-100' : 'opacity-60'}`}>{tab.label}</span>
+              </button>
+            );
+          })}
+
+          {/* More button */}
+          <button
+            onClick={() => setShowMore(p => !p)}
+            className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all duration-200 active:scale-95 ${isMoreActive || showMore ? 'text-theme-accent' : 'text-theme-text-secondary'}`}
+          >
+            <div className={`p-1.5 rounded-xl transition-all duration-200 ${isMoreActive || showMore ? 'bg-theme-accent/15 shadow-sm' : ''}`}>
+              <Menu size={21} strokeWidth={isMoreActive || showMore ? 2.5 : 2} />
+            </div>
+            <span className={`text-[9px] font-bold tracking-wide transition-all duration-200 ${isMoreActive || showMore ? 'opacity-100' : 'opacity-60'}`}>More</span>
+          </button>
+        </nav>
+      </footer>
+    </>
+  );
+});
+
 
 const slideVariants = {
   enter: (direction: number) => ({ x: direction > 0 ? 30 : -30, opacity: 0, position: 'absolute' as 'absolute' }),
@@ -953,6 +1053,16 @@ export const App: React.FC = () => {
     }
   }, [user, isGuest, sessions]);
 
+  const handleRenameSession = useCallback((id: string, name: string) => {
+    const newSessions = sessions.map(s => (s.id === id ? { ...s, name } : s));
+    setSessions(newSessions);
+    if (user) {
+      setDoc(doc(db, 'users', user.uid, 'sessions', id), { name }, { merge: true }).catch(console.error);
+    } else if (isGuest) {
+      localStorage.setItem('trackly_guest_sessions', JSON.stringify(newSessions));
+    }
+  }, [user, isGuest, sessions]);
+
   const handleDeleteTest = useCallback((id: string) => {
     const newTests = tests.filter(t => t.id !== id);
     setTests(newTests);
@@ -1172,10 +1282,12 @@ export const App: React.FC = () => {
         ) : (
           <div className="relative z-10 flex h-screen overflow-hidden">
             <Sidebar view={view} setView={changeView} onOpenSettings={toggleSettings} isCollapsed={sidebarCollapsed} toggleCollapsed={toggleSidebar} user={user} isGuest={isGuest} onLogin={handleLogin} onLogout={handleLogout} isInstalled={isInstalled} onInstall={() => { }} userName={userName} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} />
+            <MobileHeader view={view} onOpenSettings={toggleSettings} />
             <main className={`flex-1 overflow-y-auto overflow-x-hidden relative transition-all duration-500 ${sidebarCollapsed ? 'ml-0 md:ml-20' : 'ml-0 md:ml-64'}`}>
-              <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen pb-28 md:pb-24">
+              <div className="pt-14 md:pt-0 px-4 md:px-8 pb-20 md:pb-8 max-w-7xl mx-auto min-h-screen">
+
                 <AnimatePresence mode="wait" custom={direction}>
-                  {view === 'daily' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="daily" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} countdownDate={countdownDate} countdownName={countdownName} onUpdateCountdown={(d, n) => { setCountdownDate(d); setCountdownName(n); }} /></MotionDiv></Suspense>)}
+                  {view === 'daily' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="daily" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} onRenameSession={handleRenameSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} countdownDate={countdownDate} countdownName={countdownName} onUpdateCountdown={(d, n) => { setCountdownDate(d); setCountdownName(n); }} /></MotionDiv></Suspense>)}
                   {view === 'planner' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="planner" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} /></MotionDiv></Suspense>)}
                   {view === 'focus' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} username={userName} /></MotionDiv></Suspense>)}
                   {view === 'tests' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="tests" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} /></MotionDiv></Suspense>)}
@@ -1186,7 +1298,7 @@ export const App: React.FC = () => {
                 </AnimatePresence>
               </div>
             </main>
-            <BottomNavBar view={view} setView={changeView} />
+            <BottomNavBar view={view} setView={changeView} onOpenSettings={toggleSettings} />
           </div>
         )}
 
