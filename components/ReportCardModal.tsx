@@ -143,8 +143,8 @@ export const ReportCardModal: React.FC<ReportCardProps> = ({
 
                     {/* Main Metric - Centered & Huge */}
                     <div className="flex flex-col items-center justify-center text-center my-auto py-10 relative z-10 w-full">
-                        <span className="text-xs font-bold uppercase tracking-widest text-white/60 mb-3">Total Time</span>
-                        <div className="text-7xl font-display font-black tracking-tighter tabular-nums leading-none mb-6 drop-shadow-2xl">
+                        <span className="text-xs font-bold uppercase tracking-widest text-white/60 mb-3 whitespace-nowrap">Total Time</span>
+                        <div className="text-6xl font-display font-black tracking-tighter tabular-nums leading-none mb-6 drop-shadow-2xl whitespace-nowrap">
                             {formatDuration(analyticsData.totalMinutes)}
                         </div>
                         <div className="flex items-center gap-2 px-5 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-xl">
