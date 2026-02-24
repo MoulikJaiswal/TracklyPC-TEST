@@ -3,7 +3,7 @@ import React, { useState, useMemo, memo, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Plus, X, Trash2, Trophy, TrendingUp, ArrowLeft, Layers, Brain,
-    Search, ArrowUpNarrowWide, Check, ChevronRight, BookOpen, Target as TargetIcon
+    Search, ArrowUpNarrowWide, Check, ChevronRight, BookOpen, Target as TargetIcon, Loader2
 } from 'lucide-react';
 import { TestResult, SubjectBreakdown, SyllabusData, StreamType, MistakeCounts, AdvancedQuestionType, AdvancedMarkingScheme } from '../types';
 import { Card } from './Card';
@@ -1113,6 +1113,14 @@ const TestCard = memo(({ test, onView, onDelete }: { test: TestResult, onView: (
 });
 
 const TestLog = memo(({ tests, onSave, onDelete, syllabus, stream }: TestLogProps) => {
+    if (!tests || !syllabus) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                <Loader2 className="animate-spin text-indigo-500" size={32} />
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 animate-pulse">Loading Test Logs...</p>
+            </div>
+        );
+    }
     const [isAdding, setIsAdding] = useState(false);
     const [viewingReport, setViewingReport] = useState<TestResult | null>(null);
     const [deletingTestId, setDeletingTestId] = useState<string | null>(null);

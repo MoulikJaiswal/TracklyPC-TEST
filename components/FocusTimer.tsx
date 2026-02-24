@@ -40,7 +40,8 @@ import {
     Dna,
     AlertCircle,
     Info,
-    Share2
+    Share2,
+    Loader2
 } from 'lucide-react';
 import { Target as TargetType, Session, SyllabusData, ActivityThresholds, PresenceState } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -676,6 +677,15 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
         onStatusChange,
         username
     } = props;
+
+    if (!sessions || !syllabus) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                <Loader2 className="animate-spin text-indigo-500" size={32} />
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 animate-pulse">Initializing Timer...</p>
+            </div>
+        );
+    }
 
     const subjectKeys = useMemo(() => Object.keys(syllabus), [syllabus]);
 

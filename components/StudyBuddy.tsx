@@ -9,6 +9,7 @@ import { User as UserIcon, Users, UserPlus, Mail, Search, Copy, Check, X, Brain,
 import { Card } from './Card';
 import { GoogleIcon } from './GoogleIcon';
 import { AnimatePresence, motion } from 'framer-motion';
+import { STATS_MAINTENANCE_MODE } from '../constants';
 
 interface StudyBuddyProps {
   user: User | null;
@@ -590,21 +591,21 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
               className={`backdrop-blur-md p-4 rounded-3xl border flex flex-col items-center justify-center text-center group transition-all duration-300 cursor-pointer ${timeframe === 'daily' ? 'bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/10 hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-500/10 hover:border-emerald-500/30'}`}>
               <Clock size={22} className={`mb-2 drop-shadow-[0_0_10px_rgba(16,185,129,0.4)] transition-transform ${timeframe === 'daily' ? 'text-emerald-400 scale-110' : 'text-emerald-500 group-hover:scale-110'}`} />
               <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-0.5 opacity-80">Today</p>
-              <p className="text-lg font-black text-theme-text tracking-tight">{formatTimeFull(presence?.dailyFocusTime)}</p>
+              <p className="text-lg font-black text-theme-text tracking-tight">{STATS_MAINTENANCE_MODE ? '--h --m' : formatTimeFull(presence?.dailyFocusTime)}</p>
             </div>
             <div
               onClick={() => setTimeframe('weekly')}
               className={`backdrop-blur-md p-4 rounded-3xl border flex flex-col items-center justify-center text-center group transition-all duration-300 cursor-pointer ${timeframe === 'weekly' ? 'bg-indigo-500/10 border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)]' : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/10 hover:-translate-y-1 hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-500/30'}`}>
               <CalendarDays size={22} className={`mb-2 drop-shadow-[0_0_10px_rgba(99,102,241,0.4)] transition-transform ${timeframe === 'weekly' ? 'text-indigo-400 scale-110' : 'text-indigo-500 group-hover:scale-110'}`} />
               <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-0.5 opacity-80">This Week</p>
-              <p className="text-lg font-black text-theme-text tracking-tight">{formatHoursOnly(presence?.weeklyFocusTime)}</p>
+              <p className="text-lg font-black text-theme-text tracking-tight">{STATS_MAINTENANCE_MODE ? '-- hrs' : formatHoursOnly(presence?.weeklyFocusTime)}</p>
             </div>
             <div
               onClick={() => setTimeframe('yearly')}
               className={`backdrop-blur-md p-4 rounded-3xl border flex flex-col items-center justify-center text-center group transition-all duration-300 cursor-pointer ${timeframe === 'yearly' ? 'bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/10 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-500/10 hover:border-amber-500/30'}`}>
               <Flame size={22} className={`mb-2 drop-shadow-[0_0_10px_rgba(245,158,11,0.4)] transition-transform ${timeframe === 'yearly' ? 'text-amber-400 scale-110' : 'text-amber-500 group-hover:scale-110'}`} />
               <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-0.5 opacity-80">This Year</p>
-              <p className="text-lg font-black text-theme-text tracking-tight">{formatHoursOnly(presence?.yearlyFocusTime ?? (presence?.subjectSplit ? Object.values(presence.subjectSplit).reduce((a, b) => a + b, 0) : 0))}</p>
+              <p className="text-lg font-black text-theme-text tracking-tight">{STATS_MAINTENANCE_MODE ? '-- hrs' : formatHoursOnly(presence?.yearlyFocusTime ?? (presence?.subjectSplit ? Object.values(presence.subjectSplit).reduce((a, b) => a + b, 0) : 0))}</p>
             </div>
           </div>
 
@@ -617,10 +618,10 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
               <h4 className="text-xs font-black text-theme-text uppercase tracking-widest">Subject Breakdown</h4>
             </div>
 
-            {(!activeSplit || Object.keys(activeSplit).length === 0) ? (
+            {(STATS_MAINTENANCE_MODE || !activeSplit || Object.keys(activeSplit).length === 0) ? (
               <div className="text-center py-8 bg-black/5 dark:bg-white/5 rounded-3xl border border-black/10 dark:border-white/10 border-dashed backdrop-blur-sm">
-                <p className="text-sm font-bold text-theme-text-secondary">No subjects tracked {timeframe === 'daily' ? 'today' : timeframe === 'weekly' ? 'this week' : 'this year'}.</p>
-                <p className="text-[11px] text-theme-text-secondary/70 mt-1">Their studying stats will appear here.</p>
+                <p className="text-sm font-bold text-theme-text-secondary">{STATS_MAINTENANCE_MODE ? 'Stats Paused for Maintenance' : `No subjects tracked ${timeframe === 'daily' ? 'today' : timeframe === 'weekly' ? 'this week' : 'this year'}.`}</p>
+                <p className="text-[11px] text-theme-text-secondary/70 mt-1">{STATS_MAINTENANCE_MODE ? 'Detailed breakdowns are temporarily disabled.' : "Their studying stats will appear here."}</p>
               </div>
             ) : (
               <div className="space-y-4 p-5 bg-black/5 dark:bg-white/5 rounded-3xl border border-black/5 dark:border-white/10 backdrop-blur-sm shadow-inner overflow-hidden relative">
@@ -654,17 +655,19 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
           </div>
 
           {/* Overlay to block stats during maintenance */}
-          <div className="absolute inset-0 bg-white/60 dark:bg-[#0f1117]/80 backdrop-blur-md z-30 flex flex-col items-center justify-center p-6 text-center rounded-3xl mt-[280px]">
-            <div className="p-3 bg-amber-500/10 rounded-full mb-4">
-              <Brain size={32} className="text-amber-500" />
+          {STATS_MAINTENANCE_MODE && (
+            <div className="absolute inset-0 bg-white/60 dark:bg-[#0f1117]/80 backdrop-blur-md z-30 flex flex-col items-center justify-center p-6 text-center rounded-3xl mt-[280px]">
+              <div className="p-3 bg-amber-500/10 rounded-full mb-4">
+                <Brain size={32} className="text-amber-500" />
+              </div>
+              <h4 className="text-lg font-bold text-theme-text mb-2">Upgrading Analytics Engine</h4>
+              <p className="text-sm text-theme-text-secondary max-w-[250px]">
+                Due to extremely high traffic, we are temporarily pausing detailed stats to keep the servers running smoothly for everyone.
+                <br /><br />
+                <b>Live status is still active!</b>
+              </p>
             </div>
-            <h4 className="text-lg font-bold text-theme-text mb-2">Upgrading Analytics Engine</h4>
-            <p className="text-sm text-theme-text-secondary max-w-[250px]">
-              Due to extremely high traffic, we are temporarily pausing detailed stats to keep the servers running smoothly for everyone.
-              <br /><br />
-              <b>Live status is still active!</b>
-            </p>
-          </div>
+          )}
 
         </div>
       </Card>

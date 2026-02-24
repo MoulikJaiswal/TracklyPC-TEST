@@ -1,7 +1,7 @@
 
 
 import React, { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
-import { Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, Dna, Clock, Timer, BookOpen, Settings, Globe, Landmark, Feather, Info } from 'lucide-react';
+import { Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, Dna, Clock, Timer, BookOpen, Settings, Globe, Landmark, Feather, Info, Loader2 } from 'lucide-react';
 import { Session, Target, MistakeCounts, SyllabusData } from '../types';
 import { Card } from './Card';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -598,6 +598,14 @@ const Dashboard = memo(({
   onUpdateCountdown
 }: DashboardProps) => {
   const todayStr = getLocalDate();
+  if (!subjects || !sessions) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="animate-spin text-indigo-500" size={32} />
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-500 animate-pulse">Preparing Dashboard...</p>
+      </div>
+    );
+  }
   const todaysSessions = useMemo(() => sessions.filter(s => getLocalDateFromTimestamp(s.timestamp) === todayStr), [sessions, todayStr]);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const scrollPosRef = useRef(0);

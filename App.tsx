@@ -36,7 +36,7 @@ import {
   Users
 } from 'lucide-react';
 import { ViewType, Session, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds, StudyRoom, TestResult, UserProfile, PresenceState } from './types';
-import { QUOTES, THEME_CONFIG, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS } from './constants';
+import { QUOTES, THEME_CONFIG, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS, STATS_MAINTENANCE_MODE } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
 import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
@@ -535,7 +535,7 @@ export const App: React.FC = () => {
   // When stream changes, update goals to match new subjects
   useEffect(() => {
     setGoals(prevGoals => {
-      const defaultGoals = currentSubjects.reduce((acc, sub) => ({ ...acc, [sub]: 30 }), {});
+      const defaultGoals = currentSubjects.reduce((acc, sub) => ({ ...acc, [sub]: 30 }), {} as Record<string, number>);
       const newGoals = { ...defaultGoals };
       for (const subject of currentSubjects) {
         if (prevGoals[subject]) {
@@ -802,28 +802,30 @@ export const App: React.FC = () => {
     const weeklySubjectSplit: Record<string, number> = {};
     const yearlySubjectSplit: Record<string, number> = {};
 
-    sessions.forEach(s => {
-      if (!s.subject || !s.duration) return; // Only count actual study sessions with a duration
+    if (!STATS_MAINTENANCE_MODE) {
+      sessions.forEach(s => {
+        if (!s.subject || !s.duration) return; // Only count actual study sessions with a duration
 
-      const sessionDate = new Date(s.timestamp);
-      const sessionDateStr = getLocalDate(sessionDate);
-      const sessionYear = sessionDate.getFullYear();
+        const sessionDate = new Date(s.timestamp);
+        const sessionDateStr = getLocalDate(sessionDate);
+        const sessionYear = sessionDate.getFullYear();
 
-      if (sessionDateStr === todayStr) {
-        dailyFocusTimeSeconds += s.duration;
-        dailySubjectSplit[s.subject] = (dailySubjectSplit[s.subject] || 0) + s.duration;
-      }
-      if (sessionDate >= startOfWeek) {
-        weeklyFocusTimeSeconds += s.duration;
-        weeklySubjectSplit[s.subject] = (weeklySubjectSplit[s.subject] || 0) + s.duration;
-      }
-      if (sessionYear === currentYear) {
-        yearlyFocusTimeSeconds += s.duration;
-        yearlySubjectSplit[s.subject] = (yearlySubjectSplit[s.subject] || 0) + s.duration;
-      }
+        if (sessionDateStr === todayStr) {
+          dailyFocusTimeSeconds += s.duration;
+          dailySubjectSplit[s.subject] = (dailySubjectSplit[s.subject] || 0) + s.duration;
+        }
+        if (sessionDate >= startOfWeek) {
+          weeklyFocusTimeSeconds += s.duration;
+          weeklySubjectSplit[s.subject] = (weeklySubjectSplit[s.subject] || 0) + s.duration;
+        }
+        if (sessionYear === currentYear) {
+          yearlyFocusTimeSeconds += s.duration;
+          yearlySubjectSplit[s.subject] = (yearlySubjectSplit[s.subject] || 0) + s.duration;
+        }
 
-      subjectSplit[s.subject] = (subjectSplit[s.subject] || 0) + s.duration;
-    });
+        subjectSplit[s.subject] = (subjectSplit[s.subject] || 0) + s.duration;
+      });
+    }
 
     const presenceRef = ref(rtdb, `/status/${user.uid}`);
 
@@ -833,18 +835,25 @@ export const App: React.FC = () => {
       return acc;
     }, {} as Record<string, any>);
 
-    update(presenceRef, {
+    const statsUpdate: Record<string, any> = {
       isOnline: true,
-      dailyFocusTime: dailyFocusTimeSeconds,
-      weeklyFocusTime: weeklyFocusTimeSeconds,
-      yearlyFocusTime: yearlyFocusTimeSeconds,
-      subjectSplit: subjectSplit,
-      dailySubjectSplit: dailySubjectSplit,
-      weeklySubjectSplit: weeklySubjectSplit,
-      yearlySubjectSplit: yearlySubjectSplit,
-      ...cleanStatus,
       lastChanged: serverTimestamp(),
-    });
+      ...cleanStatus,
+    };
+
+    if (!STATS_MAINTENANCE_MODE) {
+      Object.assign(statsUpdate, {
+        dailyFocusTime: dailyFocusTimeSeconds,
+        weeklyFocusTime: weeklyFocusTimeSeconds,
+        yearlyFocusTime: yearlyFocusTimeSeconds,
+        subjectSplit: subjectSplit,
+        dailySubjectSplit: dailySubjectSplit,
+        weeklySubjectSplit: weeklySubjectSplit,
+        yearlySubjectSplit: yearlySubjectSplit,
+      });
+    }
+
+    update(presenceRef, statsUpdate);
   }, [user, sessions]);
 
   useEffect(() => {
@@ -1287,14 +1296,34 @@ export const App: React.FC = () => {
               <div className="pt-14 md:pt-0 px-4 md:px-8 pb-20 md:pb-8 max-w-7xl mx-auto min-h-screen">
 
                 <AnimatePresence mode="wait" custom={direction}>
-                  {view === 'daily' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="daily" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} onRenameSession={handleRenameSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} countdownDate={countdownDate} countdownName={countdownName} onUpdateCountdown={(d, n) => { setCountdownDate(d); setCountdownName(n); }} /></MotionDiv></Suspense>)}
-                  {view === 'planner' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="planner" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} /></MotionDiv></Suspense>)}
-                  {view === 'focus' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} username={userName} /></MotionDiv></Suspense>)}
-                  {view === 'tests' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="tests" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} /></MotionDiv></Suspense>)}
-                  {view === 'friends' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="friends" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><StudyBuddy user={user} userProfile={userProfile} /></MotionDiv></Suspense>)}
-                  {view === 'analytics' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="analytics" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} /></MotionDiv></Suspense>)}
-                  {view === 'group-focus' && (<Suspense fallback={<Loader2 className="animate-spin" />}><MotionDiv key="group-focus" variants={effectiveSwipe ? slideVariants : fadeVariants} initial="enter" animate="center" exit="exit" custom={direction} transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}><VirtualLibrary user={user} userName={userName} onLogin={handleLogin} isPro={isPro} targets={targets} onCompleteTask={handleUpdateTarget} currentRoom={currentRoom} setCurrentRoom={setCurrentRoom} /></MotionDiv></Suspense>)}
-                  {view === 'privacy' && (<MotionDiv key="privacy" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}><PrivacyPolicy onBack={() => changeView('daily')} /></MotionDiv>)}
+                  <MotionDiv
+                    key={view}
+                    variants={effectiveSwipe ? slideVariants : fadeVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    custom={direction}
+                    transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
+                    className="w-full relative"
+                  >
+                    <ErrorBoundary>
+                      <Suspense fallback={
+                        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                          <Loader2 className="animate-spin text-theme-accent" size={32} />
+                          <p className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary animate-pulse">Loading View...</p>
+                        </div>
+                      }>
+                        {view === 'daily' && <Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} onRenameSession={handleRenameSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} countdownDate={countdownDate} countdownName={countdownName} onUpdateCountdown={(d, n) => { setCountdownDate(d); setCountdownName(n); }} />}
+                        {view === 'planner' && <Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} />}
+                        {view === 'focus' && <FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} username={userName} />}
+                        {view === 'tests' && <TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} />}
+                        {view === 'friends' && <StudyBuddy user={user} userProfile={userProfile} />}
+                        {view === 'analytics' && <Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} />}
+                        {view === 'group-focus' && <VirtualLibrary user={user} userName={userName} onLogin={handleLogin} isPro={isPro} targets={targets} onCompleteTask={handleUpdateTarget} currentRoom={currentRoom} setCurrentRoom={setCurrentRoom} />}
+                        {view === 'privacy' && <PrivacyPolicy onBack={() => changeView('daily')} />}
+                      </Suspense>
+                    </ErrorBoundary>
+                  </MotionDiv>
                 </AnimatePresence>
               </div>
             </main>
@@ -1306,7 +1335,7 @@ export const App: React.FC = () => {
           <>
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} showSmartRecommendations={showSmartRecommendations} toggleSmartRecommendations={() => setShowSmartRecommendations(p => !p)} notifFrequencyMin={notifFrequencyMin} setNotifFrequencyMin={setNotifFrequencyMin} />
             <ProUpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} onUpgrade={handleUpgrade} />
-            <OverdueTasksModal isOpen={showOverdueModal} tasks={overdueTasks} onClose={() => setShowOverdueModal(false)} onComplete={(id) => handleUpdateTarget(id, true)} onDelete={handleDeleteTarget} />
+            <OverdueTasksModal isOpen={showOverdueModal} tasks={overdueTasks} onClose={() => setShowOverdueModal(false)} onComplete={(id: string) => handleUpdateTarget(id, true)} onDelete={handleDeleteTarget} />
             <PerformanceToast isVisible={isLagging} onSwitch={activateLiteMode} onDismiss={dismissLag} />
             <SmartRecommendationToast isVisible={!showWelcome && showSmartRecommendations && showRecommendationToast} data={recommendation} onDismiss={() => setShowRecommendationToast(false)} onPractice={handlePracticeRecommendation} onDisable={handleDisableRecommendations} />
             <ConfirmationModal isOpen={!!plannerPrompt} onClose={() => setPlannerPrompt(null)} onConfirm={handleConfirmPlannerTask} title="Add to Planner?" message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`} confirmText="Add Task" cancelText="No, thanks" confirmVariant="primary" icon={<ListChecks size={24} className="text-white" />} />

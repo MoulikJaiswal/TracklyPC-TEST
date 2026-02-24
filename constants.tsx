@@ -1,6 +1,8 @@
 
 
 
+export const STATS_MAINTENANCE_MODE = true;
+
 import {
   Divide,
   Brain,
