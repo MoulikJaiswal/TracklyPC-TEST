@@ -140,6 +140,12 @@ export type ThemeId = 'midnight' | 'obsidian' | 'void' | 'forest' | 'morning' | 
 
 export type StreamType = 'JEE' | 'NEET' | 'General';
 
+export interface CountdownTarget {
+  id: string;
+  date: string;
+  name: string;
+}
+
 // --- VIRTUAL LIBRARY TYPES ---
 
 export interface StudyParticipant {

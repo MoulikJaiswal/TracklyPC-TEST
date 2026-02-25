@@ -1,7 +1,7 @@
 
 
 import React, { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
-import { Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, Dna, Clock, Timer, BookOpen, Settings, Globe, Landmark, Feather, Info, Loader2 } from 'lucide-react';
+import { Trash2, Activity, Zap, Atom, Calculator, CalendarClock, ArrowRight, CheckCircle2, Pencil, X, Brain, ChevronRight, History, ChevronDown, Dna, Clock, Timer, BookOpen, Settings, Globe, Landmark, Feather, Info, Loader2, Crown } from 'lucide-react';
 import { Session, Target, MistakeCounts, SyllabusData } from '../types';
 import { Card } from './Card';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -70,9 +70,8 @@ interface DashboardProps {
   onOpenPrivacy: () => void;
   subjects: string[];
   syllabus: SyllabusData;
-  countdownDate?: string;
-  countdownName?: string;
-  onUpdateCountdown?: (date: string, name: string) => void;
+  countdowns?: CountdownTarget[];
+  onUpdateCountdowns?: (countdowns: CountdownTarget[]) => void;
 }
 
 const EditableSessionName = memo(({
@@ -445,30 +444,34 @@ const SubjectDetailModal = memo(({
 });
 
 const CountdownWidget = memo(({
-  targetDate,
-  targetName,
-  onUpdate
+  countdown,
+  onUpdate,
+  onDelete,
+  isPrimary = true,
+  onMakePrimary
 }: {
-  targetDate: string;
-  targetName: string;
+  countdown?: CountdownTarget;
   onUpdate: (date: string, name: string) => void;
+  onDelete?: () => void;
+  isPrimary?: boolean;
+  onMakePrimary?: () => void;
 }) => {
 
   const [timeLeft, setTimeLeft] = useState<{ d: number, h: number, m: number, s: number } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const [tempDate, setTempDate] = useState(targetDate);
-  const [tempName, setTempName] = useState(targetName);
+  const [tempDate, setTempDate] = useState(countdown?.date || '');
+  const [tempName, setTempName] = useState(countdown?.name || 'The Big Day');
 
   useEffect(() => {
-    if (!targetDate) {
+    if (!countdown?.date) {
       setTimeLeft(null);
       return;
     }
 
     const calculateTimeLeft = () => {
-      const difference = new Date(targetDate).getTime() - new Date().getTime();
+      const difference = new Date(countdown.date).getTime() - new Date().getTime();
       if (difference > 0) {
         setTimeLeft({
           d: Math.floor(difference / (1000 * 60 * 60 * 24)),
@@ -484,7 +487,7 @@ const CountdownWidget = memo(({
     calculateTimeLeft();
     const timer = setInterval(calculateTimeLeft, 1000);
     return () => clearInterval(timer);
-  }, [targetDate]);
+  }, [countdown?.date]);
 
   const handleSave = () => {
     if (tempDate) {
@@ -493,64 +496,145 @@ const CountdownWidget = memo(({
     setIsEditing(false);
   };
 
-  return (
-    <Card className="bg-slate-900 dark:bg-black/60 border-slate-800 dark:border-white/10 p-5 md:p-8 relative overflow-hidden transform-gpu will-change-transform shadow-2xl">
-      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500 opacity-5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
-
-      <div className="flex justify-between items-center mb-6 relative z-10">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-white/10 text-white backdrop-blur-sm shadow-inner ring-1 ring-white/20">
-            <Timer size={20} className="text-indigo-400" />
+  if (!isPrimary) {
+    return (
+      <Card className="bg-slate-900/80 dark:bg-black/40 border-slate-800 dark:border-white/10 p-5 relative overflow-visible transform-gpu shadow-xl flex flex-col justify-center h-auto min-h-[140px]">
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-white/10 text-white">
+              <Timer size={14} className="text-emerald-400" />
+            </div>
+            <h3 className="text-xs md:text-sm font-bold text-white uppercase tracking-wider truncate max-w-[120px]" title={countdown?.name}>{countdown?.name || 'New Target'}</h3>
           </div>
-          <div>
-            <h3 className="text-sm md:text-base font-bold text-white uppercase tracking-wider">{targetName}</h3>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{targetDate ? new Date(targetDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }) : 'No Target Set'}</p>
+          <div className="flex gap-1 shrink-0">
+            {countdown && onMakePrimary && (
+              <button title="Make Primary" onClick={onMakePrimary} className="p-1.5 text-slate-400 hover:text-amber-400 bg-white/5 hover:bg-amber-500/10 rounded-lg transition-all border border-transparent hover:border-amber-500/30">
+                <Crown size={14} />
+              </button>
+            )}
+            {countdown && onDelete && (
+              <button title="Delete" onClick={() => setShowDeleteConfirm(true)} className="p-1.5 text-rose-400/70 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10 rounded-lg transition-all border border-transparent hover:border-rose-500/30">
+                <Trash2 size={14} />
+              </button>
+            )}
+            <button title="Settings" onClick={() => { setTempDate(countdown?.date || ''); setTempName(countdown?.name || ''); setIsEditing(!isEditing); }} className="p-1.5 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-transparent hover:border-white/20">
+              <Settings size={14} />
+            </button>
           </div>
         </div>
-        <div className="flex gap-2">
-          {targetDate && (
+
+        {isEditing ? (
+          <div className="space-y-2 bg-black/40 p-2 md:p-3 rounded-xl border border-white/10 mt-1 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex flex-col">
+              <input type="text" placeholder="Event Name" value={tempName} onChange={e => setTempName(e.target.value)} className="w-full bg-slate-800 border-slate-700 text-white p-1.5 rounded-md text-[11px] font-medium outline-none focus:border-indigo-500 transition-colors" />
+            </div>
+            <div className="flex flex-col">
+              <input type="date" value={tempDate} onChange={e => setTempDate(e.target.value)} className="w-full bg-slate-800 border-slate-700 text-white p-1.5 rounded-md text-[11px] font-medium outline-none focus:border-indigo-500 transition-colors pointer-events-auto z-50 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 cursor-pointer" />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setIsEditing(false)} className="px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/10 transition-colors">Cancel</button>
+              <button onClick={handleSave} className="px-3 py-1 rounded text-[9px] font-bold uppercase tracking-wider text-white bg-indigo-500 hover:bg-indigo-600 shadow-md transition-all">Save</button>
+            </div>
+          </div>
+        ) : !countdown?.date ? (
+          <div className="py-4 text-center bg-white/5 border border-dashed border-white/10 rounded-xl my-auto">
+            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Add Side Target</p>
+            <button onClick={() => setIsEditing(true)} className="mt-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white bg-white/10 hover:bg-white/20 border border-white/10 transition-colors shadow-sm">Set</button>
+          </div>
+        ) : timeLeft ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex items-baseline justify-center gap-1 mt-1 font-mono font-bold tracking-tight">
+              <span className="text-2xl text-emerald-400 drop-shadow-sm">{timeLeft.d}</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest mr-1 mb-1 font-sans">Days</span>
+
+              <span className="text-2xl text-indigo-400 drop-shadow-sm">{String(timeLeft.h).padStart(2, '0')}</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest mr-1 mb-1 font-sans">Hrs</span>
+
+              <span className="text-2xl text-rose-400 drop-shadow-sm">{String(timeLeft.m).padStart(2, '0')}</span>
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest mb-1 font-sans">Mins</span>
+            </div>
+          </div>
+        ) : (
+          <div className="py-4 text-center"><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest animate-pulse">Loading...</p></div>
+        )}
+
+        {countdown && (
+          <ConfirmationModal
+            isOpen={showDeleteConfirm}
+            title="Delete Target"
+            message="Remove this target?"
+            confirmText="Delete"
+            cancelText="Cancel"
+            onConfirm={() => {
+              if (onDelete) onDelete();
+              setShowDeleteConfirm(false);
+            }}
+            onClose={() => setShowDeleteConfirm(false)}
+            confirmVariant="danger"
+          />
+        )}
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="bg-slate-900 dark:bg-black/60 border-slate-800 dark:border-white/10 p-5 md:p-8 relative overflow-hidden transform-gpu will-change-transform shadow-2xl h-full flex flex-col justify-center">
+      <div className="group-[.low-graphics]:hidden absolute top-0 right-0 w-64 h-64 bg-indigo-500 opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+      <div className="group-[.low-graphics]:hidden absolute bottom-0 left-0 w-48 h-48 bg-emerald-500 opacity-5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
+
+      <div className="flex justify-between items-center mb-6 relative z-10 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-white/10 text-white shadow-inner ring-1 ring-white/20">
+            <Timer size={20} className="text-indigo-400" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm md:text-base font-bold text-white uppercase tracking-wider truncate pr-2">{countdown?.name || 'New Target'}</h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{countdown?.date ? new Date(countdown.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }) : 'No Target Set'}</p>
+          </div>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          {countdown && onDelete && (
             <button onClick={() => setShowDeleteConfirm(true)} className="p-2 relative z-10 text-rose-400/70 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10 rounded-full transition-all border border-white/5 hover:border-rose-500/30">
               <Trash2 size={16} />
             </button>
           )}
-          <button onClick={() => { setTempDate(targetDate); setTempName(targetName); setIsEditing(!isEditing); }} className="p-2 relative z-10 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-all border border-white/5 hover:border-white/20">
+          <button onClick={() => { setTempDate(countdown?.date || ''); setTempName(countdown?.name || 'The Big Day'); setIsEditing(!isEditing); }} className="p-2 relative z-10 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-all border border-white/5 hover:border-white/20">
             <Settings size={16} />
           </button>
         </div>
       </div>
 
-      <div className="relative z-10">
+      <div className="relative z-10 flex-grow flex flex-col justify-center">
         {isEditing ? (
-          <div className="space-y-4 bg-black/40 p-5 rounded-2xl border border-white/10 mt-2 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
+          <div className="space-y-4 bg-black/40 p-5 rounded-2xl border border-white/10 mt-2 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest ml-1">Event Name</label>
-              <input type="text" placeholder="e.g. JEE Mains 2025" value={tempName} onChange={e => setTempName(e.target.value)} className="bg-slate-800 border-slate-700 text-white p-3 rounded-xl text-sm font-medium outline-none focus:border-indigo-500 transition-colors" />
+              <input type="text" placeholder="e.g. JEE Mains 2025" value={tempName} onChange={e => setTempName(e.target.value)} className="w-full bg-slate-800 border-slate-700 text-white p-3 rounded-xl text-sm font-medium outline-none focus:border-indigo-500 transition-colors" />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest ml-1">Target Date</label>
-              <input type="date" value={tempDate} onChange={e => setTempDate(e.target.value)} className="bg-slate-800 border-slate-700 text-white p-3 rounded-xl text-sm font-medium outline-none focus:border-indigo-500 transition-colors pointer-events-auto z-50 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 cursor-pointer" />
+              <input type="date" value={tempDate} onChange={e => setTempDate(e.target.value)} className="w-full bg-slate-800 border-slate-700 text-white p-3 rounded-xl text-sm font-medium outline-none focus:border-indigo-500 transition-colors pointer-events-auto z-50 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 cursor-pointer" />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setIsEditing(false)} className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/10 transition-colors">Cancel</button>
               <button onClick={handleSave} className="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-white bg-indigo-500 hover:bg-indigo-600 shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">Save Countdown</button>
             </div>
           </div>
-        ) : !targetDate ? (
+        ) : !countdown?.date ? (
           <div className="py-8 text-center bg-white/5 border border-dashed border-white/10 rounded-2xl">
             <CalendarClock size={28} className="mx-auto text-slate-500 mb-3" />
             <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Configure your target exam date</p>
             <button onClick={() => setIsEditing(true)} className="mt-4 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-white/10 hover:bg-white/20 border border-white/10 transition-colors shadow-sm">Set Target</button>
           </div>
         ) : timeLeft ? (
-          <div className="grid grid-cols-4 gap-2 md:gap-4 mt-6">
+          <div className="grid grid-cols-4 gap-2 md:gap-4 mt-2">
             {[
               { label: 'Days', value: timeLeft.d, color: 'text-indigo-400' },
               { label: 'Hours', value: timeLeft.h, color: 'text-emerald-400' },
               { label: 'Mins', value: timeLeft.m, color: 'text-rose-400' },
               { label: 'Secs', value: timeLeft.s, color: 'text-amber-400' }
             ].map((block, i) => (
-              <div key={i} className="flex flex-col items-center justify-center bg-white/5 border border-white/10 p-3 md:p-6 rounded-2xl backdrop-blur-sm shadow-inner group transition-colors hover:bg-white/10 hover:border-white/20">
+              <div key={i} className="flex flex-col items-center justify-center bg-white/5 border border-white/10 p-3 md:p-6 rounded-2xl shadow-inner group transition-colors hover:bg-white/10 hover:border-white/20">
                 <span className={`text-2xl md:text-5xl font-mono font-bold tracking-tighter ${block.color} drop-shadow-sm group-hover:scale-105 transition-transform duration-300`}>
                   {String(block.value).padStart(2, '0')}
                 </span>
@@ -570,7 +654,7 @@ const CountdownWidget = memo(({
         confirmText="Delete"
         cancelText="Cancel"
         onConfirm={() => {
-          onUpdate('', 'The Big Day');
+          if (onDelete) onDelete();
           setShowDeleteConfirm(false);
         }}
         onClose={() => setShowDeleteConfirm(false)}
@@ -579,6 +663,8 @@ const CountdownWidget = memo(({
     </Card>
   );
 });
+
+import { CountdownTarget } from '../types';
 
 const Dashboard = memo(({
   sessions,
@@ -593,9 +679,8 @@ const Dashboard = memo(({
   onOpenPrivacy,
   subjects,
   syllabus,
-  countdownDate,
-  countdownName,
-  onUpdateCountdown
+  countdowns,
+  onUpdateCountdowns
 }: DashboardProps) => {
   const todayStr = getLocalDate();
   if (!subjects || !sessions) {
@@ -737,11 +822,88 @@ const Dashboard = memo(({
         </Card>
 
         {/* --- ADDED COUNTDOWN WIDGET HERE --- */}
-        <CountdownWidget
-          targetDate={countdownDate || ''}
-          targetName={countdownName || 'The Big Day'}
-          onUpdate={onUpdateCountdown || (() => { })}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          {/* Default view if no countdowns: just show one main widget */}
+          {(!countdowns || countdowns.length === 0) && (
+            <div className="md:col-span-3">
+              <CountdownWidget
+                isPrimary={true}
+                onUpdate={(date, name) => {
+                  if (date && name) {
+                    onUpdateCountdowns?.([{ id: `cd-${Date.now()}`, date, name }]);
+                  }
+                }}
+              />
+            </div>
+          )}
+
+          {/* If there are countdowns */}
+          {(countdowns || []).length > 0 && (
+            <>
+              {/* Primary Countdown (first one) */}
+              <div className="md:col-span-3 lg:col-span-2">
+                <CountdownWidget
+                  countdown={(countdowns || [])[0]}
+                  isPrimary={true}
+                  onUpdate={(date, name) => {
+                    const updated = [...(countdowns || [])];
+                    if (updated.length > 0) {
+                      updated[0] = { ...updated[0], date, name };
+                    }
+                    onUpdateCountdowns?.(updated);
+                  }}
+                  onDelete={() => {
+                    const updated = (countdowns || []).filter((_, i) => i !== 0);
+                    onUpdateCountdowns?.(updated);
+                  }}
+                />
+              </div>
+
+              {/* Secondary Countdowns Container */}
+              <div className="flex flex-col gap-4 md:gap-6 w-full h-full lg:col-span-1">
+                {(countdowns || []).slice(1).map((target, idx) => (
+                  <div key={target.id} className="flex-1 min-h-[140px]">
+                    <CountdownWidget
+                      countdown={target}
+                      isPrimary={false}
+                      onMakePrimary={() => {
+                        const updated = [...(countdowns || [])];
+                        if (updated.length > idx + 1) {
+                          const temp = updated[0];
+                          updated[0] = updated[idx + 1];
+                          updated[idx + 1] = temp;
+                        }
+                        onUpdateCountdowns?.(updated);
+                      }}
+                      onUpdate={(date, name) => {
+                        const updated = (countdowns || []).map(t => t.id === target.id ? { ...t, date, name } : t);
+                        onUpdateCountdowns?.(updated);
+                      }}
+                      onDelete={() => {
+                        const updated = (countdowns || []).filter(t => t.id !== target.id);
+                        onUpdateCountdowns?.(updated);
+                      }}
+                    />
+                  </div>
+                ))}
+
+                {/* Add new secondary countdowns if < 3 */}
+                {(countdowns || []).length < 3 && (
+                  <div className="flex-1 min-h-[140px]">
+                    <CountdownWidget
+                      isPrimary={false}
+                      onUpdate={(date, name) => {
+                        if (date && name) {
+                          onUpdateCountdowns?.([...(countdowns || []), { id: `cd-${Date.now()}`, date, name }]);
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         {subjects.length === 0 ? (
           <div className="col-span-full py-12 flex flex-col items-center justify-center text-center p-6 bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-3xl animate-in fade-in zoom-in duration-500">

@@ -164,21 +164,6 @@
         .low-graphics [class*="backdrop-blur"] {
              backdrop-filter: none !important;
              -webkit-backdrop-filter: none !important;
-             /* Use opaque background to prevent blending */
-             background-color: var(--theme-card-bg, #ffffff) !important; 
-             border: 1px solid rgba(148, 163, 184, 0.4) !important;
-             box-shadow: none !important;
-             opacity: 1 !important;
-        }
-
-        .low-graphics .dark .backdrop-blur-xl,
-        .low-graphics .dark .backdrop-blur-lg,
-        .low-graphics .dark .backdrop-blur-md,
-        .low-graphics .dark .backdrop-blur-sm,
-        .low-graphics .dark [class*="backdrop-blur"] {
-             background-color: var(--theme-card-bg, #0f172a) !important; 
-             border: 1px solid rgba(255, 255, 255, 0.1) !important;
-             box-shadow: none !important; 
         }
 
         /* Remove all heavy filters and shadows in Lite Mode, EXCEPT if specially preserved */
@@ -192,14 +177,8 @@
         .low-graphics input, 
         .low-graphics select, 
         .low-graphics textarea {
-            background-color: #f1f5f9 !important;
-            border: 1px solid #cbd5e1 !important;
-        }
-        .low-graphics .dark input, 
-        .low-graphics .dark select, 
-        .low-graphics .dark textarea {
-            background-color: #1e293b !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background-color: var(--theme-bg) !important;
+            border: 1px solid var(--theme-border) !important;
         }
 
         /* Disable Noise Texture in Low Graphics */

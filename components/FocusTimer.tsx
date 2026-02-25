@@ -714,6 +714,21 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
         return () => clearInterval(timer);
     }, []);
 
+    // Prevent accidental exit when timer is running
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (timerState === 'running') {
+                e.preventDefault();
+                e.returnValue = ''; // Standard way to trigger the browser's confirmation dialog
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [timerState]);
+
     // --- ANALYTICS LOGIC ---
     const analyticsData = useMemo(() => {
         const filtered = filterSessions(sessions, timeRange);

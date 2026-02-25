@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import {
   Activity,
   Calendar as CalendarIcon,
@@ -35,7 +35,7 @@ import {
   Activity as ActivityIcon,
   Users
 } from 'lucide-react';
-import { ViewType, Session, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds, StudyRoom, TestResult, UserProfile, PresenceState } from './types';
+import { ViewType, Session, Target, ThemeId, QuestionLog, MistakeCounts, Note, Folder, StreamType, SyllabusData, ActivityThresholds, StudyRoom, TestResult, UserProfile, PresenceState, CountdownTarget } from './types';
 import { QUOTES, THEME_CONFIG, GENERAL_DEFAULT_SYLLABUS, STREAM_SUBJECTS, ALL_SYLLABUS, STATS_MAINTENANCE_MODE } from './constants';
 import { SettingsModal } from './components/SettingsModal';
 import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
@@ -348,8 +348,7 @@ export const App: React.FC = () => {
   const [tests, setTests] = useState<TestResult[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [countdownDate, setCountdownDate] = useLocalStorage<string>('trackly_countdown_date', '');
-  const [countdownName, setCountdownName] = useLocalStorage<string>('trackly_countdown_name', 'The Big Day');
+  const [countdowns, setCountdowns] = useLocalStorage<CountdownTarget[]>('trackly_countdowns', []);
 
   const [quoteIdx] = useState(() => Math.floor(Math.random() * QUOTES.length));
 
@@ -593,18 +592,18 @@ export const App: React.FC = () => {
 
   // ─── Sync countdown separately — only when a real date has been set ─────────
   useEffect(() => {
-    if (!user || !isFirebaseReady || !countdownDate) return;
+    if (!user || !isFirebaseReady || countdowns.length === 0) return;
     const t = setTimeout(async () => {
       try {
         await setDoc(
           doc(db, 'users', user.uid, 'settings', 'preferences'),
-          { countdownDate, countdownName },
+          { countdowns },
           { merge: true }
         );
-      } catch (e) { console.error('Failed to sync countdown', e); }
+      } catch (e) { console.error('Failed to sync countdowns', e); }
     }, 800);
     return () => clearTimeout(t);
-  }, [user, isFirebaseReady, countdownDate, countdownName]);
+  }, [user, isFirebaseReady, countdowns]);
 
   // ... [Theme Config, Handlers, etc. largely unchanged] ...
   const themeConfig = THEME_CONFIG[theme];
@@ -693,8 +692,7 @@ export const App: React.FC = () => {
 
       batch.set(doc(db, 'users', user.uid, 'settings', 'general'), { customSyllabus });
       batch.set(doc(db, 'users', user.uid, 'settings', 'preferences'), {
-        countdownDate,
-        countdownName
+        countdowns
       }, { merge: true });
 
       sessions.forEach(item => batch.set(doc(db, 'users', user.uid, 'sessions', item.id), sanitizeForFirestore(item)));
@@ -777,6 +775,7 @@ export const App: React.FC = () => {
 
   // Expose a ref to manually force offline status on logout
   const forceOfflineRef = useRef<(() => Promise<void>) | null>(null);
+  const lastPresenceIndexPathRef = useRef<string | null>(null);
 
   // Real-time Presence Management
   const updatePresence = useCallback((status: Partial<PresenceState>) => {
@@ -841,6 +840,31 @@ export const App: React.FC = () => {
       ...cleanStatus,
     };
 
+    // --- SEGRAGATED INDEX LOGIC ---
+    if (status.state !== undefined) {
+      let newIndexPath = "";
+      if (status.state === 'focus' && status.subject) {
+        newIndexPath = `online_now/focus/${status.subject}/${user.uid}`;
+      } else if (status.state === 'break') {
+        newIndexPath = `online_now/break/${user.uid}`;
+      } else if (status.state === 'idle') {
+        newIndexPath = `online_now/idle/${user.uid}`;
+      }
+
+      if (lastPresenceIndexPathRef.current && lastPresenceIndexPathRef.current !== newIndexPath) {
+        set(ref(rtdb, lastPresenceIndexPathRef.current), null).catch(() => { });
+      }
+
+      if (newIndexPath) {
+        set(ref(rtdb, newIndexPath), true).catch(() => { });
+        onDisconnect(ref(rtdb, newIndexPath)).remove().catch(() => { });
+        lastPresenceIndexPathRef.current = newIndexPath;
+      } else {
+        lastPresenceIndexPathRef.current = null;
+      }
+    }
+    // --- END SEGRAGATED INDEX LOGIC ---
+
     if (!STATS_MAINTENANCE_MODE) {
       Object.assign(statsUpdate, {
         dailyFocusTime: dailyFocusTimeSeconds,
@@ -877,6 +901,16 @@ export const App: React.FC = () => {
     forceOfflineRef.current = async () => {
       unsubscribe(); // Stop listening
       onDisconnect(userStatusRef).cancel(); // Cancel server disconnect hook
+
+      // Also cancel and remove index
+      if (lastPresenceIndexPathRef.current) {
+        onDisconnect(ref(rtdb, lastPresenceIndexPathRef.current)).cancel();
+        try {
+          await set(ref(rtdb, lastPresenceIndexPathRef.current), null);
+        } catch (e) { }
+        lastPresenceIndexPathRef.current = null;
+      }
+
       try {
         await update(userStatusRef, { isOnline: false, lastChanged: serverTimestamp() }); // Force offline immediately
       } catch (e) { console.error('Failed to set offline status', e); }
@@ -959,8 +993,17 @@ export const App: React.FC = () => {
           if (p.timerDurations !== undefined) setTimerDurations(p.timerDurations);
           if (p.notifFrequencyMin !== undefined) setNotifFrequencyMin(p.notifFrequencyMin);
           if (p.stream !== undefined) setStream(p.stream);
-          if (p.countdownDate) setCountdownDate(p.countdownDate);
-          if (p.countdownName) setCountdownName(p.countdownName);
+
+          // Migrate old countdown format if it exists
+          if (p.countdownDate && (!p.countdowns || p.countdowns.length === 0)) {
+            setCountdowns([{
+              id: 'legacy-countdown',
+              date: p.countdownDate,
+              name: p.countdownName || 'The Big Day'
+            }]);
+          } else if (p.countdowns !== undefined) {
+            setCountdowns(p.countdowns);
+          }
         }
       });
 
@@ -1274,76 +1317,78 @@ export const App: React.FC = () => {
   return (
     <>
       <style>{dynamicStyles}</style>
-      <div className={`min-h-screen transition-colors duration-300 ${themeConfig.mode} font-sans selection:bg-theme-accent/30 text-theme-text`}>
-        <StreamTransition isTransitioning={isTransitioning} stream={transitionStream} />
-        <AnimatedBackground themeId={theme} showAurora={effectiveShowAurora} parallaxEnabled={effectiveParallax} customBackground={customBackgroundEnabled ? customBackground : null} customBackgroundAlign={customBackgroundAlign} />
+      <MotionConfig reducedMotion={animationsEnabled ? "user" : "always"}>
+        <div className={`min-h-screen transition-colors duration-300 ${themeConfig.mode} font-sans selection:bg-theme-accent/30 text-theme-text ${!animationsEnabled ? 'reduce-motion' : ''} ${!graphicsEnabled ? 'low-graphics' : ''}`}>
+          <StreamTransition isTransitioning={isTransitioning} stream={transitionStream} />
+          <AnimatedBackground themeId={theme} showAurora={effectiveShowAurora} parallaxEnabled={effectiveParallax} customBackground={customBackgroundEnabled ? customBackground : null} customBackgroundAlign={customBackgroundAlign} />
 
-        {isAuthLoading ? (
-          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-theme-bg gap-4">
-            <TracklyLogoComponent />
-            <Loader2 size={24} className="animate-spin text-theme-accent" />
-            {authStatus === 'loading_profile' && (
-              <p className="mt-4 text-theme-text-secondary animate-in fade-in delay-500 duration-500">Loading your profile...</p>
-            )}
-          </div>
-        ) : showWelcome ? (
-          <WelcomePage onLogin={handleLogin} onGuestLogin={handleGuestLogin} stream={stream} setStream={handleChangeStream} />
-        ) : (
-          <div className="relative z-10 flex h-screen overflow-hidden">
-            <Sidebar view={view} setView={changeView} onOpenSettings={toggleSettings} isCollapsed={sidebarCollapsed} toggleCollapsed={toggleSidebar} user={user} isGuest={isGuest} onLogin={handleLogin} onLogout={handleLogout} isInstalled={isInstalled} onInstall={() => { }} userName={userName} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} />
-            <MobileHeader view={view} onOpenSettings={toggleSettings} />
-            <main className={`flex-1 overflow-y-auto overflow-x-hidden relative transition-all duration-500 ${sidebarCollapsed ? 'ml-0 md:ml-20' : 'ml-0 md:ml-64'}`}>
-              <div className="pt-14 md:pt-0 px-4 md:px-8 pb-20 md:pb-8 max-w-7xl mx-auto min-h-screen">
+          {isAuthLoading ? (
+            <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-theme-bg gap-4">
+              <TracklyLogoComponent />
+              <Loader2 size={24} className="animate-spin text-theme-accent" />
+              {authStatus === 'loading_profile' && (
+                <p className="mt-4 text-theme-text-secondary animate-in fade-in delay-500 duration-500">Loading your profile...</p>
+              )}
+            </div>
+          ) : showWelcome ? (
+            <WelcomePage onLogin={handleLogin} onGuestLogin={handleGuestLogin} stream={stream} setStream={handleChangeStream} />
+          ) : (
+            <div className="relative z-10 flex h-screen overflow-hidden">
+              <Sidebar view={view} setView={changeView} onOpenSettings={toggleSettings} isCollapsed={sidebarCollapsed} toggleCollapsed={toggleSidebar} user={user} isGuest={isGuest} onLogin={handleLogin} onLogout={handleLogout} isInstalled={isInstalled} onInstall={() => { }} userName={userName} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} />
+              <MobileHeader view={view} onOpenSettings={toggleSettings} />
+              <main className={`flex-1 overflow-y-auto overflow-x-hidden relative transition-all duration-500 ${sidebarCollapsed ? 'ml-0 md:ml-20' : 'ml-0 md:ml-64'}`}>
+                <div className="pt-14 md:pt-0 px-4 md:px-8 pb-20 md:pb-8 max-w-7xl mx-auto min-h-screen">
 
-                <AnimatePresence mode="wait" custom={direction}>
-                  <MotionDiv
-                    key={view}
-                    variants={effectiveSwipe ? slideVariants : fadeVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    custom={direction}
-                    transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
-                    className="w-full relative"
-                  >
-                    <ErrorBoundary>
-                      <Suspense fallback={
-                        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-                          <Loader2 className="animate-spin text-theme-accent" size={32} />
-                          <p className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary animate-pulse">Loading View...</p>
-                        </div>
-                      }>
-                        {view === 'daily' && <Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} onRenameSession={handleRenameSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} countdownDate={countdownDate} countdownName={countdownName} onUpdateCountdown={(d, n) => { setCountdownDate(d); setCountdownName(n); }} />}
-                        {view === 'planner' && <Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} />}
-                        {view === 'focus' && <FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} username={userName} />}
-                        {view === 'tests' && <TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} />}
-                        {view === 'friends' && <StudyBuddy user={user} userProfile={userProfile} />}
-                        {view === 'analytics' && <Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} />}
-                        {view === 'group-focus' && <VirtualLibrary user={user} userName={userName} onLogin={handleLogin} isPro={isPro} targets={targets} onCompleteTask={handleUpdateTarget} currentRoom={currentRoom} setCurrentRoom={setCurrentRoom} />}
-                        {view === 'privacy' && <PrivacyPolicy onBack={() => changeView('daily')} />}
-                      </Suspense>
-                    </ErrorBoundary>
-                  </MotionDiv>
-                </AnimatePresence>
-              </div>
-            </main>
-            <BottomNavBar view={view} setView={changeView} onOpenSettings={toggleSettings} />
-          </div>
-        )}
+                  <AnimatePresence mode="wait" custom={direction}>
+                    <MotionDiv
+                      key={view}
+                      variants={effectiveSwipe ? slideVariants : fadeVariants}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      custom={direction}
+                      transition={{ type: 'spring', stiffness: swipeStiffness, damping: swipeDamping }}
+                      className="w-full relative"
+                    >
+                      <ErrorBoundary>
+                        <Suspense fallback={
+                          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                            <Loader2 className="animate-spin text-theme-accent" size={32} />
+                            <p className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary animate-pulse">Loading View...</p>
+                          </div>
+                        }>
+                          {view === 'daily' && <Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} onRenameSession={handleRenameSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} countdowns={countdowns} onUpdateCountdowns={setCountdowns} />}
+                          {view === 'planner' && <Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} />}
+                          {view === 'focus' && <FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} username={userName} />}
+                          {view === 'tests' && <TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} />}
+                          {view === 'friends' && <StudyBuddy user={user} userProfile={userProfile} />}
+                          {view === 'analytics' && <Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} />}
+                          {view === 'group-focus' && <VirtualLibrary user={user} userName={userName} onLogin={handleLogin} isPro={isPro} targets={targets} onCompleteTask={handleUpdateTarget} currentRoom={currentRoom} setCurrentRoom={setCurrentRoom} />}
+                          {view === 'privacy' && <PrivacyPolicy onBack={() => changeView('daily')} />}
+                        </Suspense>
+                      </ErrorBoundary>
+                    </MotionDiv>
+                  </AnimatePresence>
+                </div>
+              </main>
+              <BottomNavBar view={view} setView={changeView} onOpenSettings={toggleSettings} />
+            </div>
+          )}
 
-        {!isAuthLoading && (
-          <>
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} showSmartRecommendations={showSmartRecommendations} toggleSmartRecommendations={() => setShowSmartRecommendations(p => !p)} notifFrequencyMin={notifFrequencyMin} setNotifFrequencyMin={setNotifFrequencyMin} />
-            <ProUpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} onUpgrade={handleUpgrade} />
-            <OverdueTasksModal isOpen={showOverdueModal} tasks={overdueTasks} onClose={() => setShowOverdueModal(false)} onComplete={(id: string) => handleUpdateTarget(id, true)} onDelete={handleDeleteTarget} />
-            <PerformanceToast isVisible={isLagging} onSwitch={activateLiteMode} onDismiss={dismissLag} />
-            <SmartRecommendationToast isVisible={!showWelcome && showSmartRecommendations && showRecommendationToast} data={recommendation} onDismiss={() => setShowRecommendationToast(false)} onPractice={handlePracticeRecommendation} onDisable={handleDisableRecommendations} />
-            <ConfirmationModal isOpen={!!plannerPrompt} onClose={() => setPlannerPrompt(null)} onConfirm={handleConfirmPlannerTask} title="Add to Planner?" message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`} confirmText="Add Task" cancelText="No, thanks" confirmVariant="primary" icon={<ListChecks size={24} className="text-white" />} />
-            {/* Notification permission banner — slides up once if permission not yet decided */}
-            {!showWelcome && !isAuthLoading && <NotificationPermissionBanner />}
-          </>
-        )}
-      </div>
+          {!isAuthLoading && (
+            <>
+              <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} showSmartRecommendations={showSmartRecommendations} toggleSmartRecommendations={() => setShowSmartRecommendations(p => !p)} notifFrequencyMin={notifFrequencyMin} setNotifFrequencyMin={setNotifFrequencyMin} />
+              <ProUpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} onUpgrade={handleUpgrade} />
+              <OverdueTasksModal isOpen={showOverdueModal} tasks={overdueTasks} onClose={() => setShowOverdueModal(false)} onComplete={(id: string) => handleUpdateTarget(id, true)} onDelete={handleDeleteTarget} />
+              <PerformanceToast isVisible={isLagging} onSwitch={activateLiteMode} onDismiss={dismissLag} />
+              <SmartRecommendationToast isVisible={!showWelcome && showSmartRecommendations && showRecommendationToast} data={recommendation} onDismiss={() => setShowRecommendationToast(false)} onPractice={handlePracticeRecommendation} onDisable={handleDisableRecommendations} />
+              <ConfirmationModal isOpen={!!plannerPrompt} onClose={() => setPlannerPrompt(null)} onConfirm={handleConfirmPlannerTask} title="Add to Planner?" message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`} confirmText="Add Task" cancelText="No, thanks" confirmVariant="primary" icon={<ListChecks size={24} className="text-white" />} />
+              {/* Notification permission banner — slides up once if permission not yet decided */}
+              {!showWelcome && !isAuthLoading && <NotificationPermissionBanner />}
+            </>
+          )}
+        </div>
+      </MotionConfig>
     </>
   );
 };
