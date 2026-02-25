@@ -476,37 +476,15 @@ export const App: React.FC = () => {
       ctx.resume();
     }
 
-    const playBell = (time: number) => {
-      const fundamental = soundPitch;
-      const volume = 0.4 * soundVolume;
-      const partials = [0.56, 1, 1.19, 1.7, 2, 2.74, 3.5, 4.3];
-      const amplitudes = [0.2, 1, 0.8, 0.6, 0.7, 0.4, 0.3, 0.2];
+    const audio = new Audio('/mixkit-percussion-tick-tock-timer-1047.mp3');
+    audio.volume = soundVolume;
+    audio.play().catch(e => console.error("Error playing sound:", e));
 
-      partials.forEach((ratio, index) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(fundamental * ratio, time);
-
-        gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime((volume * amplitudes[index]) / (index + 1), time + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, time + 2);
-
-        osc.start(time);
-        osc.stop(time + 2.5);
-      });
-    };
-
-    const now = ctx.currentTime;
-    const interval = 1.8;
-    const totalDuration = 22;
-
-    for (let i = 0; i * interval < totalDuration; i++) {
-      playBell(now + i * interval);
-    }
+    // Auto-stop after 15 seconds
+    setTimeout(() => {
+      audio.pause();
+      audio.currentTime = 0;
+    }, 15000);
   }, [soundEnabled, soundPitch, soundVolume]);
 
   // Initial subject selection when subjects load
