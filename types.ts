@@ -14,11 +14,13 @@ export interface Session {
   attempted: number;
   correct: number;
   mistakes: MistakeCounts;
+  questionLogs?: QuestionLog[]; // Added for Stopwatch Question tracking
   timestamp: number;
   duration?: number; // Total seconds spent in this session
   plannedDuration?: number; // Total seconds planned for the session
   focusRating?: number; // 1-10 rating of focus quality
   stream?: StreamType;
+  type?: 'focus' | 'stopwatch'; // Distinguish session types
 }
 
 export interface QuestionLog {

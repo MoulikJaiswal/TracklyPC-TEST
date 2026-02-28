@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useMemo, memo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,58 +5,49 @@ import {
     Play,
     Pause,
     RotateCcw,
-    Zap,
-    Atom,
-    Calculator,
-    ChevronDown,
-    Plus,
-    Timer as TimerIcon,
     Clock,
-    Minus,
-    Maximize2,
-    Minimize2,
-    Lock,
-    BookOpen,
-    PenTool,
+    Timer as TimerIcon,
     Calendar,
     Flame,
-    Target,
     PieChart,
     Activity,
-    Layers,
     ChevronUp,
     Check,
-    Square,
-    TrendingDown,
-    Scale,
     Settings2,
     Coffee,
-    Brain,
     Armchair,
     X,
-    Dna,
-    AlertCircle,
     Info,
+    TrendingDown,
+    Brain,
+    Square,
     Share2,
-    Loader2
+    Loader2,
+    Layers,
+    Scale,
+    BarChart2, MoreVertical, Search, Filter, Plus, FileText, CheckCircle2, ChevronDown, ListFilter,
+    Target, CalendarDays, BrainCircuit, Lightbulb, Zap, TrendingUp, Sparkles, Medal, Star, History
 } from 'lucide-react';
-import { Target as TargetType, Session, SyllabusData, ActivityThresholds, PresenceState } from '../types';
+import { Target as TargetType, Session, SyllabusData, ActivityThresholds, PresenceState, QuestionLog, MistakeCounts } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { ReportCardModal } from './ReportCardModal';
+import { SessionReportCardModal } from './SessionReportCardModal';
+import { RecentReportsModal } from './RecentReportsModal';
+import { MISTAKE_TYPES } from '../constants';
 
 // --- Types & Interfaces ---
 
 interface FocusTimerProps {
     sessions: Session[];
-    mode: 'focus' | 'short' | 'long';
+    mode: 'focus' | 'short' | 'long' | 'stopwatch';
     timeLeft: number;
     timerState: 'idle' | 'running' | 'paused';
-    durations: { focus: number; short: number; long: number };
+    durations: { focus: number; short: number; long: number; stopwatch?: number };
     onToggleTimer: () => void;
     onResetTimer: () => void;
-    onSwitchMode: (mode: 'focus' | 'short' | 'long') => void;
-    onUpdateDurations: (newDuration: number, mode: 'focus' | 'short' | 'long') => void;
-    onCompleteSession: (isInterrupted?: boolean) => void;
+    onSwitchMode: (mode: 'focus' | 'short' | 'long' | 'stopwatch') => void;
+    onUpdateDurations: (newDuration: number, mode: 'focus' | 'short' | 'long' | 'stopwatch') => void;
+    onCompleteSession: (isInterrupted?: boolean, sessionData?: { attempted: number, correct: number, mistakes: MistakeCounts, questionLogs: QuestionLog[], topic?: string }) => void;
     sessionCount: number;
     syllabus: SyllabusData;
     selectedSubject: string;
@@ -68,6 +56,8 @@ interface FocusTimerProps {
     onOpenSettings: () => void;
     onStatusChange: (status: Partial<PresenceState>) => void;
     username?: string;
+    streakGoal: number;
+    onStreakGoalChange?: (goal: number) => void;
 }
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -203,7 +193,98 @@ const Heatmap = ({ sessions, range, thresholds, subjectColorMap }: { sessions: S
         stats: { level: number; count: number; duration: number };
         pos: { x: number; y: number };
     } | null>(null);
+    const [selectedDay, setSelectedDay] = useState<Date | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // ---- Day Report Modal ----
+    const DayReportModal = ({ date, onClose }: { date: Date; onClose: () => void }) => {
+        const dateStr = date.toDateString();
+        const daySessions = sessions.filter(s => new Date(s.timestamp).toDateString() === dateStr);
+        const totalDuration = daySessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+
+        // Subject breakdown
+        const subjectMap: Record<string, number> = {};
+        daySessions.forEach(s => {
+            const sub = s.subject || 'Unknown';
+            subjectMap[sub] = (subjectMap[sub] || 0) + (s.duration || 0);
+        });
+        const subjectList = Object.entries(subjectMap).sort(([, a], [, b]) => b - a);
+
+        const fmtDur = (secs: number) => {
+            const h = Math.floor(secs / 3600);
+            const m = Math.floor((secs % 3600) / 60);
+            if (h > 0 && m > 0) return `${h}h ${m}m`;
+            if (h > 0) return `${h}h`;
+            return `${m}m`;
+        };
+
+        return createPortal(
+            <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+                <div
+                    className="bg-slate-900 border border-white/10 w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <div className="p-5 border-b border-white/5 flex items-center justify-between">
+                        <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                {date.toLocaleDateString('en-US', { weekday: 'long' })}
+                            </p>
+                            <h3 className="text-xl font-bold text-white">
+                                {date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            </h3>
+                        </div>
+                        <button onClick={onClose} className="p-2 rounded-xl bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+                            <X size={16} />
+                        </button>
+                    </div>
+
+                    <div className="p-5 space-y-4">
+                        {/* Total Time */}
+                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/5">
+                            <div className="p-2.5 rounded-xl bg-emerald-500/10">
+                                <Clock size={18} className="text-emerald-400" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Focus Time</p>
+                                <p className="text-2xl font-mono font-bold text-white">{totalDuration > 0 ? fmtDur(totalDuration) : '—'}</p>
+                            </div>
+                        </div>
+
+                        {/* Subject Breakdown */}
+                        {subjectList.length > 0 ? (
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Subject Breakdown</p>
+                                {subjectList.map(([sub, secs]) => {
+                                    const pct = totalDuration > 0 ? (secs / totalDuration) * 100 : 0;
+                                    const color = subjectColorMap[sub];
+                                    return (
+                                        <div key={sub} className="space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs font-bold text-slate-300">{sub}</span>
+                                                <span className="text-xs font-mono font-bold text-slate-400">{fmtDur(secs)} · {Math.round(pct)}%</span>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full transition-all"
+                                                    style={{ width: `${pct}%`, backgroundColor: color || '#6366f1' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="text-center py-4">
+                                <p className="text-sm text-slate-500 font-medium">No sessions logged this day.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>,
+            document.body
+        );
+    };
+    // ---- End Day Report Modal ----
 
     const generateDays = () => {
         const today = new Date();
@@ -486,6 +567,7 @@ const Heatmap = ({ sessions, range, thresholds, subjectColorMap }: { sessions: S
                                         })
                                     }
                                 }}
+                                onClick={() => setSelectedDay(d)}
                                 className={`
                                 relative rounded-md border flex items-center justify-center transition-all duration-300 cursor-pointer
                                 ${tileColorClass}
@@ -550,6 +632,8 @@ const Heatmap = ({ sessions, range, thresholds, subjectColorMap }: { sessions: S
                     </motion.div>
                 )}
             </AnimatePresence>
+            {/* Day Report Modal */}
+            {selectedDay && <DayReportModal date={selectedDay} onClose={() => setSelectedDay(null)} />}
         </div>
     );
 };
@@ -675,7 +759,8 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
         activityThresholds,
         onOpenSettings,
         onStatusChange,
-        username
+        username,
+        streakGoal
     } = props;
 
     if (!sessions || !syllabus) {
@@ -695,9 +780,49 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     const [customTimeInput, setCustomTimeInput] = useState(durations.focus.toString());
     const [showSettings, setShowSettings] = useState(false);
     const [showReportCard, setShowReportCard] = useState(false);
+    const [isSharing, setIsSharing] = useState(false); // New state for sharing
+
+    // Stopwatch specific modals
+    const [showRecentReports, setShowRecentReports] = useState(false);
+    const [selectedStopwatchSession, setSelectedStopwatchSession] = useState<Session | null>(null);
+
+    // --- STOPWATCH STATE ---
+    const [sessionLogs, setSessionLogs] = useState<QuestionLog[]>([]);
+    const [sessionAttempted, setSessionAttempted] = useState(0);
+    const [sessionCorrect, setSessionCorrect] = useState(0);
+    const [sessionMistakes, setMistakes] = useState<MistakeCounts>({});
+    const [sessionChapter, setSessionChapter] = useState<string>('');
 
     const isActive = timerState === 'running';
     const isSessionInProgress = timerState !== 'idle';
+
+
+
+    const handleLogAnswer = (result: 'correct' | keyof MistakeCounts) => {
+        if (mode !== 'stopwatch' || timerState !== 'running') return;
+
+        // Calculate this question's duration by subtracting previous logs' sum from current elapsed time
+        const previousSum = sessionLogs.reduce((acc, log) => acc + log.duration, 0);
+        const questionDuration = timeLeft - previousSum;
+
+        if (questionDuration <= 0) return; // Prevent logging empty or negative times
+
+        const log: QuestionLog = {
+            timestamp: Date.now(),
+            duration: questionDuration,
+            result,
+            subject: selectedSubject
+        };
+
+        setSessionLogs(prev => [...prev, log]);
+        setSessionAttempted(prev => prev + 1);
+
+        if (result === 'correct') {
+            setSessionCorrect(prev => prev + 1);
+        } else {
+            setMistakes(prev => ({ ...prev, [result]: (prev[result] || 0) + 1 }));
+        }
+    };
 
     useEffect(() => {
         // Ensure selected subject is valid
@@ -728,6 +853,18 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
         };
     }, [timerState]);
+
+    const previousSessionsLengthRef = useRef(sessions.length);
+    useEffect(() => {
+        if (sessions.length > previousSessionsLengthRef.current) {
+            const latestSession = sessions[0]; // Assuming sessions are sorted descending by timestamp
+            if (latestSession && latestSession.type === 'stopwatch') {
+                // Auto show report card for the newly created stopwatch session
+                setSelectedStopwatchSession(latestSession);
+            }
+        }
+        previousSessionsLengthRef.current = sessions.length;
+    }, [sessions]);
 
     // --- ANALYTICS LOGIC ---
     const analyticsData = useMemo(() => {
@@ -777,8 +914,9 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
             dailyDurations[dateKey] = (dailyDurations[dateKey] || 0) + (s.duration || 0); // duration is in seconds
         });
 
+        const streakGoalSeconds = streakGoal * 3600;
         const validDates = Object.entries(dailyDurations)
-            .filter(([_, seconds]) => seconds >= 3600)
+            .filter(([_, seconds]) => seconds >= streakGoalSeconds)
             .map(([ts]) => parseInt(ts))
             .sort((a, b) => b - a); // Descending order
 
@@ -890,8 +1028,20 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     };
 
     const handleConfirmStop = () => {
-        onCompleteSession(true);
+        onCompleteSession(true, {
+            attempted: sessionAttempted,
+            correct: sessionCorrect,
+            mistakes: sessionMistakes,
+            questionLogs: sessionLogs,
+            topic: sessionChapter
+        });
         setShowStopConfirm(false);
+        // Reset state for next time
+        setSessionLogs([]);
+        setSessionAttempted(0);
+        setSessionCorrect(0);
+        setMistakes({});
+        setSessionChapter('');
     };
 
     const getQuickDurations = () => {
@@ -903,6 +1053,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
     const getThemeColor = () => {
         if (mode === 'short') return 'emerald';
         if (mode === 'long') return 'blue';
+        if (mode === 'stopwatch') return 'amber';
         return 'indigo';
     };
 
@@ -964,7 +1115,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                         {formatDigitalTime(timeLeft)}
                                     </div>
                                     <p className="text-slate-500 dark:text-slate-400 font-medium text-base">
-                                        {mode === 'focus' ? (
+                                        {(mode === 'focus' || mode === 'stopwatch') ? (
                                             <>On <span className={`font-bold text-${themeColor}-500`}>{selectedSubject}</span></>
                                         ) : (
                                             <span className="text-slate-400">Break Time</span>
@@ -973,7 +1124,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                 </div>
 
                                 {/* Mobile: full-width pill buttons stacked; Desktop: square buttons side by side */}
-                                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto mt-2">
                                     <button onClick={onToggleTimer} className={`w-full sm:w-auto h-16 sm:h-20 sm:w-20 px-8 sm:px-0 rounded-2xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-all flex items-center justify-center gap-3 shadow-lg active:scale-95 text-sm uppercase tracking-widest`}>
                                         {isActive ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
                                         <span className="sm:hidden">{isActive ? 'Pause' : 'Resume'}</span>
@@ -983,6 +1134,43 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                         <span className="sm:hidden">End Session</span>
                                     </button>
                                 </div>
+
+                                {/* QUESTION STOPWATCH UI */}
+                                {mode === 'stopwatch' && (
+                                    <div className="w-full max-w-xl mt-4 pt-6 border-t border-slate-200 dark:border-white/10 animate-in slide-in-from-bottom-6 fade-in duration-500">
+                                        <div className="flex flex-col items-center bg-slate-50 dark:bg-white/5 p-6 rounded-3xl border border-slate-200 dark:border-white/5 shadow-inner">
+
+                                            <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-1 text-center w-full">Log outcome to track time & mistakes</p>
+                                            <p className="text-xs font-mono font-bold text-amber-500 mb-4">{sessionAttempted} done{sessionChapter ? ` · ${sessionChapter}` : ''}</p>
+
+                                            {/* Correct button */}
+                                            <div className="flex flex-wrap items-center justify-center gap-2 w-full">
+                                                <button
+                                                    onClick={() => handleLogAnswer('correct')}
+                                                    className="flex-1 min-w-[90px] bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:text-white px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                                                >
+                                                    ✓ Correct
+                                                </button>
+                                                {/* Mistake type buttons — same as Dashboard */}
+                                                {MISTAKE_TYPES.map(type => (
+                                                    <button
+                                                        key={type.id}
+                                                        onClick={() => handleLogAnswer(type.id as keyof MistakeCounts)}
+                                                        className={`flex-1 min-w-[120px] hover:text-white px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border
+                                                            ${type.id === 'concept' ? 'bg-orange-500/10 border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-500' : ''}
+                                                            ${type.id === 'calculation' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-500' : ''}
+                                                            ${type.id === 'silly' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500' : ''}
+                                                            ${type.id === 'time' ? 'bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500' : ''}
+                                                        `}
+                                                    >
+                                                        {type.icon}
+                                                        {type.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             // SETUP VIEW
@@ -991,7 +1179,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                 {/* Header with Mode Switcher & Settings */}
                                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                                     <div className="flex p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-full sm:w-auto">
-                                        {(['focus', 'short', 'long'] as const).map(m => (
+                                        {(['focus', 'stopwatch', 'short', 'long'] as const).map(m => (
                                             <button
                                                 key={m}
                                                 onClick={() => onSwitchMode(m)}
@@ -1000,11 +1188,19 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                                     : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                                                     }`}
                                             >
-                                                {m === 'focus' ? 'Focus' : m === 'short' ? 'Short Break' : 'Long Break'}
+                                                {m === 'focus' ? 'Focus' : m === 'stopwatch' ? 'Stopwatch' : m === 'short' ? 'Short Break' : 'Long Break'}
                                             </button>
                                         ))}
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        {mode === 'stopwatch' && (
+                                            <button
+                                                onClick={() => setShowRecentReports(true)}
+                                                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white transition-all text-[10px] font-bold uppercase tracking-widest border border-amber-500/20"
+                                            >
+                                                <History size={14} /> Reports
+                                            </button>
+                                        )}
                                         <button
                                             onClick={handleShareStats}
                                             className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all text-[10px] font-bold uppercase tracking-widest border border-indigo-500/20"
@@ -1023,49 +1219,60 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                 <div className="flex flex-col md:flex-row items-center gap-8">
 
                                     {/* Time Selection */}
-                                    <div className="flex flex-col items-center gap-3 min-w-[140px]">
-                                        <div className="relative group/time cursor-pointer p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                            {isEditingTime ? (
-                                                <div className="flex flex-col items-center">
-                                                    <div className="flex items-baseline justify-center">
-                                                        <input
-                                                            autoFocus
-                                                            type="number"
-                                                            className={`w-40 bg-transparent text-6xl md:text-7xl font-display font-bold text-center outline-none p-0 leading-none text-${themeColor}-500 [&::-webkit-inner-spin-button]:appearance-none`}
-                                                            value={customTimeInput}
-                                                            onChange={(e) => setCustomTimeInput(e.target.value)}
-                                                            onBlur={handleTimeBlur}
-                                                            onKeyDown={(e) => e.key === 'Enter' && handleTimeBlur()}
-                                                        />
-                                                        <span className="text-xl text-slate-400 font-medium">m</span>
-                                                    </div>
-                                                    {/* LIVE CONVERSION PREVIEW */}
-                                                    {parseInt(customTimeInput) > 0 && (
-                                                        <p className="text-xs text-indigo-500 font-bold uppercase tracking-widest mt-2 animate-in fade-in">
-                                                            {formatDuration(parseInt(customTimeInput))}
-                                                        </p>
+                                    <div className="flex flex-col items-center gap-3 min-w-[140px] justify-center">
+                                        {mode === 'stopwatch' ? (
+                                            <div className="flex flex-col items-center justify-center h-full p-2">
+                                                <div className="text-4xl md:text-5xl font-display font-bold text-slate-400 dark:text-slate-500 leading-none tracking-tighter tabular-nums select-none mb-2">
+                                                    00:00
+                                                </div>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Counts Up Infinite</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="relative group/time cursor-pointer p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                                    {isEditingTime ? (
+                                                        <div className="flex flex-col items-center">
+                                                            <div className="flex items-baseline justify-center">
+                                                                <input
+                                                                    autoFocus
+                                                                    type="number"
+                                                                    className={`w-40 bg-transparent text-6xl md:text-7xl font-display font-bold text-center outline-none p-0 leading-none text-${themeColor}-500 [&::-webkit-inner-spin-button]:appearance-none`}
+                                                                    value={customTimeInput}
+                                                                    onChange={(e) => setCustomTimeInput(e.target.value)}
+                                                                    onBlur={handleTimeBlur}
+                                                                    onKeyDown={(e) => e.key === 'Enter' && handleTimeBlur()}
+                                                                />
+                                                                <span className="text-xl text-slate-400 font-medium">m</span>
+                                                            </div>
+                                                            {/* LIVE CONVERSION PREVIEW */}
+                                                            {parseInt(customTimeInput) > 0 && (
+                                                                <p className="text-xs text-indigo-500 font-bold uppercase tracking-widest mt-2 animate-in fade-in">
+                                                                    {formatDuration(parseInt(customTimeInput))}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div onClick={() => { setIsEditingTime(true); setCustomTimeInput((durations[mode as keyof typeof durations] || 0).toString()); }} className="flex items-baseline justify-center">
+                                                            <div className="text-6xl md:text-7xl font-display font-bold text-slate-900 dark:text-white leading-none tracking-tighter tabular-nums select-none">
+                                                                {durations[mode as keyof typeof durations] || 0}
+                                                            </div>
+                                                            <span className="text-2xl text-slate-300 font-normal ml-1">m</span>
+                                                        </div>
                                                     )}
                                                 </div>
-                                            ) : (
-                                                <div onClick={() => { setIsEditingTime(true); setCustomTimeInput(durations[mode].toString()); }} className="flex items-baseline justify-center">
-                                                    <div className="text-6xl md:text-7xl font-display font-bold text-slate-900 dark:text-white leading-none tracking-tighter tabular-nums select-none">
-                                                        {durations[mode]}
-                                                    </div>
-                                                    <span className="text-2xl text-slate-300 font-normal ml-1">m</span>
+                                                <div className="flex gap-1.5">
+                                                    {getQuickDurations().map(m => (
+                                                        <button key={m} onClick={() => onUpdateDurations(m, mode)} className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${durations[mode as keyof typeof durations] === m ? `bg-${themeColor}-500 text-white` : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'}`}>
+                                                            {m}
+                                                        </button>
+                                                    ))}
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div className="flex gap-1.5">
-                                            {getQuickDurations().map(m => (
-                                                <button key={m} onClick={() => onUpdateDurations(m, mode)} className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${durations[mode] === m ? `bg-${themeColor}-500 text-white` : 'bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'}`}>
-                                                    {m}
-                                                </button>
-                                            ))}
-                                        </div>
+                                            </>
+                                        )}
                                     </div>
 
                                     {/* Conditional Spacer & Configuration */}
-                                    {mode === 'focus' ? (
+                                    {(mode === 'focus' || mode === 'stopwatch') ? (
                                         <>
                                             <div className="hidden md:block w-px h-24 bg-slate-200 dark:bg-white/5" />
                                             <div className="flex-1 w-full flex flex-col gap-4 justify-center">
@@ -1081,7 +1288,7 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                                             {subjectKeys.map(sub => (
                                                                 <button
                                                                     key={sub}
-                                                                    onClick={() => onSelectSubject(sub)}
+                                                                    onClick={() => { onSelectSubject(sub); setSessionChapter(''); }}
                                                                     className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${selectedSubject === sub
                                                                         ? 'border-indigo-500 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400'
                                                                         : 'border-transparent bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'
@@ -1093,6 +1300,44 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                                         </div>
                                                     )}
                                                 </div>
+
+                                                {/* Stopwatch: Chapter Selector */}
+                                                {mode === 'stopwatch' && (
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">
+                                                            Chapter <span className="text-rose-400">*</span>
+                                                        </label>
+                                                        <div className="relative">
+                                                            <select
+                                                                value={sessionChapter}
+                                                                onChange={e => setSessionChapter(e.target.value)}
+                                                                className={`w-full bg-slate-100 dark:bg-white/5 border p-3 pr-8 rounded-xl text-slate-900 dark:text-white outline-none transition-all text-xs font-medium appearance-none ${sessionChapter === ''
+                                                                    ? 'border-rose-400/60 focus:border-rose-400'
+                                                                    : 'border-slate-200 dark:border-white/10 focus:border-amber-500'
+                                                                    }`}
+                                                            >
+                                                                <option value="">— Select a chapter —</option>
+                                                                {(syllabus[selectedSubject] || []).map(t => (
+                                                                    <option key={t} value={t}>{t}</option>
+                                                                ))}
+                                                            </select>
+                                                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                                                        </div>
+                                                        {sessionChapter === '' && (
+                                                            <p className="text-[10px] text-rose-400 font-medium">Please select a chapter to start.</p>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Stopwatch Disclaimer */}
+                                                {mode === 'stopwatch' && (
+                                                    <div className="flex items-start gap-2 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400">
+                                                        <Info size={14} className="shrink-0 mt-0.5" />
+                                                        <p className="text-[10px] leading-relaxed">
+                                                            <strong>Note:</strong> Log questions manually while the stopwatch runs. They will be counted towards your total questions solved on the dashboard.
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </>
                                     ) : (
@@ -1105,7 +1350,11 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                                     {/* Start Button */}
                                     <button
                                         onClick={onToggleTimer}
-                                        className={`w-full md:w-24 h-16 md:h-24 bg-${themeColor}-600 hover:bg-${themeColor}-500 text-white rounded-2xl shadow-lg shadow-${themeColor}-600/20 active:scale-95 transition-all flex flex-col items-center justify-center gap-1 group shrink-0`}
+                                        disabled={mode === 'stopwatch' && sessionChapter === ''}
+                                        className={`w-full md:w-24 h-16 md:h-24 text-white rounded-2xl shadow-lg active:scale-95 transition-all flex flex-col items-center justify-center gap-1 group shrink-0 ${mode === 'stopwatch' && sessionChapter === ''
+                                            ? `bg-slate-400 dark:bg-slate-700 cursor-not-allowed shadow-none opacity-60`
+                                            : `bg-${themeColor}-600 hover:bg-${themeColor}-500 shadow-${themeColor}-600/20`
+                                            }`}
                                     >
                                         <Play size={24} fill="currentColor" className="group-hover:scale-110 transition-transform" />
                                         <span className="font-bold uppercase tracking-widest text-[10px]">Start</span>
@@ -1160,10 +1409,10 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                         value={`${analyticsData.currentStreak} Days`}
                         subtext={
                             <div className="flex items-center gap-1 group relative">
-                                <span>Min 1h Daily</span>
+                                <span>Min {streakGoal}h Daily</span>
                                 <Info size={12} className="cursor-help" />
                                 <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-[200px] p-2 bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
-                                    Days in a row you've focused for at least 1 hour. Keep it up!
+                                    Days in a row you've focused for at least {streakGoal} hour{streakGoal === 1 ? '' : 's'}. Keep it up!
                                     <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45" />
                                 </div>
                             </div>
@@ -1171,6 +1420,22 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                         bgClass="bg-slate-900 dark:bg-white/5"
                         colorClass="text-orange-500"
                     />
+                </div>
+
+                {/* Inline Streak Goal Editor */}
+                <div className="flex items-center gap-4 px-4 py-3 rounded-2xl bg-slate-900/50 border border-white/5">
+                    <Flame size={14} className="text-orange-500 shrink-0" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 shrink-0">Streak Goal</span>
+                    <input
+                        type="range"
+                        min={1}
+                        max={12}
+                        step={1}
+                        value={streakGoal}
+                        onChange={e => props.onStreakGoalChange?.(parseInt(e.target.value))}
+                        className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer bg-slate-700 accent-orange-500"
+                    />
+                    <span className="text-xs font-mono font-bold text-orange-400 shrink-0 w-12 text-right">{streakGoal}h / day</span>
                 </div>
 
                 {/* 3. Detailed Breakdown Row */}
@@ -1305,8 +1570,11 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                     isOpen={showStopConfirm}
                     onClose={() => setShowStopConfirm(false)}
                     onConfirm={handleConfirmStop}
-                    title="End Session?"
-                    message="Are you sure you want to stop the timer? Your progress will be saved."
+                    title="End Stopwatch Session?"
+                    message="Are you sure you want to end this stopwatch session and generate a report?"
+                    confirmText="End & Save Report"
+                    cancelText="Cancel"
+                    confirmVariant="danger"
                 />
 
                 <TimerSettingsModal
@@ -1323,6 +1591,25 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                     analyticsData={analyticsData}
                     subjectColorMap={subjectColorMap}
                     username={username}
+                />
+
+                {/* New Stopwatch Modals */}
+                <RecentReportsModal
+                    isOpen={showRecentReports}
+                    onClose={() => setShowRecentReports(false)}
+                    recentSessions={sessions}
+                    onSelectSession={(session) => {
+                        setSelectedStopwatchSession(session);
+                        setShowRecentReports(false);
+                    }}
+                    subjectColorMap={subjectColorMap}
+                />
+
+                <SessionReportCardModal
+                    isOpen={!!selectedStopwatchSession}
+                    onClose={() => setSelectedStopwatchSession(null)}
+                    session={selectedStopwatchSession}
+                    subjectColor={selectedStopwatchSession ? subjectColorMap[selectedStopwatchSession.subject] : '#6366f1'}
                 />
             </div>
         </>

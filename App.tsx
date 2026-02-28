@@ -58,6 +58,7 @@ import { StreamTransition } from './components/StreamTransition';
 import { TracklyLogo as TracklyLogoComponent } from './components/TracklyLogo';
 import { WelcomePage } from './components/WelcomePage';
 import { ConfirmationModal } from './components/ConfirmationModal';
+import { PatchNotesModal } from './components/PatchNotesModal';
 
 // Firebase Imports
 import { auth, db, rtdb, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
@@ -412,6 +413,9 @@ export const App: React.FC = () => {
   // Notification frequency (minutes) — synced to Firestore
   const [notifFrequencyMin, setNotifFrequencyMin] = useLocalStorage<number>('trackly_notif_frequency_min', 10);
 
+  // Custom Streak Goal (hours)
+  const [streakGoal, setStreakGoal] = useLocalStorage<number>('trackly_streak_goal', 1);
+
   // Group Focus State (Lifted Up)
   const [currentRoom, setCurrentRoom] = useState<StudyRoom | null>(null);
 
@@ -423,11 +427,11 @@ export const App: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
 
-  const [timerMode, setTimerMode] = useState<'focus' | 'short' | 'long'>('focus');
-  const [timerDurations, setTimerDurations] = useLocalStorage('trackly_timer_durations', { focus: 25, short: 5, long: 15 });
+  const [timerMode, setTimerMode] = useState<'focus' | 'short' | 'long' | 'stopwatch'>('focus');
+  const [timerDurations, setTimerDurations] = useLocalStorage('trackly_timer_durations', { focus: 25, short: 5, long: 15, stopwatch: 0 });
   const [sessionCount, setSessionCount] = useLocalStorage<number>('trackly_sessionCount', 0);
   const [timeLeft, setTimeLeft] = useState(() => {
-    const storedDurations = safeJSONParse('trackly_timer_durations', { focus: 25, short: 5, long: 15 });
+    const storedDurations = safeJSONParse('trackly_timer_durations', { focus: 25, short: 5, long: 15, stopwatch: 0 });
     return storedDurations.focus * 60;
   });
   const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
@@ -561,7 +565,7 @@ export const App: React.FC = () => {
             swipeAnimationEnabled, swipeStiffness, swipeDamping,
             soundEnabled, soundPitch, soundVolume,
             goals, timerDurations, notifFrequencyMin, stream,
-            showSmartRecommendations,
+            showSmartRecommendations, streakGoal,
           },
           { merge: true }
         );
@@ -575,7 +579,7 @@ export const App: React.FC = () => {
     swipeAnimationEnabled, swipeStiffness, swipeDamping,
     soundEnabled, soundPitch, soundVolume,
     goals, timerDurations, notifFrequencyMin, stream,
-    showSmartRecommendations,
+    showSmartRecommendations, streakGoal,
   ]);
 
   // ─── Sync countdown separately — only when a real date has been set ─────────
@@ -981,6 +985,7 @@ export const App: React.FC = () => {
           if (p.timerDurations !== undefined) setTimerDurations(p.timerDurations);
           if (p.notifFrequencyMin !== undefined) setNotifFrequencyMin(p.notifFrequencyMin);
           if (p.stream !== undefined) setStream(p.stream);
+          if (p.streakGoal !== undefined) setStreakGoal(p.streakGoal);
 
           // Migrate old countdown format if it exists
           if (p.countdownDate && (!p.countdowns || p.countdowns.length === 0)) {
@@ -1152,9 +1157,9 @@ export const App: React.FC = () => {
       startTimeRef.current = Date.now();
       endTimeRef.current = Date.now() + timeLeft * 1000;
       updatePresence({
-        state: timerMode === 'focus' ? 'focus' : 'break',
-        subject: timerMode === 'focus' ? selectedSubject : null,
-        endTime: endTimeRef.current
+        state: (timerMode === 'focus' || timerMode === 'stopwatch') ? 'focus' : 'break',
+        subject: (timerMode === 'focus' || timerMode === 'stopwatch') ? selectedSubject : null,
+        endTime: timerMode === 'stopwatch' ? Date.now() + 86400000 : endTimeRef.current // 24h for stopwatch
       });
     } else {
       setTimerState('paused');
@@ -1164,17 +1169,17 @@ export const App: React.FC = () => {
     }
   }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled, timerMode]);
 
-  const handleModeSwitch = useCallback((mode: 'focus' | 'short' | 'long') => {
+  const handleModeSwitch = useCallback((mode: 'focus' | 'short' | 'long' | 'stopwatch') => {
     setTimerMode(mode);
     setTimerState('idle');
     clearInterval(timerRef.current);
     accumulatedTimeRef.current = 0;
     startTimeRef.current = 0;
-    setTimeLeft(timerDurations[mode] * 60);
+    setTimeLeft(mode === 'stopwatch' ? 0 : timerDurations[mode] * 60);
     updatePresence({
-      state: mode === 'focus' ? 'idle' : 'break',
+      state: (mode === 'focus' || mode === 'stopwatch') ? 'idle' : 'break',
       subject: null, // Always clear subject when switching modes
-      endTime: Date.now() + timerDurations[mode] * 60 * 1000
+      endTime: mode === 'stopwatch' ? Date.now() + 86400000 : Date.now() + timerDurations[mode] * 60 * 1000
     });
   }, [timerDurations, updatePresence]);
 
@@ -1187,7 +1192,9 @@ export const App: React.FC = () => {
     updatePresence({ state: 'idle', subject: null });
   }, [timerMode, timerDurations, updatePresence]);
 
-  const handleCompleteSession = useCallback((isInterrupted: boolean = false) => {
+  const handleCompleteSession = useCallback((isInterrupted = false, sessionData?: { attempted: number, correct: number, mistakes: MistakeCounts, questionLogs: QuestionLog[], topic?: string }) => {
+    if (timerState === 'idle' || startTimeRef.current === 0) return;
+
     const plannedDuration = timerDurations[timerMode] * 60;
 
     // Calculate highly accurate elapsed time based on wall-clock timestamps
@@ -1195,20 +1202,31 @@ export const App: React.FC = () => {
     if (timerState === 'running') {
       elapsedMs += (Date.now() - startTimeRef.current);
     }
-    const elapsedSeconds = Math.min(Math.floor(elapsedMs / 1000), plannedDuration);
+    const elapsedSeconds = timerMode === 'stopwatch'
+      ? Math.floor(elapsedMs / 1000)
+      : Math.min(Math.floor(elapsedMs / 1000), plannedDuration);
 
     // If we're fully complete, use the planned duration to ensure no missing seconds
-    const effectiveDuration = isInterrupted ? elapsedSeconds : plannedDuration;
+    const effectiveDuration = (isInterrupted || timerMode === 'stopwatch') ? elapsedSeconds : plannedDuration;
 
-    if (timerMode === 'focus' && effectiveDuration > 60) {
+    if ((timerMode === 'focus' && effectiveDuration > 60) || (timerMode === 'stopwatch' && effectiveDuration > 0)) {
+      // Use the timer UI values or fallback to defaults
+      let finalAttempted = sessionData?.attempted || 0;
+      let finalCorrect = sessionData?.correct || 0;
+      let finalMistakes = sessionData?.mistakes || {};
+      let finalLogs = sessionData?.questionLogs || [];
+      let finalTopic = sessionData?.topic || (timerMode === 'stopwatch' ? 'Stopwatch Session' : 'Focus Session');
+
       handleSaveSession({
         subject: selectedSubject,
-        topic: 'Focus Session',
-        attempted: 0,
-        correct: 0,
-        mistakes: {},
+        topic: finalTopic,
+        attempted: finalAttempted,
+        correct: finalCorrect,
+        mistakes: finalMistakes,
+        questionLogs: finalLogs,
         duration: effectiveDuration,
-        plannedDuration
+        plannedDuration: timerMode === 'stopwatch' ? effectiveDuration : plannedDuration,
+        type: timerMode // explicitly set type so we can filter later
       });
     }
 
@@ -1224,6 +1242,8 @@ export const App: React.FC = () => {
         const newCount = sessionCount + 1;
         setSessionCount(newCount);
         handleModeSwitch(newCount > 0 && newCount % 4 === 0 ? 'long' : 'short');
+      } else if (timerMode === 'stopwatch') {
+        handleTimerReset(); // In stopwatch mode, just reset, don't auto-switch
       } else {
         handleModeSwitch('focus');
       }
@@ -1233,25 +1253,33 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (timerState === 'running') {
       timerRef.current = setInterval(() => {
-        const plannedDurationMs = timerDurations[timerMode] * 60 * 1000;
-        const currentElapsedMs = accumulatedTimeRef.current + (Date.now() - startTimeRef.current);
-        const remainingMs = plannedDurationMs - currentElapsedMs;
-
-        const diff = Math.ceil(remainingMs / 1000);
-
-        if (diff <= 0) {
-          setTimeLeft(0);
-          clearInterval(timerRef.current);
-          handleCompleteSession(false);
+        if (timerMode === 'stopwatch') {
+          // Stopwatch counts UP
+          const currentElapsedMs = accumulatedTimeRef.current + (Date.now() - startTimeRef.current);
+          setTimeLeft(Math.floor(currentElapsedMs / 1000));
         } else {
-          setTimeLeft(diff);
+          // Normal countdown
+          const plannedDurationMs = timerDurations[timerMode] * 60 * 1000;
+          const currentElapsedMs = accumulatedTimeRef.current + (Date.now() - startTimeRef.current);
+          const remainingMs = plannedDurationMs - currentElapsedMs;
+
+          const diff = Math.ceil(remainingMs / 1000);
+
+          if (diff <= 0) {
+            setTimeLeft(0);
+            clearInterval(timerRef.current);
+            handleCompleteSession(false);
+          } else {
+            setTimeLeft(diff);
+          }
         }
       }, 1000);
     }
     return () => clearInterval(timerRef.current);
   }, [timerState, handleCompleteSession, timerMode, timerDurations]);
 
-  const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus' | 'short' | 'long') => {
+  const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus' | 'short' | 'long' | 'stopwatch') => {
+    if (modeKey === 'stopwatch') return; // Cannot edit stopwatch duration
     setTimerDurations(prev => ({ ...prev, [modeKey]: newDuration }));
     if (timerMode === modeKey && timerState === 'idle') { setTimeLeft(newDuration * 60); }
   }, [timerMode, timerState]);
@@ -1359,7 +1387,7 @@ export const App: React.FC = () => {
                         }>
                           {view === 'daily' && <Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} onRenameSession={handleRenameSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} countdowns={countdowns} onUpdateCountdowns={setCountdowns} />}
                           {view === 'planner' && <Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} />}
-                          {view === 'focus' && <FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} username={userName} />}
+                          {view === 'focus' && <FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} username={userName} streakGoal={streakGoal} onStreakGoalChange={setStreakGoal} />}
                           {view === 'tests' && <TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} />}
                           {view === 'friends' && <StudyBuddy user={user} userProfile={userProfile} />}
                           {view === 'analytics' && <Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} />}
@@ -1377,7 +1405,7 @@ export const App: React.FC = () => {
 
           {!isAuthLoading && (
             <>
-              <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} showSmartRecommendations={showSmartRecommendations} toggleSmartRecommendations={() => setShowSmartRecommendations(p => !p)} notifFrequencyMin={notifFrequencyMin} setNotifFrequencyMin={setNotifFrequencyMin} />
+              <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} animationsEnabled={animationsEnabled} toggleAnimations={() => setAnimationsEnabled(p => !p)} graphicsEnabled={graphicsEnabled} toggleGraphics={() => setGraphicsEnabled(p => !p)} lagDetectionEnabled={lagDetectionEnabled} toggleLagDetection={() => setLagDetectionEnabled(p => !p)} theme={theme} setTheme={setTheme} onStartTutorial={toggleTutorial} showAurora={showAurora} toggleAurora={() => setShowAurora(p => !p)} parallaxEnabled={parallaxEnabled} toggleParallax={() => setParallaxEnabled(p => !p)} showParticles={showParticles} toggleParticles={() => setShowParticles(p => !p)} swipeAnimationEnabled={swipeAnimationEnabled} toggleSwipeAnimation={() => setSwipeAnimationEnabled(p => !p)} swipeStiffness={swipeStiffness} setSwipeStiffness={setSwipeStiffness} swipeDamping={swipeDamping} setSwipeDamping={setSwipeDamping} soundEnabled={soundEnabled} toggleSound={() => setSoundEnabled(p => !p)} soundPitch={soundPitch} setSoundPitch={setSoundPitch} soundVolume={soundVolume} setSoundVolume={setSoundVolume} customBackground={customBackground} setCustomBackground={setCustomBackground} customBackgroundEnabled={customBackgroundEnabled} toggleCustomBackground={() => setCustomBackgroundEnabled(p => !p)} customBackgroundAlign={customBackgroundAlign} setCustomBackgroundAlign={setCustomBackgroundAlign} user={user} userProfile={userProfile} isGuest={isGuest} onLogout={handleLogout} onForceSync={handleForceSync} syncStatus={syncStatus} syncError={syncError} onOpenPrivacy={() => { setIsSettingsOpen(false); changeView('privacy'); }} stream={stream} setStream={handleChangeStream} customSyllabus={customSyllabus} setCustomSyllabus={setCustomSyllabus} activityThresholds={activityThresholds} setActivityThresholds={setActivityThresholds} showSmartRecommendations={showSmartRecommendations} toggleSmartRecommendations={() => setShowSmartRecommendations(p => !p)} notifFrequencyMin={notifFrequencyMin} setNotifFrequencyMin={setNotifFrequencyMin} streakGoal={streakGoal} setStreakGoal={setStreakGoal} />
               <ProUpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} onUpgrade={handleUpgrade} />
               <OverdueTasksModal isOpen={showOverdueModal} tasks={overdueTasks} onClose={() => setShowOverdueModal(false)} onComplete={(id: string) => handleUpdateTarget(id, true)} onDelete={handleDeleteTarget} />
               <PerformanceToast isVisible={isLagging} onSwitch={activateLiteMode} onDismiss={dismissLag} />
@@ -1385,6 +1413,8 @@ export const App: React.FC = () => {
               <ConfirmationModal isOpen={!!plannerPrompt} onClose={() => setPlannerPrompt(null)} onConfirm={handleConfirmPlannerTask} title="Add to Planner?" message={`Would you like to add a task to today's planner to revise "${plannerPrompt?.topic}"?`} confirmText="Add Task" cancelText="No, thanks" confirmVariant="primary" icon={<ListChecks size={24} className="text-white" />} />
               {/* Notification permission banner — slides up once if permission not yet decided */}
               {!showWelcome && !isAuthLoading && <NotificationPermissionBanner />}
+              {/* Patch notes — shown once per version after login or guest mode */}
+              {!showWelcome && <PatchNotesModal />}
             </>
           )}
         </div>
