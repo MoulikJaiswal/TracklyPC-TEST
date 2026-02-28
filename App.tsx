@@ -457,6 +457,14 @@ export const App: React.FC = () => {
 
   // Audio Synthesis
   const audioContextRef = useRef<AudioContext | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !audioRef.current) {
+      audioRef.current = new Audio('/mixkit-percussion-tick-tock-timer-1047.mp3');
+      audioRef.current.load(); // Preload audio to ensure it is ready when needed
+    }
+  }, []);
 
   useEffect(() => {
     if (soundEnabled && !audioContextRef.current) {
@@ -469,15 +477,17 @@ export const App: React.FC = () => {
   }, [soundEnabled]);
 
   const playCompletionSound = useCallback(() => {
-    if (!soundEnabled || !audioContextRef.current) return;
-    const ctx = audioContextRef.current;
+    if (!soundEnabled) return;
 
-    if (ctx.state === 'suspended') {
-      ctx.resume();
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
     }
 
-    const audio = new Audio('/mixkit-percussion-tick-tock-timer-1047.mp3');
+    const audio = audioRef.current;
+    if (!audio) return;
+
     audio.volume = soundVolume;
+    audio.currentTime = 0;
     audio.play().catch(e => console.error("Error playing sound:", e));
 
     // Auto-stop after 15 seconds
@@ -1122,8 +1132,20 @@ export const App: React.FC = () => {
 
   // Timer logic
   const handleTimerToggle = useCallback(() => {
-    if (soundEnabled && audioContextRef.current && audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume();
+    if (soundEnabled) {
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+
+      // Unlock HTMLAudioElement by attempting a silent play
+      if (audioRef.current && timerState === 'idle') {
+        const a = audioRef.current;
+        a.volume = 0; // mute it temporarily
+        a.play().then(() => {
+          a.pause();
+          a.currentTime = 0;
+        }).catch(e => console.debug("Audio unlock failed:", e));
+      }
     }
     if (timerState === 'idle' || timerState === 'paused') {
       setTimerState('running');
