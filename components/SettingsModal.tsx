@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye, Activity, User as UserIcon, Sparkles } from 'lucide-react';
+import { X, CheckCircle2, Palette, Zap, BookOpen, Plus, Trash2, Pencil, Check, AlertTriangle, Loader2, Upload, UploadCloud, LogOut, GraduationCap, LayoutTemplate, Image as ImageIcon, BatteryCharging, Eye, Activity, User as UserIcon, Sparkles, Lock } from 'lucide-react';
 import { Card } from './Card';
 import { ThemeId, StreamType, SyllabusData, ActivityThresholds, UserProfile } from '../types';
 import { THEME_CONFIG } from '../constants';
@@ -155,6 +155,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
     const [profileError, setProfileError] = useState('');
     const [profileSuccess, setProfileSuccess] = useState(false);
+
+    // Streak goal change confirmation state
+    const [showStreakModal, setShowStreakModal] = useState(false);
+    const [pendingStreakGoal, setPendingStreakGoal] = useState(streakGoal);
 
     useEffect(() => {
         if (isOpen && userProfile?.studyBuddyUsername) {
@@ -674,263 +678,311 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                             <p className="text-[10px] text-slate-400 mt-2">Customize the time thresholds for colors on the activity heatmap.</p>
 
-                            <div className="mt-6 space-y-2 pt-4 border-t border-slate-200 dark:border-white/5">
-                                <label className="text-sm font-bold text-slate-900 dark:text-white">Daily Streak Goal</label>
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="font-bold text-slate-500 dark:text-slate-400">Target Duration</span>
-                                    <span className="font-mono font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-md">{streakGoal}hr{streakGoal !== 1 ? 's' : ''}</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min="1"
-                                    max="12"
-                                    step="1"
-                                    value={streakGoal}
-                                    onChange={(e) => setStreakGoal(parseInt(e.target.value))}
-                                    className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-200 dark:bg-slate-700 accent-orange-500"
-                                />
-                                <p className="text-[10px] text-slate-400 mt-2">Focus this many hours per day to keep your streak alive.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* ... Rest of settings content ... */}
-                    {/* --- SECTION 1: APPEARANCE --- */}
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
-                            <Palette size={16} />
-                            <span className="text-xs font-bold uppercase tracking-widest">Appearance</span>
-                        </div>
-
-                        {/* Theme Section */}
-                        <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
-                            {Object.entries(THEME_CONFIG).map(([id, config]) => {
-                                const isSelected = theme === id;
-                                return (
-                                    <button
-                                        key={id}
-                                        onClick={() => setTheme(id as ThemeId)}
-                                        className={`relative p-3 rounded-xl border-2 text-left transition-all group overflow-hidden ${isSelected ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'}`}
-                                        style={isSelected ? { borderColor: 'var(--theme-accent)' } : {}}
-                                    >
-                                        <div className="flex items-center gap-3 mb-2 relative z-10">
-                                            <div
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center text-white shadow-sm ${id === 'midnight' ? 'border border-white/20' : ''}`}
-                                                style={{ backgroundColor: id === 'midnight' ? '#000000' : config.colors.accent }}
-                                            >
-                                                <config.icon size={14} />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className={`text-xs font-bold truncate ${isSelected ? 'text-indigo-900 dark:text-white' : 'text-slate-700 dark:text-slate-200'}`}>{config.label}</p>
-                                            </div>
-                                            {isSelected && <CheckCircle2 size={16} style={{ color: 'var(--theme-accent)' }} className="shrink-0" />}
-                                        </div>
-                                        <div
-                                            className="absolute inset-0 opacity-10 pointer-events-none"
-                                            style={{ backgroundColor: config.colors.bg }}
-                                        />
-                                    </button>
-                                )
-                            })}
-                        </div>
-
-                        {/* Custom Background */}
-                        <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="flex items-center gap-2">
-                                    <div className="p-1.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
-                                        <ImageIcon size={16} />
-                                    </div>
-                                    <span className="text-sm font-bold text-slate-900 dark:text-white">Custom Wallpaper</span>
-                                </div>
-                                <button
-                                    onClick={toggleCustomBackground}
-                                    className={`w-10 h-5 rounded-full relative transition-colors ${customBackgroundEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`}
-                                    style={customBackgroundEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}
-                                >
-                                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${customBackgroundEnabled ? 'left-6' : 'left-1'}`} />
-                                </button>
-                            </div>
-
-                            {customBackgroundEnabled && (
-                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    {customBackground ? (
-                                        <div className="space-y-3">
-                                            <div className="relative w-full h-32 rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 group">
-                                                <img
-                                                    src={customBackground}
-                                                    alt="Custom Background"
-                                                    className="w-full h-full object-cover"
-                                                    style={{ objectPosition: customBackgroundAlign }}
-                                                />
-                                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => setCustomBackground(null)}
-                                                        className="flex items-center gap-2 px-3 py-1.5 bg-rose-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-rose-600 transition-colors"
-                                                    >
-                                                        <Trash2 size={14} /> Remove
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* Alignment Controls */}
-                                            <div className="space-y-2">
-                                                <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-slate-400">
-                                                    <LayoutTemplate size={12} /> Alignment
-                                                </div>
-                                                <div className="flex gap-2 p-1 bg-slate-100 dark:bg-black/20 rounded-lg border border-slate-200 dark:border-white/10">
-                                                    {(['top', 'center', 'bottom'] as const).map((align) => (
-                                                        <button
-                                                            key={align}
-                                                            onClick={() => setCustomBackgroundAlign(align)}
-                                                            className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${customBackgroundAlign === align
-                                                                ? 'bg-white dark:bg-slate-700 shadow-sm'
-                                                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
-                                                                }`}
-                                                            style={customBackgroundAlign === align ? { color: 'var(--theme-accent)' } : {}}
-                                                        >
-                                                            {align}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : (
+                            <div className="mt-6 pt-4 border-t border-slate-200 dark:border-white/5">
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-sm font-bold text-slate-900 dark:text-white">Daily Streak Goal</label>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-mono font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-md text-xs">{streakGoal}hr{streakGoal !== 1 ? 's' : ''}</span>
                                         <button
-                                            onClick={() => fileInputRef.current?.click()}
-                                            className="w-full py-8 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400"
+                                            onClick={() => { setPendingStreakGoal(streakGoal); setShowStreakModal(true); }}
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+                                            title="Change streak goal — will reset your streak"
                                         >
-                                            <Upload size={24} />
-                                            <span className="text-xs font-bold uppercase tracking-wider">Upload Image</span>
+                                            <Lock size={13} />
                                         </button>
-                                    )}
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleImageUpload}
-                                    />
-                                    <p className="text-[10px] text-slate-400 text-center">Recommended: 1920x1080 (Max 2MB)</p>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-slate-400">Focus this many hours per day to keep your streak alive. Click 🔒 to change.</p>
+                            </div>
+
+                            {/* Streak goal warning modal */}
+                            {showStreakModal && (
+                                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+                                    <div className="w-full max-w-sm bg-slate-900 border border-amber-500/30 rounded-2xl shadow-2xl p-6 space-y-4">
+                                        <div className="flex items-center gap-3 text-amber-400">
+                                            <AlertTriangle size={20} />
+                                            <h3 className="text-base font-bold">Change Streak Goal?</h3>
+                                        </div>
+                                        <p className="text-sm text-slate-300 leading-relaxed">
+                                            Changing your daily goal will <span className="text-amber-400 font-bold">reset your current streak to 0</span>.
+                                            Your past study data is preserved, but the streak counter restarts.
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Only do this if you are absolutely sure.</p>
+
+                                        <div className="space-y-2 py-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-slate-400 font-bold">New Goal</span>
+                                                <span className="text-sm font-mono font-bold text-orange-400">{pendingStreakGoal}hr{pendingStreakGoal !== 1 ? 's' : ''} / day</span>
+                                            </div>
+                                            <input
+                                                type="range" min={1} max={12} step={1}
+                                                value={pendingStreakGoal}
+                                                onChange={e => setPendingStreakGoal(parseInt(e.target.value))}
+                                                className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-700 accent-orange-500"
+                                            />
+                                            <div className="flex justify-between text-[9px] text-slate-600 font-bold">
+                                                <span>1h</span><span>6h</span><span>12h</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2 pt-1">
+                                            <button
+                                                onClick={() => setShowStreakModal(false)}
+                                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => { setStreakGoal(pendingStreakGoal); setShowStreakModal(false); }}
+                                                disabled={pendingStreakGoal === streakGoal}
+                                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest bg-amber-500 text-white hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                Confirm &amp; Reset
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
-                    </div>
 
-                    {/* --- SECTION 2: PERFORMANCE --- */}
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-emerald-500 dark:text-emerald-400 border-b border-emerald-100 dark:border-emerald-500/20 pb-2">
-                            <Zap size={16} />
-                            <span className="text-xs font-bold uppercase tracking-widest">Performance</span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                            <button
-                                onClick={() => setMode('standard')}
-                                className={`
-                        relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 group
-                        ${graphicsEnabled
-                                        ? 'bg-indigo-50 dark:bg-indigo-500/10'
-                                        : 'border-slate-200 dark:border-white/5 hover:border-indigo-200 dark:hover:border-white/20'
-                                    }
-                    `}
-                                style={graphicsEnabled ? { borderColor: 'var(--theme-accent)' } : {}}
-                            >
-                                {graphicsEnabled && <div className="absolute top-3 right-3" style={{ color: 'var(--theme-accent)' }}><CheckCircle2 size={16} /></div>}
-                                <div className={`p-3 rounded-full mb-3 transition-colors ${graphicsEnabled ? 'bg-indigo-100 dark:bg-indigo-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} style={graphicsEnabled ? { color: 'var(--theme-accent)' } : {}}>
-                                    <Eye size={24} />
-                                </div>
-                                <span className={`text-sm font-bold transition-colors ${graphicsEnabled ? 'dark:text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'}`} style={graphicsEnabled ? { color: 'var(--theme-accent)' } : {}}>Standard</span>
-                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">High Fidelity</span>
-                            </button>
-
-                            <button
-                                onClick={() => setMode('lite')}
-                                className={`
-                        relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 group
-                        ${!graphicsEnabled
-                                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10'
-                                        : 'border-slate-200 dark:border-white/5 hover:border-emerald-200 dark:hover:border-white/20'
-                                    }
-                    `}
-                            >
-                                {!graphicsEnabled && <div className="absolute top-3 right-3 text-emerald-500"><CheckCircle2 size={16} /></div>}
-                                <div className={`p-3 rounded-full mb-3 transition-colors ${!graphicsEnabled ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-white/5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`}>
-                                    <BatteryCharging size={24} />
-                                </div>
-                                <span className={`text-sm font-bold transition-colors ${!graphicsEnabled ? 'text-emerald-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'}`}>Lite Mode</span>
-                                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70 mt-1">Battery Saver</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* --- SECTION 4: CLOUD SYNC --- */}
-                    {user && !isGuest && (
+                        {/* ... Rest of settings content ... */}
+                        {/* --- SECTION 1: APPEARANCE --- */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
-                                <UploadCloud size={16} />
-                                <span className="text-xs font-bold uppercase tracking-widest">Cloud Sync</span>
+                                <Palette size={16} />
+                                <span className="text-xs font-bold uppercase tracking-widest">Appearance</span>
                             </div>
-                            <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl space-y-3">
-                                <p className="text-xs text-slate-500 dark:text-slate-400">If you suspect data isn't syncing correctly, you can manually push all your current app data to the cloud.</p>
+
+                            {/* Theme Section */}
+                            <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
+                                {Object.entries(THEME_CONFIG).map(([id, config]) => {
+                                    const isSelected = theme === id;
+                                    return (
+                                        <button
+                                            key={id}
+                                            onClick={() => setTheme(id as ThemeId)}
+                                            className={`relative p-3 rounded-xl border-2 text-left transition-all group overflow-hidden ${isSelected ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'border-slate-200 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10'}`}
+                                            style={isSelected ? { borderColor: 'var(--theme-accent)' } : {}}
+                                        >
+                                            <div className="flex items-center gap-3 mb-2 relative z-10">
+                                                <div
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white shadow-sm ${id === 'midnight' ? 'border border-white/20' : ''}`}
+                                                    style={{ backgroundColor: id === 'midnight' ? '#000000' : config.colors.accent }}
+                                                >
+                                                    <config.icon size={14} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-xs font-bold truncate ${isSelected ? 'text-indigo-900 dark:text-white' : 'text-slate-700 dark:text-slate-200'}`}>{config.label}</p>
+                                                </div>
+                                                {isSelected && <CheckCircle2 size={16} style={{ color: 'var(--theme-accent)' }} className="shrink-0" />}
+                                            </div>
+                                            <div
+                                                className="absolute inset-0 opacity-10 pointer-events-none"
+                                                style={{ backgroundColor: config.colors.bg }}
+                                            />
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {/* Custom Background */}
+                            <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
+                                <div className="flex justify-between items-center mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                                            <ImageIcon size={16} />
+                                        </div>
+                                        <span className="text-sm font-bold text-slate-900 dark:text-white">Custom Wallpaper</span>
+                                    </div>
+                                    <button
+                                        onClick={toggleCustomBackground}
+                                        className={`w-10 h-5 rounded-full relative transition-colors ${customBackgroundEnabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                                        style={customBackgroundEnabled ? { backgroundColor: 'var(--theme-accent)' } : {}}
+                                    >
+                                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-300 ${customBackgroundEnabled ? 'left-6' : 'left-1'}`} />
+                                    </button>
+                                </div>
+
+                                {customBackgroundEnabled && (
+                                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        {customBackground ? (
+                                            <div className="space-y-3">
+                                                <div className="relative w-full h-32 rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 group">
+                                                    <img
+                                                        src={customBackground}
+                                                        alt="Custom Background"
+                                                        className="w-full h-full object-cover"
+                                                        style={{ objectPosition: customBackgroundAlign }}
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={() => setCustomBackground(null)}
+                                                            className="flex items-center gap-2 px-3 py-1.5 bg-rose-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-rose-600 transition-colors"
+                                                        >
+                                                            <Trash2 size={14} /> Remove
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Alignment Controls */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-slate-400">
+                                                        <LayoutTemplate size={12} /> Alignment
+                                                    </div>
+                                                    <div className="flex gap-2 p-1 bg-slate-100 dark:bg-black/20 rounded-lg border border-slate-200 dark:border-white/10">
+                                                        {(['top', 'center', 'bottom'] as const).map((align) => (
+                                                            <button
+                                                                key={align}
+                                                                onClick={() => setCustomBackgroundAlign(align)}
+                                                                className={`flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${customBackgroundAlign === align
+                                                                    ? 'bg-white dark:bg-slate-700 shadow-sm'
+                                                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
+                                                                    }`}
+                                                                style={customBackgroundAlign === align ? { color: 'var(--theme-accent)' } : {}}
+                                                            >
+                                                                {align}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-full py-8 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400"
+                                            >
+                                                <Upload size={24} />
+                                                <span className="text-xs font-bold uppercase tracking-wider">Upload Image</span>
+                                            </button>
+                                        )}
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleImageUpload}
+                                        />
+                                        <p className="text-[10px] text-slate-400 text-center">Recommended: 1920x1080 (Max 2MB)</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* --- SECTION 2: PERFORMANCE --- */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-emerald-500 dark:text-emerald-400 border-b border-emerald-100 dark:border-emerald-500/20 pb-2">
+                                <Zap size={16} />
+                                <span className="text-xs font-bold uppercase tracking-widest">Performance</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
                                 <button
-                                    onClick={onForceSync}
-                                    disabled={syncStatus === 'syncing' || syncStatus === 'success'}
-                                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-70
-                      ${syncStatus === 'success' ? 'bg-emerald-600 text-white' :
-                                            syncStatus === 'error' ? 'bg-rose-600 text-white' :
-                                                'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 active:scale-95'
+                                    onClick={() => setMode('standard')}
+                                    className={`
+                        relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 group
+                        ${graphicsEnabled
+                                            ? 'bg-indigo-50 dark:bg-indigo-500/10'
+                                            : 'border-slate-200 dark:border-white/5 hover:border-indigo-200 dark:hover:border-white/20'
                                         }
                     `}
-                                    style={syncStatus === 'idle' ? { backgroundColor: 'var(--theme-accent)', boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.2)' } : {}}
+                                    style={graphicsEnabled ? { borderColor: 'var(--theme-accent)' } : {}}
                                 >
-                                    {syncButtonContent()}
+                                    {graphicsEnabled && <div className="absolute top-3 right-3" style={{ color: 'var(--theme-accent)' }}><CheckCircle2 size={16} /></div>}
+                                    <div className={`p-3 rounded-full mb-3 transition-colors ${graphicsEnabled ? 'bg-indigo-100 dark:bg-indigo-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} style={graphicsEnabled ? { color: 'var(--theme-accent)' } : {}}>
+                                        <Eye size={24} />
+                                    </div>
+                                    <span className={`text-sm font-bold transition-colors ${graphicsEnabled ? 'dark:text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'}`} style={graphicsEnabled ? { color: 'var(--theme-accent)' } : {}}>Standard</span>
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">High Fidelity</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setMode('lite')}
+                                    className={`
+                        relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 group
+                        ${!graphicsEnabled
+                                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10'
+                                            : 'border-slate-200 dark:border-white/5 hover:border-emerald-200 dark:hover:border-white/20'
+                                        }
+                    `}
+                                >
+                                    {!graphicsEnabled && <div className="absolute top-3 right-3 text-emerald-500"><CheckCircle2 size={16} /></div>}
+                                    <div className={`p-3 rounded-full mb-3 transition-colors ${!graphicsEnabled ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-white/5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`}>
+                                        <BatteryCharging size={24} />
+                                    </div>
+                                    <span className={`text-sm font-bold transition-colors ${!graphicsEnabled ? 'text-emerald-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'}`}>Lite Mode</span>
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70 mt-1">Battery Saver</span>
                                 </button>
                             </div>
                         </div>
-                    )}
 
-                    {/* --- SECTION 6: DANGER ZONE --- */}
-                    <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-white/10">
-                        <div className="flex items-center gap-2 text-rose-500">
-                            <AlertTriangle size={14} />
-                            <span className="text-xs font-bold uppercase tracking-widest">Danger Zone</span>
-                        </div>
-
-                        {(user || isGuest) && (
-                            <div className="flex justify-between items-center p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">End Session</p>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-500 uppercase font-bold tracking-wider">
-                                        Sign out of your account
-                                    </p>
+                        {/* --- SECTION 4: CLOUD SYNC --- */}
+                        {user && !isGuest && (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-2 text-indigo-500 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-500/20 pb-2" style={{ color: 'var(--theme-accent)', borderColor: 'rgba(var(--theme-accent-rgb), 0.2)' }}>
+                                    <UploadCloud size={16} />
+                                    <span className="text-xs font-bold uppercase tracking-widest">Cloud Sync</span>
                                 </div>
-                                <button
-                                    onClick={onLogout}
-                                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm transition-all active:scale-95 flex items-center gap-2 bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-                                >
-                                    <LogOut size={14} /> Log Out
-                                </button>
+                                <div className="p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl space-y-3">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">If you suspect data isn't syncing correctly, you can manually push all your current app data to the cloud.</p>
+                                    <button
+                                        onClick={onForceSync}
+                                        disabled={syncStatus === 'syncing' || syncStatus === 'success'}
+                                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-70
+                      ${syncStatus === 'success' ? 'bg-emerald-600 text-white' :
+                                                syncStatus === 'error' ? 'bg-rose-600 text-white' :
+                                                    'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 active:scale-95'
+                                            }
+                    `}
+                                        style={syncStatus === 'idle' ? { backgroundColor: 'var(--theme-accent)', boxShadow: '0 10px 15px -3px rgba(var(--theme-accent-rgb), 0.2)' } : {}}
+                                    >
+                                        {syncButtonContent()}
+                                    </button>
+                                </div>
                             </div>
                         )}
 
-                        <button
-                            onClick={handleClearData}
-                            className="w-full flex items-center justify-between p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors group"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 group-hover:bg-rose-200 dark:group-hover:bg-rose-500/30 transition-colors">
-                                    <Trash2 size={18} />
-                                </div>
-                                <div className="text-left">
-                                    <p className="text-sm font-bold text-rose-700 dark:text-rose-300">Clear All Data</p>
-                                    <p className="text-[10px] text-rose-600/70 dark:text-rose-400/70 uppercase font-bold tracking-wider">
-                                        Reset app & local storage
-                                    </p>
-                                </div>
+                        {/* --- SECTION 6: DANGER ZONE --- */}
+                        <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-white/10">
+                            <div className="flex items-center gap-2 text-rose-500">
+                                <AlertTriangle size={14} />
+                                <span className="text-xs font-bold uppercase tracking-widest">Danger Zone</span>
                             </div>
-                        </button>
-                    </div>
+
+                            {(user || isGuest) && (
+                                <div className="flex justify-between items-center p-4 bg-slate-50/50 dark:bg-black/20 border border-slate-200/50 dark:border-white/5 rounded-xl">
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">End Session</p>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-500 uppercase font-bold tracking-wider">
+                                            Sign out of your account
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={onLogout}
+                                        className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm transition-all active:scale-95 flex items-center gap-2 bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+                                    >
+                                        <LogOut size={14} /> Log Out
+                                    </button>
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleClearData}
+                                className="w-full flex items-center justify-between p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors group"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400 group-hover:bg-rose-200 dark:group-hover:bg-rose-500/30 transition-colors">
+                                        <Trash2 size={18} />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="text-sm font-bold text-rose-700 dark:text-rose-300">Clear All Data</p>
+                                        <p className="text-[10px] text-rose-600/70 dark:text-rose-400/70 uppercase font-bold tracking-wider">
+                                            Reset app & local storage
+                                        </p>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>{/* close overflow-y-auto scrollable div */}
                 </Card>
             </div>
         </>

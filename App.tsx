@@ -437,6 +437,9 @@ export const App: React.FC = () => {
   const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
   const timerRef = useRef<any>(null);
   const endTimeRef = useRef<number>(0);
+  // Web Worker used to schedule a background-safe alarm so the timer fires
+  // even when the browser throttles the main-thread setInterval on inactive tabs.
+  const timerWorkerRef = useRef<Worker | null>(null);
 
   // High-precision tracking
   const startTimeRef = useRef<number>(0);
@@ -1135,6 +1138,50 @@ export const App: React.FC = () => {
     }
   }, [user, isGuest, targets]);
 
+  // Helper: cancel the background worker alarm
+  const cancelTimerWorker = useCallback(() => {
+    if (timerWorkerRef.current) {
+      timerWorkerRef.current.postMessage({ type: 'CANCEL' });
+      timerWorkerRef.current.terminate();
+      timerWorkerRef.current = null;
+    }
+  }, []);
+
+  // Helper: start the background worker alarm for `delayMs` milliseconds
+  const startTimerWorker = useCallback((delayMs: number, modeName: string) => {
+    cancelTimerWorker(); // always cancel previous before starting a new one
+    try {
+      const worker = new Worker('/timerWorker.js');
+      worker.onmessage = (e) => {
+        if (e.data.type === 'DONE') {
+          // Fire notification so the user knows the timer ended
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            new Notification('Trackly — Timer Complete! 🎯', {
+              body: `Your ${modeName} session has ended.`,
+              icon: '/icon-192x192.png',
+            });
+          }
+          // handleCompleteSession is guarded against double-calls internally
+          // We rely on the setTimerState functional updater trick to safely
+          // read fresh timerState inside the worker callback closure.
+          setTimerState(prev => {
+            if (prev === 'running') {
+              // Schedule on next tick to avoid calling setState inside setState
+              setTimeout(() => handleCompleteSession(false), 0);
+            }
+            return prev;
+          });
+        }
+      };
+      worker.onerror = (err) => console.warn('timerWorker error', err);
+      worker.postMessage({ type: 'START', delayMs: Math.max(0, delayMs) });
+      timerWorkerRef.current = worker;
+    } catch (err) {
+      console.warn('Could not start timerWorker — background alarm unavailable:', err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cancelTimerWorker]);
+
   // Timer logic
   const handleTimerToggle = useCallback(() => {
     if (soundEnabled) {
@@ -1153,23 +1200,30 @@ export const App: React.FC = () => {
       }
     }
     if (timerState === 'idle' || timerState === 'paused') {
+      const newEndTime = Date.now() + timeLeft * 1000;
       setTimerState('running');
       startTimeRef.current = Date.now();
-      endTimeRef.current = Date.now() + timeLeft * 1000;
+      endTimeRef.current = newEndTime;
       updatePresence({
         state: (timerMode === 'focus' || timerMode === 'stopwatch') ? 'focus' : 'break',
         subject: (timerMode === 'focus' || timerMode === 'stopwatch') ? selectedSubject : null,
-        endTime: timerMode === 'stopwatch' ? Date.now() + 86400000 : endTimeRef.current // 24h for stopwatch
+        endTime: timerMode === 'stopwatch' ? Date.now() + 86400000 : newEndTime // 24h for stopwatch
       });
+      // Start a background-safe worker alarm for countdown modes
+      if (timerMode !== 'stopwatch') {
+        startTimerWorker(timeLeft * 1000, timerMode);
+      }
     } else {
       setTimerState('paused');
       clearInterval(timerRef.current);
       accumulatedTimeRef.current += Date.now() - startTimeRef.current;
+      cancelTimerWorker(); // paused — alarm no longer needed
       updatePresence({ state: 'idle', subject: null });
     }
-  }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled, timerMode]);
+  }, [timerState, timeLeft, updatePresence, selectedSubject, soundEnabled, timerMode, startTimerWorker, cancelTimerWorker]);
 
   const handleModeSwitch = useCallback((mode: 'focus' | 'short' | 'long' | 'stopwatch') => {
+    cancelTimerWorker(); // kill any pending alarm when switching modes
     setTimerMode(mode);
     setTimerState('idle');
     clearInterval(timerRef.current);
@@ -1181,18 +1235,22 @@ export const App: React.FC = () => {
       subject: null, // Always clear subject when switching modes
       endTime: mode === 'stopwatch' ? Date.now() + 86400000 : Date.now() + timerDurations[mode] * 60 * 1000
     });
-  }, [timerDurations, updatePresence]);
+  }, [timerDurations, updatePresence, cancelTimerWorker]);
 
   const handleTimerReset = useCallback(() => {
+    cancelTimerWorker();
     setTimerState('idle');
     clearInterval(timerRef.current);
     accumulatedTimeRef.current = 0;
     startTimeRef.current = 0;
     setTimeLeft(timerDurations[timerMode] * 60);
     updatePresence({ state: 'idle', subject: null });
-  }, [timerMode, timerDurations, updatePresence]);
+  }, [timerMode, timerDurations, updatePresence, cancelTimerWorker]);
 
   const handleCompleteSession = useCallback((isInterrupted = false, sessionData?: { attempted: number, correct: number, mistakes: MistakeCounts, questionLogs: QuestionLog[], topic?: string }) => {
+    // Cancel the background alarm — this function already handles completion.
+    // Safe to call even if already cancelled.
+    cancelTimerWorker();
     if (timerState === 'idle' || startTimeRef.current === 0) return;
 
     const plannedDuration = timerDurations[timerMode] * 60;
@@ -1277,6 +1335,28 @@ export const App: React.FC = () => {
     }
     return () => clearInterval(timerRef.current);
   }, [timerState, handleCompleteSession, timerMode, timerDurations]);
+
+  // ── Page Visibility catch-up ───────────────────────────────────────────────
+  // When the user returns to this tab after the browser has throttled/frozen
+  // the main-thread interval, we check if the timer should have ended already
+  // and complete it immediately on visibility restore.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === 'visible' &&
+        timerState === 'running' &&
+        timerMode !== 'stopwatch' &&
+        endTimeRef.current > 0 &&
+        Date.now() >= endTimeRef.current
+      ) {
+        clearInterval(timerRef.current);
+        setTimeLeft(0);
+        handleCompleteSession(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [timerState, timerMode, handleCompleteSession]);
 
   const handleDurationUpdate = useCallback((newDuration: number, modeKey: 'focus' | 'short' | 'long' | 'stopwatch') => {
     if (modeKey === 'stopwatch') return; // Cannot edit stopwatch duration

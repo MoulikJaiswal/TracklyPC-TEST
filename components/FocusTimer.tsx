@@ -26,7 +26,8 @@ import {
     Layers,
     Scale,
     BarChart2, MoreVertical, Search, Filter, Plus, FileText, CheckCircle2, ChevronDown, ListFilter,
-    Target, CalendarDays, BrainCircuit, Lightbulb, Zap, TrendingUp, Sparkles, Medal, Star, History
+    Target, CalendarDays, BrainCircuit, Lightbulb, Zap, TrendingUp, Sparkles, Medal, Star, History,
+    Lock, AlertTriangle,
 } from 'lucide-react';
 import { Target as TargetType, Session, SyllabusData, ActivityThresholds, PresenceState, QuestionLog, MistakeCounts } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -739,6 +740,83 @@ const TimerSettingsModal = ({
     );
 };
 
+// --- Streak Goal Editor Sub-component ---
+// Separated so it can use hooks legally at the component level.
+const StreakGoalEditor: React.FC<{
+    streakGoal: number;
+    onStreakGoalChange?: (goal: number) => void;
+}> = ({ streakGoal, onStreakGoalChange }) => {
+    const [showModal, setShowModal] = useState(false);
+    const [pendingGoal, setPendingGoal] = useState(streakGoal);
+
+    return (
+        <>
+            {/* Compact read-only strip */}
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-slate-900/50 border border-white/5">
+                <Flame size={13} className="text-orange-500 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 shrink-0">Streak Goal</span>
+                <span className="text-xs font-mono font-bold text-orange-400">{streakGoal}h / day</span>
+                <button
+                    onClick={() => { setPendingGoal(streakGoal); setShowModal(true); }}
+                    className="ml-auto p-1 rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                    title="Change streak goal — will reset streak"
+                >
+                    <Lock size={12} />
+                </button>
+            </div>
+
+            {/* Warning + change modal */}
+            {showModal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-sm bg-slate-900 border border-amber-500/30 rounded-2xl shadow-2xl p-6 space-y-4">
+                        <div className="flex items-center gap-3 text-amber-400">
+                            <AlertTriangle size={20} />
+                            <h3 className="text-base font-bold">Change Streak Goal?</h3>
+                        </div>
+                        <p className="text-sm text-slate-300 leading-relaxed">
+                            Changing your daily goal will <span className="text-amber-400 font-bold">reset your current streak to 0</span>.
+                            Your past study data is preserved, but the streak counter restarts.
+                        </p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Only do this if you are absolutely sure.</p>
+
+                        <div className="space-y-2 py-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs text-slate-400 font-bold">New Goal</span>
+                                <span className="text-sm font-mono font-bold text-orange-400">{pendingGoal}h / day</span>
+                            </div>
+                            <input
+                                type="range" min={1} max={12} step={1}
+                                value={pendingGoal}
+                                onChange={e => setPendingGoal(parseInt(e.target.value))}
+                                className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-700 accent-orange-500"
+                            />
+                            <div className="flex justify-between text-[9px] text-slate-600 font-bold">
+                                <span>1h</span><span>6h</span><span>12h</span>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                            <button
+                                onClick={() => setShowModal(false)}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest bg-slate-800 text-slate-400 hover:bg-slate-700 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => { onStreakGoalChange?.(pendingGoal); setShowModal(false); }}
+                                disabled={pendingGoal === streakGoal}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest bg-amber-500 text-white hover:bg-amber-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                Confirm & Reset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
+
 // --- MAIN COMPONENT ---
 
 const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
@@ -1422,23 +1500,10 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
                     />
                 </div>
 
-                {/* Inline Streak Goal Editor */}
-                <div className="flex items-center gap-4 px-4 py-3 rounded-2xl bg-slate-900/50 border border-white/5">
-                    <Flame size={14} className="text-orange-500 shrink-0" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 shrink-0">Streak Goal</span>
-                    <input
-                        type="range"
-                        min={1}
-                        max={12}
-                        step={1}
-                        value={streakGoal}
-                        onChange={e => props.onStreakGoalChange?.(parseInt(e.target.value))}
-                        className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer bg-slate-700 accent-orange-500"
-                    />
-                    <span className="text-xs font-mono font-bold text-orange-400 shrink-0 w-12 text-right">{streakGoal}h / day</span>
-                </div>
+                {/* Inline Streak Goal — compact, requires confirmation to change */}
+                <StreakGoalEditor streakGoal={streakGoal} onStreakGoalChange={props.onStreakGoalChange} />
 
-                {/* 3. Detailed Breakdown Row */}
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Subject Distribution */}
                     <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 flex flex-col justify-between">
