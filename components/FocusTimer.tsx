@@ -59,6 +59,7 @@ interface FocusTimerProps {
     username?: string;
     streakGoal: number;
     onStreakGoalChange?: (goal: number) => void;
+    currentStreak?: number;
 }
 
 type TimeRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -998,25 +999,8 @@ const FocusTimer: React.FC<FocusTimerProps> = memo((props) => {
             .map(([ts]) => parseInt(ts))
             .sort((a, b) => b - a); // Descending order
 
-        let currentStreak = 0;
-        if (validDates.length > 0) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const todayTime = today.getTime();
-            const yesterdayTime = todayTime - 86400000;
-
-            if (validDates[0] === todayTime || validDates[0] === yesterdayTime) {
-                currentStreak = 1;
-                for (let i = 0; i < validDates.length - 1; i++) {
-                    const diff = validDates[i] - validDates[i + 1];
-                    if (diff >= 86400000 - 3600000 && diff <= 86400000 + 3600000) {
-                        currentStreak++;
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
+        // Streak is now handled purely by App.tsx and passed in via props to ensure global sync
+        const currentStreak = props.currentStreak || 0;
 
         let consistency = 0;
         const startOfRange = getStartOfRange(timeRange).getTime();

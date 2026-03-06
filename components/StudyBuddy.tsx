@@ -1,19 +1,24 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { User } from 'firebase/auth';
-import { UserProfile, Friend, FriendRequest, PresenceState } from '../types';
+import { UserProfile, Friend, FriendRequest, PresenceState, Session } from '../types';
 import { db, rtdb } from '../firebase';
-import { collection, query, where, getDocs, getDoc, doc, onSnapshot, setDoc, deleteDoc, writeBatch, runTransaction } from 'firebase/firestore';
+import { collection, getDoc, doc, onSnapshot, setDoc, writeBatch, runTransaction, query, orderBy, limit } from 'firebase/firestore';
 import { ref, onValue } from 'firebase/database';
-import { User as UserIcon, Users, UserPlus, Mail, Search, Copy, Check, X, Brain, Coffee, Loader2, Info, ArrowRight, Sparkles, Clock, Calendar, CalendarDays, BookOpen, Flame } from 'lucide-react';
+import { ArrowRight, Loader2, Search, Users, Check, X, Mail, UserPlus, Clock, CalendarDays, Flame, BookOpen, Brain, Coffee, Sparkles, Trophy, RefreshCw } from 'lucide-react';
 import { Card } from './Card';
-import { GoogleIcon } from './GoogleIcon';
 import { AnimatePresence, motion } from 'framer-motion';
-import { STATS_MAINTENANCE_MODE } from '../constants';
+
+import { UserIdCard } from './UserIdCard';
+import { RankBadge } from './RankBadge';
+import { getRankDetails, getCurrentISOWeek, getXPProgress, getLevelFromXP } from '../utils/leveling';
 
 interface StudyBuddyProps {
   user: User | null;
   userProfile: UserProfile | null;
+  onAddTestXp?: () => void;
+  onMinusTestXp?: () => void;
+  onOpenRankSystem?: () => void;
 }
 
 const StudyBuddySetup = ({ user, userProfile }: { user: User, userProfile: UserProfile | null }) => {
@@ -115,10 +120,11 @@ const StudyBuddySetup = ({ user, userProfile }: { user: User, userProfile: UserP
 interface FriendCardProps {
   friend: Friend;
   presence: PresenceState | null;
+  fetchedXp?: number;
   onClick: (friend: Friend, liveProfile: UserProfile | null) => void;
 }
 
-const FriendCard: React.FC<FriendCardProps> = ({ friend, presence, onClick }) => {
+const FriendCard: React.FC<FriendCardProps> = ({ friend, presence, fetchedXp, onClick }) => {
   const displayName = friend.displayName;
   const photoURL = friend.photoURL;
 
@@ -128,42 +134,341 @@ const FriendCard: React.FC<FriendCardProps> = ({ friend, presence, onClick }) =>
     }
     switch (presence.state) {
       case 'focus':
-        return { text: `Focus: ${presence.subject || '...'}`, color: 'text-indigo-500 bg-indigo-500/10', icon: <Brain size={12} /> };
+        return { text: `Focus: ${presence.subject || '...'}`, color: 'text-indigo-500 bg-indigo-500/10', icon: <Brain size={12} className="animate-pulse" /> };
       case 'break':
         return { text: 'On Break', color: 'text-emerald-500 bg-emerald-500/10', icon: <Coffee size={12} /> };
       default:
-        return { text: 'Idle', color: 'text-blue-500 bg-blue-500/10', icon: <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" /> };
+        return { text: 'Online', color: 'text-blue-500 bg-blue-500/10', icon: <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" /> };
     }
   };
 
   const status = getStatus();
+  // Read level entirely from RTDB presence
+  const activeXp = fetchedXp !== undefined ? fetchedXp : presence?.xp;
+  const level = activeXp != null
+    ? getLevelFromXP(activeXp)
+    : (presence?.level || 1);
+  const details = getRankDetails(level);
+
+  // Determine tier index for premium styling
+  const tierIndex = level > 50 ? 5 : Math.floor((level - 1) / 10); // 0=Bronze,1=Silver,2=Gold,3=Platinum,4=Diamond,5=Legend
+  const isPlatinum = tierIndex === 3;
+  const isDiamond = tierIndex === 4;
+  const isLegend = tierIndex >= 5;
+  const isPremium = isPlatinum || isDiamond || isLegend;
+
+  // Tier-specific card styles
+  const cardStyle = isLegend
+    ? 'border-fuchsia-500/60 shadow-[0_0_20px_rgba(217,70,239,0.35)] bg-gradient-to-br from-fuchsia-950/60 via-purple-950/40 to-indigo-950/40 hover:shadow-[0_0_35px_rgba(217,70,239,0.6)] hover:border-fuchsia-400'
+    : isDiamond
+      ? 'border-cyan-500/50 shadow-[0_0_16px_rgba(34,211,238,0.25)] bg-gradient-to-br from-cyan-950/50 via-blue-950/40 to-slate-950/40 hover:shadow-[0_0_28px_rgba(34,211,238,0.5)] hover:border-cyan-400'
+      : isPlatinum
+        ? 'border-emerald-500/45 shadow-[0_0_14px_rgba(52,211,153,0.2)] bg-gradient-to-br from-emerald-950/50 via-teal-950/40 to-slate-950/40 hover:shadow-[0_0_24px_rgba(52,211,153,0.45)] hover:border-emerald-400'
+        : 'border-theme-border/50 hover:border-theme-accent hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:hover:shadow-[0_8px_30px_rgba(var(--theme-accent-rgb),0.15)]';
 
   return (
     <Card
-      className="p-4 cursor-pointer border border-theme-border/50 hover:border-theme-accent hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:hover:shadow-[0_8px_30px_rgba(var(--theme-accent-rgb),0.15)] transition-all duration-300 transform hover:-translate-y-1.5 hover:scale-[1.02] group relative overflow-hidden"
+      className={`p-3 sm:p-4 transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.01] group relative overflow-hidden cursor-pointer border ${cardStyle}`}
       onClick={() => onClick(friend, null)}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-theme-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      <div className="flex items-center gap-4 relative z-10">
-        <img src={photoURL || `https://ui-avatars.com/api/?name=${displayName}&background=random`} alt={displayName} className="w-12 h-12 rounded-full object-cover" />
-        <div className="flex-1 min-w-0 flex justify-between items-center">
-          <div>
-            <p className="font-bold text-theme-text truncate">{displayName}</p>
-            <div className={`mt-1 flex items-center gap-1.5 text-xs font-bold px-2 py-1 rounded-full w-fit ${status.color}`}>
+      {/* Animated effects for premium tiers — always visible */}
+      {isPremium && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[inherit]">
+
+          {/* Shared: soft ambient corner glow */}
+          <div className={`absolute -top-10 -right-10 w-48 h-48 rounded-full blur-[60px] opacity-15
+            ${isLegend ? 'bg-fuchsia-500' : isDiamond ? 'bg-cyan-400' : 'bg-emerald-400'}`}
+          />
+
+          {/* ===== PLATINUM: Nature's Veins ===== */}
+          {isPlatinum && (
+            <>
+              <style>{`
+                @keyframes vine-main {
+                  0%        { stroke-dashoffset: 300; opacity: 0; }
+                  8%        { opacity: 0.9; }
+                  42%       { stroke-dashoffset: 0; opacity: 0.85; }
+                  62%       { stroke-dashoffset: 0; opacity: 0.65; }
+                  93%       { opacity: 0; }
+                  100%      { stroke-dashoffset: 300; opacity: 0; }
+                }
+                @keyframes vine-branch {
+                  0%        { stroke-dashoffset: 150; opacity: 0; }
+                  10%       { opacity: 0.7; }
+                  45%       { stroke-dashoffset: 0; opacity: 0.65; }
+                  65%       { stroke-dashoffset: 0; opacity: 0.45; }
+                  93%       { opacity: 0; }
+                  100%      { stroke-dashoffset: 150; opacity: 0; }
+                }
+                @keyframes plat-orb-pulse {
+                  0%,100% { opacity: 0.14; }
+                  50%     { opacity: 0.26; }
+                }
+                .vtl-m  { animation: vine-main   7s ease-in-out infinite 0s; }
+                .vtl-b1 { animation: vine-branch 7s ease-in-out infinite 0.35s; }
+                .vtl-b2 { animation: vine-branch 7s ease-in-out infinite 0.65s; }
+                .vtr-m  { animation: vine-main   7s ease-in-out infinite 2.3s; }
+                .vtr-b1 { animation: vine-branch 7s ease-in-out infinite 2.65s; }
+                .vtr-b2 { animation: vine-branch 7s ease-in-out infinite 2.95s; }
+                .vbl-m  { animation: vine-main   8s ease-in-out infinite 4s; }
+                .vbl-b1 { animation: vine-branch 8s ease-in-out infinite 4.4s; }
+                .vbr-m  { animation: vine-main   8s ease-in-out infinite 1.2s; }
+                .vbr-b1 { animation: vine-branch 8s ease-in-out infinite 1.6s; }
+                .vc-m   { animation: vine-main   10s ease-in-out infinite 3.5s; }
+                .plat-orb { animation: plat-orb-pulse 6s ease-in-out infinite; }
+              `}</style>
+
+              {/* Single SVG covering the entire card — no wrapper div = no box boundary */}
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none mix-blend-screen"
+                viewBox="0 0 300 60"
+                preserveAspectRatio="none"
+                overflow="visible"
+              >
+                <defs>
+                  <filter id="vine-glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="1.2" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
+                  <filter id="vine-glow-strong" x="-60%" y="-60%" width="220%" height="220%">
+                    <feGaussianBlur stdDeviation="2.2" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
+                  <filter id="vine-orb-blur" x="-100%" y="-100%" width="300%" height="300%">
+                    <feGaussianBlur stdDeviation="18" />
+                  </filter>
+                </defs>
+
+                {/* Ambient emerald glow orb — baked into SVG, no extra div */}
+                <ellipse cx="30" cy="15" rx="80" ry="30"
+                  fill="#34d399" filter="url(#vine-orb-blur)"
+                  className="plat-orb" />
+
+                {/* ── TOP-LEFT CLUSTER ── */}
+                <path d="M 0,0 C 18,8 32,18 52,27"
+                  fill="none" stroke="#34d399" strokeWidth="0.9"
+                  strokeDasharray="300" filter="url(#vine-glow-strong)" className="vtl-m" />
+                <path d="M 24,13 C 34,7 48,9 62,5"
+                  fill="none" stroke="#6ee7b7" strokeWidth="0.6"
+                  strokeDasharray="150" filter="url(#vine-glow)" className="vtl-b1" />
+                <path d="M 38,22 C 35,34 24,44 20,58"
+                  fill="none" stroke="#2dd4bf" strokeWidth="0.55"
+                  strokeDasharray="150" filter="url(#vine-glow)" className="vtl-b2" />
+
+                {/* ── TOP-RIGHT CLUSTER ── */}
+                <path d="M 300,0 C 282,8 268,18 248,27"
+                  fill="none" stroke="#34d399" strokeWidth="0.9"
+                  strokeDasharray="300" filter="url(#vine-glow-strong)" className="vtr-m" />
+                <path d="M 276,13 C 266,7 252,9 238,5"
+                  fill="none" stroke="#6ee7b7" strokeWidth="0.6"
+                  strokeDasharray="150" filter="url(#vine-glow)" className="vtr-b1" />
+                <path d="M 262,22 C 265,34 276,44 280,58"
+                  fill="none" stroke="#a7f3d0" strokeWidth="0.55"
+                  strokeDasharray="150" filter="url(#vine-glow)" className="vtr-b2" />
+
+                {/* ── BOTTOM-LEFT CLUSTER ── */}
+                <path d="M 0,60 C 18,52 32,42 52,33"
+                  fill="none" stroke="#2dd4bf" strokeWidth="0.85"
+                  strokeDasharray="300" filter="url(#vine-glow-strong)" className="vbl-m" />
+                <path d="M 26,47 C 36,53 50,51 62,58"
+                  fill="none" stroke="#6ee7b7" strokeWidth="0.55"
+                  strokeDasharray="150" filter="url(#vine-glow)" className="vbl-b1" />
+
+                {/* ── BOTTOM-RIGHT CLUSTER ── */}
+                <path d="M 300,60 C 282,52 268,42 248,33"
+                  fill="none" stroke="#2dd4bf" strokeWidth="0.85"
+                  strokeDasharray="300" filter="url(#vine-glow-strong)" className="vbr-m" />
+                <path d="M 274,47 C 264,53 250,51 238,58"
+                  fill="none" stroke="#a7f3d0" strokeWidth="0.55"
+                  strokeDasharray="150" filter="url(#vine-glow)" className="vbr-b1" />
+
+                {/* ── CENTRE TENDRIL ── */}
+                <path d="M 150,0 C 148,12 155,24 150,36"
+                  fill="none" stroke="#34d399" strokeWidth="0.45"
+                  strokeDasharray="300" filter="url(#vine-glow)" className="vc-m" />
+              </svg>
+            </>
+          )}
+
+          {/* ===== DIAMOND: Deep Space / Stardust ===== */}
+          {isDiamond && (
+            <>
+              <style>{`
+                /* Horizontal drift for star layers */
+                @keyframes stardust-drift-fast {
+                  0%   { transform: translateX(110%); }
+                  100% { transform: translateX(-110%); }
+                }
+                @keyframes stardust-drift-med {
+                  0%   { transform: translateX(110%); }
+                  100% { transform: translateX(-110%); }
+                }
+                @keyframes stardust-drift-slow {
+                  0%   { transform: translateX(100%); }
+                  100% { transform: translateX(-100%); }
+                }
+                /* Twinkle effect */
+                @keyframes star-twinkle {
+                  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+                  50%      { opacity: 1; transform: scale(1.2); }
+                }
+                /* CSS Gradient Aurora Breath */
+                @keyframes dia-aurora-breath-css {
+                  0%, 100% { opacity: 0.15; transform: scale(1); }
+                  50%      { opacity: 0.25; transform: scale(1.15); }
+                }
+                
+                .drift-fast { animation: stardust-drift-fast 15s linear infinite; }
+                .drift-med  { animation: stardust-drift-med 25s linear infinite; }
+                .drift-slow { animation: stardust-drift-slow 40s linear infinite; }
+                
+                .twinkle-1 { animation: star-twinkle 3s ease-in-out infinite; }
+                .twinkle-2 { animation: star-twinkle 4s ease-in-out infinite 1.5s; }
+                .twinkle-3 { animation: star-twinkle 5s ease-in-out infinite 0.8s; }
+                
+                .dia-aurora-css { animation: dia-aurora-breath-css 8s ease-in-out infinite; pointer-events: none; }
+              `}</style>
+
+              {/* Soft ambient nebulas — pure CSS gradients to avoid SVG compositing bugs and harsh lines */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[inherit] mix-blend-screen">
+                <div className="dia-aurora-css absolute -top-10 -left-10 w-64 h-32 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-400 via-cyan-500/10 to-transparent blur-xl" />
+                <div className="dia-aurora-css absolute top-0 right-0 w-64 h-32 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-500 via-blue-600/10 to-transparent blur-xl" style={{ animationDelay: '4s' }} />
+              </div>
+
+              {/* Stardust SVG */}
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none mix-blend-screen"
+                viewBox="0 0 300 60"
+                preserveAspectRatio="none"
+                overflow="visible"
+              >
+                <defs>
+                  <filter id="dia-glow" x="-100%" y="-100%" width="300%" height="300%">
+                    <feGaussianBlur stdDeviation="1" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
+                </defs>
+
+                {/* SLOW LAYER (Background, tiny stars) */}
+                <g className="drift-slow">
+                  <circle cx="20" cy="15" r="0.4" fill="#67e8f9" className="twinkle-1" style={{ transformOrigin: '20px 15px' }} />
+                  <circle cx="80" cy="45" r="0.5" fill="#93c5fd" className="twinkle-2" style={{ transformOrigin: '80px 45px' }} />
+                  <circle cx="150" cy="10" r="0.4" fill="#a5f3fc" className="twinkle-3" style={{ transformOrigin: '150px 10px' }} />
+                  <circle cx="210" cy="50" r="0.6" fill="#60a5fa" className="twinkle-1" style={{ transformOrigin: '210px 50px' }} />
+                  <circle cx="280" cy="25" r="0.4" fill="#bae6fd" className="twinkle-2" style={{ transformOrigin: '280px 25px' }} />
+                </g>
+
+                {/* MEDIUM LAYER (Midground, slightly larger stars) */}
+                <g className="drift-med">
+                  <circle cx="40" cy="35" r="0.8" fill="#22d3ee" className="twinkle-3" filter="url(#dia-glow)" style={{ transformOrigin: '40px 35px' }} />
+                  <circle cx="120" cy="15" r="0.7" fill="#38bdf8" className="twinkle-1" filter="url(#dia-glow)" style={{ transformOrigin: '120px 15px' }} />
+                  <circle cx="190" cy="40" r="0.8" fill="#7dd3fc" className="twinkle-2" filter="url(#dia-glow)" style={{ transformOrigin: '190px 40px' }} />
+                  <circle cx="260" cy="12" r="0.6" fill="#2dd4bf" className="twinkle-3" filter="url(#dia-glow)" style={{ transformOrigin: '260px 12px' }} />
+                </g>
+
+                {/* FAST LAYER (Foreground, distinct bright stars + light sparks) */}
+                <g className="drift-fast">
+                  <path d="M 50,20 L 51,18 L 52,20 L 51,22 Z" fill="#cffafe" className="twinkle-1" filter="url(#dia-glow)" style={{ transformOrigin: '51px 20px' }} />
+                  <path d="M 160,35 L 161.5,32 L 163,35 L 161.5,38 Z" fill="#e0f2fe" className="twinkle-2" filter="url(#dia-glow)" style={{ transformOrigin: '161.5px 35px' }} />
+                  <path d="M 230,25 L 231,23 L 232,25 L 231,27 Z" fill="#99f6e4" className="twinkle-3" filter="url(#dia-glow)" style={{ transformOrigin: '231px 25px' }} />
+                  <circle cx="90" cy="10" r="1.2" fill="#22d3ee" className="twinkle-2" filter="url(#dia-glow)" style={{ transformOrigin: '90px 10px' }} />
+                  <circle cx="280" cy="45" r="1.1" fill="#38bdf8" className="twinkle-1" filter="url(#dia-glow)" style={{ transformOrigin: '280px 45px' }} />
+                </g>
+              </svg>
+            </>
+          )}
+
+          {/* ===== LEGEND: Lightning Strikes — Always On ===== */}
+          {isLegend && (
+            <svg className="absolute inset-0 w-full h-full mix-blend-screen" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <style>
+                {`
+                  @keyframes lightning-flicker {
+                    0%, 86%, 100% { opacity: 0; }
+                    2%  { opacity: 0.9; stroke-width: 1; filter: drop-shadow(0 0 6px currentColor); }
+                    4%  { opacity: 0.15; }
+                    6%  { opacity: 0.85; stroke-width: 1.1; }
+                    8%  { opacity: 0.1; }
+                    10% { opacity: 1;   stroke-width: 1.3; filter: drop-shadow(0 0 10px currentColor); }
+                    14% { opacity: 0; }
+                  }
+                  .lightning-1 { animation: lightning-flicker 3.5s infinite; }
+                  .lightning-2 { animation: lightning-flicker 4.5s infinite 1s; }
+                  .lightning-3 { animation: lightning-flicker 5s   infinite 2.8s; }
+                `}
+              </style>
+              <path d="M15,0 L5,35 L12,42 L0,100" fill="none" stroke="#d946ef" strokeWidth="0.6" filter="drop-shadow(0 0 5px #d946ef)" className="lightning-1" />
+              <path d="M85,0 L95,30 L88,38 L100,100" fill="none" stroke="#c084fc" strokeWidth="0.7" filter="drop-shadow(0 0 6px #c084fc)" className="lightning-2" />
+              <path d="M45,-5 L35,50 L42,55 L25,110" fill="none" stroke="#e879f9" strokeWidth="0.5" filter="drop-shadow(0 0 4px #e879f9)" className="lightning-3" />
+            </svg>
+          )}
+        </div>
+      )}
+
+      {/* Default hover overlay for non-premium */}
+      {!isPremium && (
+        <div className="absolute inset-0 bg-gradient-to-br from-theme-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      )}
+
+      {/* Inner Container */}
+      <div className="flex flex-row items-center justify-between gap-4 w-full relative z-10 flex-nowrap">
+
+        {/* Left side: Avatar, Status */}
+        <div className="flex flex-row items-center gap-3 sm:gap-4 min-w-0 flex-1">
+          <div className="relative shrink-0">
+            <img src={photoURL || `https://ui-avatars.com/api/?name=${displayName}&background=random`} alt={displayName}
+              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover shadow-sm
+                ${isLegend ? 'border-2 border-fuchsia-400/70 shadow-[0_0_10px_rgba(217,70,239,0.4)]'
+                  : isDiamond ? 'border-2 border-cyan-400/60 shadow-[0_0_8px_rgba(34,211,238,0.35)]'
+                    : isPlatinum ? 'border-2 border-emerald-400/60 shadow-[0_0_7px_rgba(52,211,153,0.3)]'
+                      : 'border border-theme-border'}`}
+            />
+            {/* Online pulse ring for premium tiers */}
+            {isPremium && presence?.isOnline && (
+              <div className={`absolute inset-0 rounded-full animate-ping opacity-20
+                ${isLegend ? 'border-2 border-fuchsia-400' : isDiamond ? 'border-2 border-cyan-400' : 'border-2 border-emerald-400'}`}
+              />
+            )}
+          </div>
+
+          <div className="min-w-0 flex flex-col gap-0.5 sm:gap-1 text-left">
+            <p className={`font-black truncate text-sm sm:text-base
+              ${isLegend ? 'text-fuchsia-100' : isDiamond ? 'text-cyan-100' : isPlatinum ? 'text-emerald-100' : 'text-theme-text'}`}>
+              {displayName}
+            </p>
+            <div className={`flex items-center gap-1.5 text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md w-fit ${status.color}`}>
               {status.icon}
-              <span>{status.text}</span>
+              <span className="truncate uppercase tracking-wider">{status.text}</span>
             </div>
           </div>
-          {/* Daily focus time removed for maintenance */}
         </div>
+
+        {/* Right side: Rank Text and Badge */}
+        <div className="shrink-0 flex items-center justify-end gap-3 sm:gap-4 pl-2">
+          <div className="flex flex-col text-right opacity-90 truncate items-end">
+            <span className={`text-[11px] sm:text-[13px] font-black uppercase tracking-widest leading-none ${details.color} drop-shadow-sm truncate`}>{details.tier}</span>
+            <span className="text-[9px] sm:text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest mt-1 truncate">
+              {details.subTier ? `Tier ${details.subTier}` : `Level ${level}`}
+            </span>
+          </div>
+          <RankBadge level={level} size="md" showLevelNumber={false}
+            className={`scale-75 sm:scale-100 drop-shadow-sm transition-all
+              ${isPremium ? 'opacity-100 group-hover:scale-110 group-hover:drop-shadow-[0_0_8px_currentColor]' : 'opacity-90 group-hover:opacity-100 group-hover:scale-110'}`}
+          />
+        </div>
+
       </div>
     </Card>
   );
 };
 
-const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
-  const [activeTab, setActiveTab] = useState<'friends' | 'requests' | 'add'>('friends');
+
+
+
+const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile, onAddTestXp, onMinusTestXp, onOpenRankSystem }) => {
+  const [activeTab, setActiveTab] = useState<'friends' | 'leaderboard' | 'requests' | 'add'>('friends');
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [presences, setPresences] = useState<Record<string, PresenceState>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -175,6 +480,49 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
 
   const [isCopied, setIsCopied] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<{ friend: Friend, profile: UserProfile | null } | null>(null);
+
+  const [fetchedRanks, setFetchedRanks] = useState<Record<string, number>>({});
+  const [isRefreshingRanks, setIsRefreshingRanks] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (cooldownRemaining > 0) {
+      interval = setInterval(() => {
+        setCooldownRemaining(prev => Math.max(0, prev - 1));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [cooldownRemaining]);
+
+  const handleRefreshRanks = async () => {
+    if (cooldownRemaining > 0) return;
+
+    setIsRefreshingRanks(true);
+    try {
+      const fetches = friends.map(async (friend) => {
+        const docRef = doc(db, 'users', friend.uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data() as UserProfile;
+          return { uid: friend.uid, xp: data.xp || 0 };
+        }
+        return { uid: friend.uid, xp: 0 };
+      });
+
+      const results = await Promise.all(fetches);
+      const newRanks: Record<string, number> = {};
+      results.forEach(r => {
+        newRanks[r.uid] = r.xp;
+      });
+      setFetchedRanks(prev => ({ ...prev, ...newRanks }));
+      setCooldownRemaining(120); // 2 minutes
+    } catch (error) {
+      console.error("Failed to refresh ranks:", error);
+    } finally {
+      setIsRefreshingRanks(false);
+    }
+  };
 
   // Fetch initial data
   useEffect(() => {
@@ -246,6 +594,7 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
       unsubscribers.forEach(unsub => unsub());
     };
   }, [friends]);
+
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -375,23 +724,21 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
         </p>
       </div>
 
-      <div className="p-4 bg-theme-bg-tertiary rounded-2xl border border-theme-border flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary">Your Friend Code</p>
-          <p className="text-lg font-mono font-bold text-theme-text">{userProfile.friendCode}</p>
-        </div>
-        <button onClick={handleCopyCode} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-theme-accent text-theme-text-on-accent rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg hover:opacity-90 transition-all active:scale-95">
-          {isCopied ? <Check size={16} /> : <Copy size={16} />}
-          {isCopied ? 'Copied!' : 'Copy Code'}
-        </button>
-      </div>
+      <UserIdCard
+        profile={userProfile}
+        onAddTestXp={onAddTestXp}
+        onMinusTestXp={onMinusTestXp}
+        onCopyCode={handleCopyCode}
+        isCopied={isCopied}
+        onOpenRankSystem={onOpenRankSystem}
+      />
 
       <div className="flex bg-theme-bg-tertiary p-1 rounded-xl border border-theme-border">
-        <button onClick={() => setActiveTab('friends')} className={`relative flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'friends' ? 'bg-theme-card shadow-sm text-theme-text' : 'text-theme-text-secondary hover:text-theme-text'}`}>Friends</button>
-        <button onClick={() => setActiveTab('requests')} className={`relative flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'requests' ? 'bg-theme-card shadow-sm text-theme-text' : 'text-theme-text-secondary hover:text-theme-text'}`}>
-          Requests {requests.length > 0 && <span className="absolute top-1 right-2 w-4 h-4 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center">{requests.length}</span>}
+        <button onClick={() => setActiveTab('friends')} className={`relative flex-1 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'friends' ? 'bg-theme-card shadow-sm text-theme-text' : 'text-theme-text-secondary hover:text-theme-text'}`}>Friends</button>
+        <button onClick={() => setActiveTab('requests')} className={`relative flex-1 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'requests' ? 'bg-theme-card shadow-sm text-theme-text' : 'text-theme-text-secondary hover:text-theme-text'}`}>
+          Requests {requests.length > 0 && <span className="absolute top-1 right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-rose-500 text-white text-[9px] sm:text-[10px] rounded-full flex items-center justify-center shadow-lg">{requests.length}</span>}
         </button>
-        <button onClick={() => setActiveTab('add')} className={`relative flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'add' ? 'bg-theme-card shadow-sm text-theme-text' : 'text-theme-text-secondary hover:text-theme-text'}`}>Add Friend</button>
+        <button onClick={() => setActiveTab('add')} className={`relative flex-1 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'add' ? 'bg-theme-card shadow-sm text-theme-text' : 'text-theme-text-secondary hover:text-theme-text'}`}>Add</button>
       </div>
 
       <AnimatePresence mode="wait">
@@ -404,14 +751,40 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
         >
           {activeTab === 'friends' && (
             <div className="space-y-4">
+              {friends.length > 0 && (
+                <div className="flex gap-2 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-secondary w-4 h-4" />
+                    <input
+                      type="text"
+                      placeholder="Search friends by name..."
+                      value={friendSearchQuery}
+                      onChange={(e) => setFriendSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-theme-bg-tertiary border border-theme-border rounded-xl text-sm focus:outline-none focus:border-theme-accent text-theme-text placeholder-theme-text-secondary"
+                    />
+                  </div>
+                  <button
+                    onClick={handleRefreshRanks}
+                    disabled={isRefreshingRanks || cooldownRemaining > 0}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-theme-bg-tertiary border border-theme-border rounded-xl text-theme-text-secondary hover:text-theme-text hover:border-theme-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Refresh Ranks (2 min cooldown)"
+                  >
+                    <RefreshCw size={18} className={isRefreshingRanks ? 'animate-spin' : ''} />
+                    <span className="hidden sm:inline text-sm font-bold uppercase tracking-wider">
+                      {isRefreshingRanks ? 'Refreshing...' : cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s` : 'Refresh Ranks'}
+                    </span>
+                  </button>
+                </div>
+              )}
               {isLoading ? <div className="text-center py-10"><Loader2 className="animate-spin text-theme-accent mx-auto" /></div> :
                 friends.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {friends.map(friend => (
+                    {friends.filter(f => f.displayName.toLowerCase().includes(friendSearchQuery.toLowerCase())).map(friend => (
                       <FriendCard
                         key={friend.uid}
                         friend={friend}
                         presence={presences[friend.uid] || null}
+                        fetchedXp={fetchedRanks[friend.uid]}
                         onClick={(f, p) => setSelectedFriend({ friend: f, profile: p })}
                       />
                     ))}
@@ -425,6 +798,7 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
                 )}
             </div>
           )}
+
           {activeTab === 'requests' && (
             <div className="space-y-4">
               {requests.length > 0 ? (
@@ -503,8 +877,57 @@ const StudyBuddy: React.FC<StudyBuddyProps> = ({ user, userProfile }) => {
   );
 };
 
-const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Friend, profile: UserProfile | null, presence: PresenceState | null, onClose: () => void }) => {
-  const [timeframe, setTimeframe] = useState<'daily' | 'weekly' | 'yearly'>('daily');
+const FriendStatsModal = ({ friend, profile: initialProfile, presence, onClose }: { friend: Friend, profile: UserProfile | null, presence: PresenceState | null, onClose: () => void }) => {
+  const [timeframe, setTimeframe] = useState<'daily' | 'weekly'>('weekly');
+  const [profile, setProfile] = useState<UserProfile | null>(initialProfile);
+  const [friendSessions, setFriendSessions] = useState<Session[]>([]);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(!initialProfile);
+
+  // Fetch full profile if we only have the basic friend data or it's missing deep stats
+  useEffect(() => {
+    let unsubscribeSessions: (() => void) | null = null;
+
+    const fetchProfileAndSessions = async () => {
+      setIsLoadingProfile(true);
+      try {
+        if (friend.uid) {
+          // Subscribe to sessions to get the true focus time and subject splits
+          // We limit to the last 50 for performance to only load the recent subject breakdown.
+          // Total focus times are now pulled directly from the RTDB presence to save reads!
+          const sessionsQuery = query(
+            collection(db, 'users', friend.uid, 'sessions'),
+            orderBy('timestamp', 'desc'),
+            limit(50) // <-- THE CRITICAL FIX: Limit to 50 reads
+          );
+          unsubscribeSessions = onSnapshot(sessionsQuery, (snapshot) => {
+            setFriendSessions(snapshot.docs.map(d => d.data() as Session));
+          }
+          );
+
+          // Fetch the deep profile if missing
+          if (!initialProfile || initialProfile.xp === undefined) {
+            const profileRef = doc(db, 'users', friend.uid);
+            const snap = await getDoc(profileRef);
+            if (snap.exists()) {
+              setProfile(snap.data() as UserProfile);
+            }
+          } else {
+            setProfile(initialProfile);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch friend profile/sessions:", e);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchProfileAndSessions();
+    return () => {
+      if (unsubscribeSessions) unsubscribeSessions();
+    }
+  }, [initialProfile, friend.uid]);
+
   const displayName = profile?.studyBuddyUsername || friend.displayName;
   const photoURL = profile?.photoURL || friend.photoURL;
 
@@ -518,7 +941,7 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
 
   const formatHoursOnly = (seconds?: number) => {
     if (!seconds) return '0 hrs';
-    const h = (seconds / 3600).toFixed(1);
+    const h = Math.floor(seconds / 3600);
     return `${h} hrs`;
   };
 
@@ -533,13 +956,55 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
 
   const status = getStatusFull();
 
-  // Calculate active split based on selected timeframe
-  const activeSplit = timeframe === 'daily' ? (presence?.dailySubjectSplit || {})
-    : timeframe === 'weekly' ? (presence?.weeklySubjectSplit || {})
-      : (presence?.yearlySubjectSplit || presence?.subjectSplit || {});
+  const currentWeek = getCurrentISOWeek();
+  const weeklyXp = profile?.currentXpWeek === currentWeek
+    ? Math.max(0, (profile?.xp || 0) - (profile?.lastWeekXp || 0))
+    : (profile?.currentXpWeek ? 0 : (profile?.xp || 0)); // Fallback if they haven't logged in a while or legacy
 
-  // Calculate total focus time for percentages
-  const totalSubjectSeconds = Object.values(activeSplit).reduce((a, b) => a + b, 0);
+  const { progressPercent, nextLevelXp } = getXPProgress(profile?.xp || 0);
+
+  // Accurate Total Focus are now pulled directly from RTDB Presence! (Zero Reads)
+  // We use the limited 50 session history *only* to calculate the subject split.
+  const computedSplits = useMemo(() => {
+    const dSplit: Record<string, number> = {};
+    const wSplit: Record<string, number> = {};
+
+    const now = new Date();
+    const todayStart = new Date(now).setHours(0, 0, 0, 0);
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekStartMs = weekStart.getTime();
+    const weekEndMs = weekStartMs + 7 * 24 * 60 * 60 * 1000;
+
+    friendSessions.forEach(session => {
+      const sub = session.subject || 'Other';
+      if (sub.toLowerCase().includes('break')) return;
+      if (profile?.stream && session.stream && session.stream !== profile.stream) return;
+
+      const dur = session.duration || 0;
+      const ts = session.timestamp;
+
+      if (ts >= weekStartMs && ts < weekEndMs) wSplit[sub] = (wSplit[sub] || 0) + dur;
+      if (ts >= todayStart) dSplit[sub] = (dSplit[sub] || 0) + dur;
+    });
+
+    return { dSplit, wSplit };
+  }, [friendSessions, profile?.stream]);
+
+  // Calculate active split based on selected timeframe
+  const activeSplit: Record<string, number> = timeframe === 'daily' ? computedSplits.dSplit
+    : computedSplits.wSplit;
+
+  // The Top Cards will simply display the sum of whatever timeframe split is active.
+  // This guarantees that the top totals perfectly match the breakdown below!
+  const dSplitSum = Object.values(computedSplits.dSplit).reduce((a, b) => a + b, 0);
+  const wSplitSum = Object.values(computedSplits.wSplit).reduce((a, b) => a + b, 0);
+
+  const calculatedDailyTime = dSplitSum;
+  const calculatedWeeklyTime = wSplitSum;
+
+  const totalSubjectSeconds = Object.values(activeSplit).reduce((a: number, b: number) => a + b, 0);
 
   // Premium color palette for subjects
   const subjectColors = [
@@ -565,10 +1030,15 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
 
         <div className="p-6 pt-12 flex flex-col items-center">
           {/* Avatar Profile Picture */}
-          <div className="relative mb-3 group pt-4">
-            <div className="absolute inset-0 bg-theme-accent/30 rounded-full blur-2xl scale-110 opacity-0 group-hover:opacity-100 transition-opacity duration-500 translate-y-4" />
-            <img src={photoURL || `https://ui-avatars.com/api/?name=${displayName}&background=random`} alt={displayName} className="w-28 h-28 rounded-full object-cover shadow-2xl border-[3px] border-white dark:border-[#1a1c23] relative z-10 transition-transform duration-500 group-hover:scale-105" />
-            {presence?.isOnline && <div className="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-[3px] border-white dark:border-[#1a1c23] rounded-full z-20 shadow-lg" />}
+          <div className="relative mb-3 group pt-4 w-full flex justify-center">
+            <div className="absolute inset-x-0 bottom-0 top-10 bg-theme-accent/20 rounded-full blur-3xl scale-125 opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
+
+            <div className="relative">
+              <img src={photoURL || `https://ui-avatars.com/api/?name=${displayName}&background=random`} alt={displayName} className="w-28 h-28 rounded-full object-cover shadow-2xl border-[4px] border-white dark:border-[#1a1c23] relative z-20 transition-transform duration-500 group-hover:scale-105" />
+              <div className="absolute -bottom-4 -right-6 z-30">
+                <RankBadge level={getLevelFromXP(profile?.xp || 0)} size="lg" showLevelNumber={true} />
+              </div>
+            </div>
           </div>
 
           {/* Name and ID */}
@@ -585,27 +1055,67 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
           </div>
 
           {/* Main Stats Grid - Glassmorphism floating cards */}
-          <div className="w-full grid grid-cols-3 gap-3 mb-8">
+          <div className="w-full grid grid-cols-2 gap-3 mb-8">
             <div
               onClick={() => setTimeframe('daily')}
               className={`backdrop-blur-md p-4 rounded-3xl border flex flex-col items-center justify-center text-center group transition-all duration-300 cursor-pointer ${timeframe === 'daily' ? 'bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/10 hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-500/10 hover:border-emerald-500/30'}`}>
               <Clock size={22} className={`mb-2 drop-shadow-[0_0_10px_rgba(16,185,129,0.4)] transition-transform ${timeframe === 'daily' ? 'text-emerald-400 scale-110' : 'text-emerald-500 group-hover:scale-110'}`} />
               <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-0.5 opacity-80">Today</p>
-              <p className="text-lg font-black text-theme-text tracking-tight">{STATS_MAINTENANCE_MODE ? '--h --m' : formatTimeFull(presence?.dailyFocusTime)}</p>
+              <p className="text-lg font-black text-theme-text tracking-tight">{formatTimeFull(calculatedDailyTime)}</p>
             </div>
             <div
               onClick={() => setTimeframe('weekly')}
               className={`backdrop-blur-md p-4 rounded-3xl border flex flex-col items-center justify-center text-center group transition-all duration-300 cursor-pointer ${timeframe === 'weekly' ? 'bg-indigo-500/10 border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)]' : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/10 hover:-translate-y-1 hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-500/30'}`}>
               <CalendarDays size={22} className={`mb-2 drop-shadow-[0_0_10px_rgba(99,102,241,0.4)] transition-transform ${timeframe === 'weekly' ? 'text-indigo-400 scale-110' : 'text-indigo-500 group-hover:scale-110'}`} />
               <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-0.5 opacity-80">This Week</p>
-              <p className="text-lg font-black text-theme-text tracking-tight">{STATS_MAINTENANCE_MODE ? '-- hrs' : formatHoursOnly(presence?.weeklyFocusTime)}</p>
+              <p className="text-lg font-black text-theme-text tracking-tight">{formatHoursOnly(calculatedWeeklyTime)}</p>
             </div>
-            <div
-              onClick={() => setTimeframe('yearly')}
-              className={`backdrop-blur-md p-4 rounded-3xl border flex flex-col items-center justify-center text-center group transition-all duration-300 cursor-pointer ${timeframe === 'yearly' ? 'bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/10 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-500/10 hover:border-amber-500/30'}`}>
-              <Flame size={22} className={`mb-2 drop-shadow-[0_0_10px_rgba(245,158,11,0.4)] transition-transform ${timeframe === 'yearly' ? 'text-amber-400 scale-110' : 'text-amber-500 group-hover:scale-110'}`} />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-0.5 opacity-80">This Year</p>
-              <p className="text-lg font-black text-theme-text tracking-tight">{STATS_MAINTENANCE_MODE ? '-- hrs' : formatHoursOnly(presence?.yearlyFocusTime ?? (presence?.subjectSplit ? Object.values(presence.subjectSplit).reduce((a, b) => a + b, 0) : 0))}</p>
+          </div>
+
+          {/* New Stats Bar: Streaks and Weekly XP */}
+          <div className="w-full grid grid-cols-2 gap-3 mb-4">
+            <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl p-3 flex items-center gap-3">
+              <div className="p-2 bg-orange-500/10 rounded-xl text-orange-500">
+                <Flame size={16} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-0.5">Current Streak</span>
+                <span className="text-lg font-black text-theme-text leading-none">{profile?.currentStreak || 0}</span>
+              </div>
+            </div>
+            <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl p-3 flex items-center gap-3">
+              <div className="p-2 bg-yellow-500/10 rounded-xl text-yellow-500">
+                <Trophy size={16} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-theme-text-secondary mb-0.5">Max Streak</span>
+                <span className="text-lg font-black text-theme-text leading-none">{profile?.maxStreak || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* XP Progress Bar */}
+          <div className="w-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl p-4 mb-8">
+            <div className="flex justify-between items-end mb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-cyan-500" />
+                <span className="text-xs font-bold uppercase tracking-widest text-theme-text-secondary">Level Progress</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm font-black text-theme-text">{profile?.xp || 0}</span>
+                <span className="text-[10px] font-medium text-theme-text-secondary">/ {nextLevelXp} XP</span>
+              </div>
+            </div>
+
+            <div className="w-full h-2.5 bg-black/10 dark:bg-black/40 rounded-full overflow-hidden relative shadow-inner mb-2">
+              <div
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-theme-accent to-cyan-400 rounded-full transition-all duration-1000 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="flex justify-between items-center">
+              <p className="text-[10px] text-theme-text-secondary font-medium">Gained <span className="text-theme-text font-bold text-xs">{weeklyXp} XP</span> this week</p>
+              <p className="text-[10px] text-theme-text-secondary font-medium opacity-60">Resets Sunday</p>
             </div>
           </div>
 
@@ -618,10 +1128,15 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
               <h4 className="text-xs font-black text-theme-text uppercase tracking-widest">Subject Breakdown</h4>
             </div>
 
-            {(STATS_MAINTENANCE_MODE || !activeSplit || Object.keys(activeSplit).length === 0) ? (
+            {(isLoadingProfile) ? (
               <div className="text-center py-8 bg-black/5 dark:bg-white/5 rounded-3xl border border-black/10 dark:border-white/10 border-dashed backdrop-blur-sm">
-                <p className="text-sm font-bold text-theme-text-secondary">{STATS_MAINTENANCE_MODE ? 'Stats Paused for Maintenance' : `No subjects tracked ${timeframe === 'daily' ? 'today' : timeframe === 'weekly' ? 'this week' : 'this year'}.`}</p>
-                <p className="text-[11px] text-theme-text-secondary/70 mt-1">{STATS_MAINTENANCE_MODE ? 'Detailed breakdowns are temporarily disabled.' : "Their studying stats will appear here."}</p>
+                <Loader2 size={24} className="animate-spin text-theme-accent mx-auto mb-2" />
+                <p className="text-sm font-bold text-theme-text-secondary">Loading deep stats...</p>
+              </div>
+            ) : (!activeSplit || Object.keys(activeSplit).length === 0) ? (
+              <div className="text-center py-8 bg-black/5 dark:bg-white/5 rounded-3xl border border-black/10 dark:border-white/10 border-dashed backdrop-blur-sm">
+                <p className="text-sm font-bold text-theme-text-secondary">No subjects tracked {timeframe === 'daily' ? 'today' : timeframe === 'weekly' ? 'this week' : 'this year'}.</p>
+                <p className="text-[11px] text-theme-text-secondary/70 mt-1">Their studying stats will appear here.</p>
               </div>
             ) : (
               <div className="space-y-4 p-5 bg-black/5 dark:bg-white/5 rounded-3xl border border-black/5 dark:border-white/10 backdrop-blur-sm shadow-inner overflow-hidden relative">
@@ -653,21 +1168,6 @@ const FriendStatsModal = ({ friend, profile, presence, onClose }: { friend: Frie
               </div>
             )}
           </div>
-
-          {/* Overlay to block stats during maintenance */}
-          {STATS_MAINTENANCE_MODE && (
-            <div className="absolute inset-0 bg-white/60 dark:bg-[#0f1117]/80 backdrop-blur-md z-30 flex flex-col items-center justify-center p-6 text-center rounded-3xl mt-[280px]">
-              <div className="p-3 bg-amber-500/10 rounded-full mb-4">
-                <Brain size={32} className="text-amber-500" />
-              </div>
-              <h4 className="text-lg font-bold text-theme-text mb-2">Upgrading Analytics Engine</h4>
-              <p className="text-sm text-theme-text-secondary max-w-[250px]">
-                Due to extremely high traffic, we are temporarily pausing detailed stats to keep the servers running smoothly for everyone.
-                <br /><br />
-                <b>Live status is still active!</b>
-              </p>
-            </div>
-          )}
 
         </div>
       </Card>

@@ -222,6 +222,14 @@ export interface UserProfile {
   photoURL: string | null;
   studyBuddyUsername?: string;
   friendCode?: string;
+  xp?: number;
+  level?: number;
+  currentStreak?: number;
+  maxStreak?: number;
+  currentXpWeek?: string; // e.g. "2024-W05"
+  lastWeekXp?: number;
+  lastWeekLevel?: number;
+  stream?: StreamType;
 }
 
 export interface FriendRequest {
@@ -252,4 +260,6 @@ export interface PresenceState {
   weeklySubjectSplit?: Record<string, number>;
   yearlySubjectSplit?: Record<string, number>;
   lastChanged: object; // serverTimestamp
+  xp?: number;
+  level?: number;
 }

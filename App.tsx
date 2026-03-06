@@ -58,7 +58,9 @@ import { StreamTransition } from './components/StreamTransition';
 import { TracklyLogo as TracklyLogoComponent } from './components/TracklyLogo';
 import { WelcomePage } from './components/WelcomePage';
 import { ConfirmationModal } from './components/ConfirmationModal';
+import { RankRulesModal } from './components/RankRulesModal';
 import { PatchNotesModal } from './components/PatchNotesModal';
+import { calculateStreak, calculateEarnedXP, getLevelFromXP, getCurrentISOWeek } from './utils/leveling';
 
 // Firebase Imports
 import { auth, db, rtdb, googleProvider, dbReadyPromise, logAnalyticsEvent } from './firebase';
@@ -402,6 +404,8 @@ export const App: React.FC = () => {
   const [customBackgroundAlign, setCustomBackgroundAlign] = useLocalStorage<'center' | 'top' | 'bottom'>('trackly_custom_bg_align', 'center');
   const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage('trackly_sidebar_collapsed', false);
   const [showSmartRecommendations, setShowSmartRecommendations] = useLocalStorage('trackly_smart_recommendations', true);
+  const [hasSeenRankedIntro, setHasSeenRankedIntro] = useLocalStorage('trackly_has_seen_ranked_intro', false);
+  const [showRankedIntroModal, setShowRankedIntroModal] = useState(false);
 
   // Analytics settings
   const [activityThresholds, setActivityThresholds] = useLocalStorage<ActivityThresholds>('trackly_activity_thresholds', {
@@ -645,6 +649,19 @@ export const App: React.FC = () => {
   const showWelcome = !isAuthLoading && !user && !isGuest;
 
   useEffect(() => {
+    // Only trigger once auth is loaded and user is at dashboard
+    if (isAuthLoading || showWelcome) return;
+
+    if (!hasSeenRankedIntro) {
+      // Small timeout to let the UI settle before popping the modal
+      const t = setTimeout(() => {
+        setShowRankedIntroModal(true);
+      }, 1000);
+      return () => clearTimeout(t);
+    }
+  }, [isAuthLoading, showWelcome, hasSeenRankedIntro]);
+
+  useEffect(() => {
     // Don't run on initial auth loading or on the welcome screen
     if (isAuthLoading || showWelcome) return;
 
@@ -732,16 +749,50 @@ export const App: React.FC = () => {
         profileUnsubscribe = onSnapshot(userDocRef,
           async (userDoc) => {
             if (userDoc.exists()) {
-              setUserProfile(userDoc.data() as UserProfile);
+              let profileData = userDoc.data() as UserProfile;
+              const currentWeek = getCurrentISOWeek();
+
+              // Check for Weekly Reset
+              if (profileData.currentXpWeek && profileData.currentXpWeek !== currentWeek) {
+                const updatedProfile = {
+                  ...profileData,
+                  lastWeekXp: profileData.xp || 0,
+                  lastWeekLevel: profileData.level || 1,
+                  xp: 0,
+                  level: 1,
+                  currentXpWeek: currentWeek
+                };
+                try {
+                  await setDoc(userDocRef, updatedProfile, { merge: true });
+                  profileData = updatedProfile;
+                } catch (e) {
+                  console.error("Error applying weekly reset:", e);
+                }
+              } else if (!profileData.currentXpWeek) {
+                // First time setting week
+                try {
+                  await setDoc(userDocRef, { currentXpWeek: currentWeek }, { merge: true });
+                  profileData.currentXpWeek = currentWeek;
+                } catch (e) {
+                  console.error("Error setting initial week:", e);
+                }
+              }
+
+              setUserProfile(profileData);
             } else {
               // Creating a minimal profile if it doesn't exist
+              const currentWeek = getCurrentISOWeek();
               const newProfile: UserProfile = {
                 uid: currentUser.uid,
                 displayName: currentUser.displayName || 'Anonymous User',
                 photoURL: currentUser.photoURL,
+                currentXpWeek: currentWeek,
+                xp: 0,
+                level: 1
               };
               try {
                 await setDoc(userDocRef, newProfile);
+                setUserProfile(newProfile); // explicitly set to fast-track UI
               } catch (e) {
                 console.error("Error creating user profile:", e);
               }
@@ -832,6 +883,8 @@ export const App: React.FC = () => {
     const statsUpdate: Record<string, any> = {
       isOnline: true,
       lastChanged: serverTimestamp(),
+      xp: userProfile?.xp || 0,
+      level: userProfile?.level || 1,
       ...cleanStatus,
     };
 
@@ -873,7 +926,7 @@ export const App: React.FC = () => {
     }
 
     update(presenceRef, statsUpdate);
-  }, [user, sessions]);
+  }, [user, sessions, userProfile?.xp, userProfile?.level]);
 
   useEffect(() => {
     if (!user) return;
@@ -927,6 +980,30 @@ export const App: React.FC = () => {
       updatePresence({}); // Empty payload just triggers the aggregate math and pushes to RTDB
     }
   }, [user, sessions, updatePresence]);
+
+  // Reactively push rank (level + xp) to RTDB whenever the user's profile updates.
+  // Always derive level from XP so friends see the correct rank even when the
+  // stored level field hasn't changed (e.g. XP change within same level).
+  useEffect(() => {
+    if (!user || userProfile?.xp == null) return;
+    const computedLevel = getLevelFromXP(userProfile.xp);
+    const userStatusRef = ref(rtdb, `/status/${user.uid}`);
+
+    // Ensure Weekly XP is pushed during normal heartbeat syncs as well
+    const currentWeek = getCurrentISOWeek();
+    const weeklyXp = userProfile.currentXpWeek === currentWeek
+      ? Math.max(0, userProfile.xp - (userProfile.lastWeekXp || 0))
+      : 0;
+
+    update(userStatusRef, {
+      xp: userProfile.xp,
+      level: computedLevel,
+      weeklyXp: weeklyXp > 0 ? weeklyXp : 0,
+      dailyFocusTime: userProfile.dailyFocusTime || 0,
+      weeklyFocusTime: userProfile.weeklyFocusTime || 0,
+      yearlyFocusTime: userProfile.yearlyFocusTime || 0
+    }).catch(() => { }); // fire-and-forget
+  }, [user, userProfile?.xp, userProfile?.currentXpWeek, userProfile?.lastWeekXp, userProfile?.dailyFocusTime, userProfile?.weeklyFocusTime, userProfile?.yearlyFocusTime]);
 
   useEffect(() => {
     const storedGuest = localStorage.getItem('trackly_is_guest');
@@ -1079,10 +1156,103 @@ export const App: React.FC = () => {
 
   const handleSaveSession = useCallback((newSession: Omit<Session, 'id' | 'timestamp' | 'stream'>) => {
     const session: Session = { ...newSession, id: generateUUID(), timestamp: Date.now(), stream };
-    setSessions(s => [session, ...s]);
-    if (user) setDoc(doc(db, 'users', user.uid, 'sessions', session.id), sanitizeForFirestore(session)).catch(console.error);
-    else if (isGuest) localStorage.setItem('trackly_guest_sessions', JSON.stringify([session, ...sessions]));
-  }, [user, isGuest, sessions, stream]);
+
+    // Optimistic state update
+    const updatedSessions = [session, ...sessions];
+    setSessions(updatedSessions);
+
+    if (user) {
+      setDoc(doc(db, 'users', user.uid, 'sessions', session.id), sanitizeForFirestore(session)).catch(console.error);
+
+      // Calculate XP and Streak Progress locally to avoid extra reads/writes
+      const { currentStreak, maxStreak } = calculateStreak(updatedSessions, streakGoal);
+      const earnedXp = calculateEarnedXP(session.duration || 0, currentStreak);
+
+      // --- Compute Load-On-Demand Aggregate Focus Times ---
+      const now = new Date();
+      const todayStart = new Date(now).setHours(0, 0, 0, 0);
+
+      const weekStart = new Date(now);
+      weekStart.setHours(0, 0, 0, 0);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekStartMs = weekStart.getTime();
+      const weekEndMs = weekStartMs + 7 * 24 * 60 * 60 * 1000;
+
+      let dailyFocusTime = 0;
+      let weeklyFocusTime = 0;
+
+      updatedSessions.forEach(s => {
+        const dur = s.duration || 0;
+        const ts = s.timestamp;
+        if (ts >= weekStartMs && ts < weekEndMs) weeklyFocusTime += dur;
+        if (ts >= todayStart) dailyFocusTime += dur;
+      });
+      // ---------------------------------------------------
+
+      // Piggyback XP onto UserProfile update
+      if (earnedXp > 0 || currentStreak > 0) {
+        const currentWeek = getCurrentISOWeek();
+        let baseXP = userProfile?.xp || 0;
+        let requiresReset = false;
+
+        let lastWeekXp = userProfile?.lastWeekXp;
+        let lastWeekLevel = userProfile?.lastWeekLevel;
+
+        // Perform weekly reset inline if the session spans across the reset point
+        if (userProfile?.currentXpWeek && userProfile.currentXpWeek !== currentWeek) {
+          requiresReset = true;
+          lastWeekXp = baseXP;
+          lastWeekLevel = userProfile?.level || 1;
+          baseXP = 0;
+        }
+
+        const newTotalXp = baseXP + earnedXp;
+        const newLevel = getLevelFromXP(newTotalXp);
+
+        // Optimistic UI Update for User Profile
+        setUserProfile(prev => prev ? {
+          ...prev,
+          xp: newTotalXp,
+          level: newLevel,
+          currentXpWeek: currentWeek,
+          ...(requiresReset && { lastWeekXp, lastWeekLevel })
+        } : prev);
+
+        // Save to Firebase
+        const updateData: any = {
+          xp: newTotalXp,
+          level: newLevel,
+          currentStreak: currentStreak,
+          maxStreak: maxStreak,
+          currentXpWeek: currentWeek,
+          dailyFocusTime,
+          weeklyFocusTime
+        };
+
+        if (requiresReset) {
+          updateData.lastWeekXp = lastWeekXp;
+          updateData.lastWeekLevel = lastWeekLevel;
+        }
+
+        setDoc(doc(db, 'users', user.uid), updateData, { merge: true }).catch(console.error);
+
+        // Immediately sync new level/xp and aggregates to Realtime DB 
+        // We push weeklyXp to RTDB so StudyBuddy doesn't need to read Firestore!
+        const safeLastWeekXp = lastWeekXp ?? 0;
+        const weeklyXp = requiresReset ? earnedXp : newTotalXp - safeLastWeekXp;
+
+        update(ref(rtdb, `/status/${user.uid}`), {
+          xp: newTotalXp,
+          level: newLevel,
+          weeklyXp: weeklyXp > 0 ? weeklyXp : 0,
+          dailyFocusTime,
+          weeklyFocusTime
+        }).catch(() => { });
+      }
+    } else if (isGuest) {
+      localStorage.setItem('trackly_guest_sessions', JSON.stringify(updatedSessions));
+    }
+  }, [user, isGuest, sessions, stream, streakGoal, userProfile]);
 
   const handleSaveTest = useCallback((newTest: Omit<TestResult, 'id' | 'timestamp' | 'stream'>) => {
     const test: TestResult = { ...newTest, id: generateUUID(), timestamp: Date.now(), stream };
@@ -1416,6 +1586,34 @@ export const App: React.FC = () => {
     }
   }, [user]);
 
+  const handleAddTestXp = useCallback(async () => {
+    if (!user || !userProfile) return;
+    const addedXp = 500;
+    const newTotalXp = (userProfile.xp || 0) + addedXp;
+    const newLevel = getLevelFromXP(newTotalXp);
+
+    setUserProfile(prev => prev ? { ...prev, xp: newTotalXp, level: newLevel } : prev);
+
+    await setDoc(doc(db, 'users', user.uid), {
+      xp: newTotalXp,
+      level: newLevel
+    }, { merge: true });
+  }, [user, userProfile]);
+
+  const handleMinusTestXp = useCallback(async () => {
+    if (!user || !userProfile) return;
+    const removedXp = 500;
+    const newTotalXp = Math.max(0, (userProfile.xp || 0) - removedXp);
+    const newLevel = getLevelFromXP(newTotalXp);
+
+    setUserProfile(prev => prev ? { ...prev, xp: newTotalXp, level: newLevel } : prev);
+
+    await setDoc(doc(db, 'users', user.uid), {
+      xp: newTotalXp,
+      level: newLevel
+    }, { merge: true });
+  }, [user, userProfile]);
+
   const toggleSidebar = useCallback(() => setSidebarCollapsed(p => !p), [setSidebarCollapsed]);
   const toggleSettings = useCallback(() => setIsSettingsOpen(p => !p), []);
   const toggleTutorial = useCallback(() => { setIsTutorialActive(true); setTutorialStep(0); }, []);
@@ -1467,9 +1665,9 @@ export const App: React.FC = () => {
                         }>
                           {view === 'daily' && <Dashboard sessions={sessionsForStream} targets={targets} quote={QUOTES[quoteIdx]} onDelete={handleDeleteSession} onRenameSession={handleRenameSession} goals={goals} setGoals={setGoals} onSaveSession={handleSaveSession} userName={userName} onOpenPrivacy={() => changeView('privacy')} subjects={currentSubjects} syllabus={currentSyllabus} countdowns={countdowns} onUpdateCountdowns={setCountdowns} />}
                           {view === 'planner' && <Planner targets={targets} onAdd={handleSaveTarget} onToggle={handleUpdateTarget} onDelete={handleDeleteTarget} />}
-                          {view === 'focus' && <FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} username={userName} streakGoal={streakGoal} onStreakGoalChange={setStreakGoal} />}
+                          {view === 'focus' && <FocusTimer timerState={timerState} sessions={sessionsForStream} onToggleTimer={handleTimerToggle} mode={timerMode} timeLeft={timeLeft} durations={timerDurations} onResetTimer={handleTimerReset} onCompleteSession={handleCompleteSession} onSwitchMode={handleModeSwitch} onUpdateDurations={handleDurationUpdate} syllabus={currentSyllabus} sessionCount={sessionCount} selectedSubject={selectedSubject} onSelectSubject={setSelectedSubject} activityThresholds={activityThresholds} onOpenSettings={toggleSettings} onStatusChange={updatePresence} username={userName} streakGoal={streakGoal} onStreakGoalChange={setStreakGoal} currentStreak={userProfile?.currentStreak || 0} />}
                           {view === 'tests' && <TestLog tests={testsForStream} onSave={handleSaveTest} onDelete={handleDeleteTest} syllabus={currentSyllabus} stream={stream} />}
-                          {view === 'friends' && <StudyBuddy user={user} userProfile={userProfile} />}
+                          {view === 'friends' && <StudyBuddy user={user} userProfile={userProfile} onAddTestXp={handleAddTestXp} onMinusTestXp={handleMinusTestXp} onOpenRankSystem={() => setShowRankedIntroModal(true)} />}
                           {view === 'analytics' && <Analytics sessions={sessionsForStream} isPro={isPro} onOpenUpgrade={() => setShowUpgradeModal(true)} stream={stream} syllabus={currentSyllabus} />}
                           {view === 'group-focus' && <VirtualLibrary user={user} userName={userName} onLogin={handleLogin} isPro={isPro} targets={targets} onCompleteTask={handleUpdateTarget} currentRoom={currentRoom} setCurrentRoom={setCurrentRoom} />}
                           {view === 'privacy' && <PrivacyPolicy onBack={() => changeView('daily')} />}
@@ -1495,6 +1693,8 @@ export const App: React.FC = () => {
               {!showWelcome && !isAuthLoading && <NotificationPermissionBanner />}
               {/* Patch notes — shown once per version after login or guest mode */}
               {!showWelcome && <PatchNotesModal />}
+              {/* Rank rules modal */}
+              <RankRulesModal isOpen={showRankedIntroModal} onClose={() => setShowRankedIntroModal(false)} />
             </>
           )}
         </div>
